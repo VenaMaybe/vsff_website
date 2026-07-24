@@ -187,7 +187,7 @@ const emit = defineEmits([
 					</p>
 
 					<p>
-						Also, since I want things to be a bit more unbiased, you guys (people who submit) will be responsible for 50% of the judging. (more deets on the flyer, but don't worry, you'll have plenty of time to read and judge!)
+						Also, since I want things to be a bit more unbiased, you guys (people who submit) will be responsible for 50% of the judging. (More deets on the flyer, but don't worry, you'll have plenty of time to read and judge!)
 					</p>
 				</div>
 

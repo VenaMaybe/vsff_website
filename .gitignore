@@ -35,3 +35,11 @@ testPDFs/
 # Uploads
 storage/uploads/*
 !storage/uploads/.gitkeep
+
+
+# Should auto deploy it!!!
+#
+# git add .
+# git commit -m "Describe the update"
+# git push
+#
