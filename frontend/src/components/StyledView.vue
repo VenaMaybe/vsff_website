@@ -1140,9 +1140,9 @@ const emit = defineEmits([
 
 	filter:
 		hue-rotate(5deg) /* shifts the resulting hue */
-		saturate(1)    /* reduces RGB intensity */
-		brightness(1)  /* darkens slightly */
-		contrast(1)    /* restores some separation */
+		/*saturate(1)     reduces RGB intensity */
+		/*brightness(1)   darkens slightly */
+		/*contrast(1)     restores some separation */
 		blur(10px);
 
 	transform: none;
