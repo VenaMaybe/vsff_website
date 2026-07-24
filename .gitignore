@@ -1,0 +1,37 @@
+# Environment variables and secrets
+.env
+.env.*
+!.env.example
+
+# Python
+backend/.venv/
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Flask
+instance/
+
+# Frontend
+node_modules/
+dist/
+
+# Editors and operating systems
+.vscode/
+.idea/
+.DS_Store
+
+# Node
+frontend/node_modules/
+frontend/dist/
+
+# Private test files
+testPDFs/
+
+# Uploads
+storage/uploads/*
+!storage/uploads/.gitkeep
