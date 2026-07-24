@@ -728,11 +728,26 @@ const emit = defineEmits([
 
 			<section class="flyer-section card">
 				<div class="flyer-heading">
-					<p class="eyebrow">
-						All the details
-					</p>
+					<a
+						class="flyer-download secondary-button"
+						:href="flyerImage"
+						download="VSFF2-flyer-ehehehe.png"
+					>
+						Download Flyer
+					</a>
 
-					<h2>Current Competition Flyer</h2>
+					<div class="flyer-heading-text">
+						<p class="eyebrow">
+							All the details
+						</p>
+
+						<h2>Current Competition Flyer</h2>
+					</div>
+
+					<div
+						class="flyer-heading-spacer"
+						aria-hidden="true"
+					></div>
 				</div>
 
 				<div
@@ -1080,6 +1095,52 @@ const emit = defineEmits([
 	touch-action: none;
 }
 
+.flyer-download {
+	display: inline-flex;
+	justify-content: center;
+	align-items: center;
+	margin-top: 0.8rem;
+	padding: 0.45rem 0.8rem;
+
+	border: 1px solid var(--color-border-button);
+	border-radius: 999px;
+
+	background: var(--color-surface-soft);
+	box-shadow:
+		0 0.4rem 1rem rgba(0, 0, 0, 0.28),
+		inset 0 1px rgba(244, 202, 201, 0.08);
+
+	color: var(--color-accent-primary);
+	font-size: 0.85rem;
+	font-weight: 750;
+	text-decoration: none;
+
+	transition:
+		transform 150ms ease,
+		border-color 150ms ease,
+		background 150ms ease,
+		box-shadow 150ms ease;
+}
+
+.flyer-download:hover {
+	border-color: var(--color-accent-primary);
+	background: #3a2b29;
+	box-shadow:
+		0 0.55rem 1.25rem rgba(0, 0, 0, 0.34),
+		0 0 1rem rgba(228, 143, 136, 0.16);
+	transform: translateY(-2px);
+}
+
+.flyer-download:active {
+	transform: translateY(0);
+}
+
+.flyer-download:focus-visible {
+	outline: 3px solid var(--color-focus-ring);
+	outline-offset: 3px;
+}
+
+
 /* Shared overlay settings */
 .styled-page::before,
 .styled-page::after {
@@ -1265,29 +1326,62 @@ const emit = defineEmits([
 
 .flyer-section {
 	grid-area: flyer;
-}
-
-.flyer-section {
-	grid-area: flyer;
 	position: relative;
-	z-index: 10000;
-	isolation: isolate;
 	text-align: center;
 }
 
 .flyer-heading {
+	display: grid;
+	grid-template-columns: 1fr auto 1fr;
+	grid-template-areas: "download heading spacer";
+	align-items: center;
+	gap: 1rem;
 	margin-bottom: 1.5rem;
 }
 
-.flyer-heading h2 {
+.flyer-heading-text {
+	grid-area: heading;
+	text-align: center;
+}
+
+.flyer-heading-text .eyebrow {
+	margin-bottom: 0.5rem;
+}
+
+.flyer-heading-text h2 {
 	margin-bottom: 0;
 }
 
+.flyer-download {
+	grid-area: download;
+	justify-self: start;
+}
+
+.flyer-download.secondary-button {
+	margin-top: 0.2rem;
+}
+
+.flyer-heading-spacer {
+	grid-area: spacer;
+}
+
 .flyer-link {
+	position: relative;
+	z-index: 10000;
+
 	display: block;
 	width: fit-content;
 	max-width: 100%;
 	margin: 0 auto;
+	overflow: visible;
+	cursor: none;
+
+	border-radius: 1.25rem;
+
+	box-shadow:
+		0 1.5rem 3.5rem rgba(0, 0, 0, 0.48),
+		0 0.4rem 1rem rgba(0, 0, 0, 0.3),
+		0 0 2.5rem rgba(228, 143, 136, 0.18);
 }
 
 .flyer-image {
@@ -2019,6 +2113,10 @@ tbody tr:hover {
 		grid-template-columns: 1fr;
 	}
 
+	.active-tier {
+		transform: none;
+	}
+
 	.rules-list {
 		grid-template-columns: 1fr;
 	}
@@ -2074,6 +2172,29 @@ tbody tr:hover {
 	.table-scroll td:nth-child(3) {
 		min-width: 14rem;
 		white-space: nowrap;
+	}
+	
+	.flyer-heading {
+		grid-template-columns: 1fr;
+		grid-template-areas:
+			"heading"
+			"download";
+		justify-items: center;
+		row-gap: 0;
+	}
+
+	.flyer-heading-text {
+		grid-area: heading;
+		text-align: center;
+	}
+
+	.flyer-download {
+		grid-area: download;
+		justify-self: center;
+	}
+
+	.flyer-heading-spacer {
+		display: none;
 	}
 }
 
