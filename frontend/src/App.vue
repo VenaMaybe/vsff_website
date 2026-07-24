@@ -329,6 +329,11 @@ onBeforeUnmount(() => { // kill the timer when shit leaves
 	This does not choose the page theme. It only ensures that the app can
 	occupy the full browser height without the browser's default body margin.
 */
+/* :global(html),
+:global(body) {
+	overscroll-behavior-y: none;
+} */
+
 :global(html),
 :global(body),
 :global(#app) {
@@ -371,16 +376,16 @@ onBeforeUnmount(() => { // kill the timer when shit leaves
 .app-shell {
 	min-height: 100vh;
 	min-height: 100dvh;
-	background: #ffffff;
 }
 
 .app-shell:not(.app-shell--styled) {
 	padding: 8px;
+	background: #ffffff;
 }
 
 /* Applied only while styledView is true */
 .app-shell--styled {
-	background: transparent;
+	background: #221d1c;
 }
 
 /* Basic appearance used in plain view */

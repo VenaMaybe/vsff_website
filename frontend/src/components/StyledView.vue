@@ -681,28 +681,30 @@ const emit = defineEmits([
 
 				<div
 					v-else
-					class="table-scroll"
+					class="table-frame"
 				>
-					<table>
-						<thead>
-							<tr>
-								<th>Author</th>
-								<th>Word count</th>
-								<th>Submitted at</th>
-							</tr>
-						</thead>
+					<div class="table-scroll">
+						<table>
+							<thead>
+								<tr>
+									<th>Author</th>
+									<th>Word count</th>
+									<th>Submitted at</th>
+								</tr>
+							</thead>
 
-						<tbody>
-							<tr
-								v-for="(submission, index) in submissionData.submissions"
-								:key="index"
-							>
-								<td>{{ submission.author }}</td>
-								<td>{{ submission.wordCount }}</td>
-								<td>{{ submission.submittedAt }}</td>
-							</tr>
-						</tbody>
-					</table>
+							<tbody>
+								<tr
+									v-for="(submission, index) in submissionData.submissions"
+									:key="index"
+								>
+									<td>{{ submission.author }}</td>
+									<td>{{ submission.wordCount }}</td>
+									<td>{{ submission.submittedAt }}</td>
+								</tr>
+							</tbody>
+						</table>
+					</div>
 				</div>
 
 				<div class="refresh-controls">
@@ -954,14 +956,33 @@ const emit = defineEmits([
 	margin: 0 auto;
 	overflow: visible;
 	cursor: none;
+
+	border-radius: 1.25rem;
+
+	box-shadow:
+		0 1.5rem 3.5rem rgba(0, 0, 0, 0.48),
+		0 0.4rem 1rem rgba(0, 0, 0, 0.3),
+		0 0 2.5rem rgba(228, 143, 136, 0.18);
 }
 
-.flyer-image {
-	display: block;
-	max-width: 100%;
-	height: auto;
-	border-radius: 1rem;
+.flyer-link::before {
+	position: absolute;
+	inset: 0;
+	z-index: 1;
+
+	border: 1px solid var(--color-border-main);
+	border-radius: inherit;
+
+	box-shadow:
+		inset 0 1px 0 rgba(244, 202, 201, 0.18),
+		inset 1px 0 0 rgba(244, 202, 201, 0.08),
+		inset -1px -1px 0 rgba(0, 0, 0, 0.35);
+
+	content: "";
+	pointer-events: none;
 }
+
+
 
 .flyer-link * {
 	cursor: none;
@@ -1150,12 +1171,21 @@ const emit = defineEmits([
 	left: calc(50vw - 38rem - 35rem);
 	background-image: url("@/assets/images/Flower 2.svg");
 	transform: translateY(-50%) rotate(0deg);
+	filter:
+		drop-shadow(0 1.5rem 2rem rgba(0, 0, 0, 0.48))
+		drop-shadow(0 0.4rem 0.8rem rgba(0, 0, 0, 0.3))
+		drop-shadow(0 0 1.5rem rgba(228, 143, 136, 0.18));
 }
 
 .background-flower--right {
 	top: 60%;
 	right: calc(50vw - 38rem - 40rem);
+	z-index: 20;
 	background-image: url("@/assets/images/Flower 1.svg");
+	filter:
+		drop-shadow(0 1.5rem 2rem rgba(0, 0, 0, 0.48))
+		drop-shadow(0 0.4rem 0.8rem rgba(0, 0, 0, 0.3))
+		drop-shadow(0 0 1.5rem rgba(228, 143, 136, 0.18));
 	transform: translateY(-50%) rotate(-14deg);
 }
 
@@ -1265,7 +1295,7 @@ const emit = defineEmits([
 	width: min(100%, 100%);
 	height: auto;
 	margin: 0 auto;
-	border-radius: 1rem;
+	border-radius: inherit;
 	box-shadow: 0 1rem 2.5rem rgba(0, 0, 0, 0.35);
 }
 
@@ -1837,11 +1867,54 @@ const emit = defineEmits([
 	transform: translateY(-0.2rem);
 }
 
+.table-frame {
+	width: 100%;
+	overflow: hidden;
+
+	border: 1px solid var(--color-table-border);
+	border-radius: 0.9rem;
+
+	background: var(--color-prize-background);
+}
+
 .table-scroll {
 	width: 100%;
 	overflow-x: auto;
-	border: 1px solid var(--color-table-border);
-	border-radius: 0.9rem;
+	overscroll-behavior-x: contain;
+	-webkit-overflow-scrolling: touch;
+}
+
+.table-scroll table {
+	width: 100%;
+	min-width: 0;
+	table-layout: fixed;
+
+	border-collapse: separate;
+	border-spacing: 0;
+}
+
+.table-scroll th,
+.table-scroll td {
+	width: calc(100% / 3);
+}
+
+/*
+ * Match the table header to the rounded outer frame.
+ */
+.table-scroll thead th:first-child {
+	border-top-left-radius: calc(0.9rem - 1px);
+}
+
+.table-scroll thead th:last-child {
+	border-top-right-radius: calc(0.9rem - 1px);
+}
+
+.table-scroll tbody tr:last-child td:first-child {
+	border-bottom-left-radius: calc(0.9rem - 1px);
+}
+
+.table-scroll tbody tr:last-child td:last-child {
+	border-bottom-right-radius: calc(0.9rem - 1px);
 }
 
 table {
@@ -1974,6 +2047,33 @@ tbody tr:hover {
 
 	.submission-form .primary-button {
 		justify-self: stretch;
+	}
+
+		.table-scroll table {
+		min-width: 36rem;
+		table-layout: auto;
+	}
+
+	.table-scroll th,
+	.table-scroll td {
+		width: auto;
+	}
+
+	.table-scroll th:first-child,
+	.table-scroll td:first-child {
+		min-width: 10rem;
+	}
+
+	.table-scroll th:nth-child(2),
+	.table-scroll td:nth-child(2) {
+		width: 8rem;
+		min-width: 8rem;
+	}
+
+	.table-scroll th:nth-child(3),
+	.table-scroll td:nth-child(3) {
+		min-width: 14rem;
+		white-space: nowrap;
 	}
 }
 

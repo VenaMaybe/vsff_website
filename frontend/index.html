@@ -1,17 +1,91 @@
-<!DOCTYPE html>
-<html lang="">
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8">
 
-<head>
-  <meta charset="UTF-8">
-  <link rel="icon" href="/favicon.ico">
-  <link rel="stylesheet" href="https://use.typekit.net/rmi4nef.css">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>VSFF2</title>
-</head>
+		<meta
+			name="viewport"
+			content="width=device-width, initial-scale=1, viewport-fit=cover"
+		>
 
-<body>
-  <div id="app"></div>
-  <script type="module" src="/src/main.js"></script>
-</body>
+		<meta
+			id="theme-color"
+			name="theme-color"
+			content="#221d1c"
+		>
 
+		<!--
+			Apply the saved view mode before Vue loads so the browser
+			does not briefly paint a white page.
+		-->
+		<script>
+			(() => {
+				let styledView = true
+
+				try {
+					styledView =
+						localStorage.getItem('vsff-view-mode') !== 'plain'
+				} catch {
+					// Styled view remains the default.
+				}
+
+				document.documentElement.classList.toggle(
+					'styled-view-active',
+					styledView,
+				)
+
+				const themeColor =
+					document.querySelector('meta[name="theme-color"]')
+
+				themeColor.setAttribute(
+					'content',
+					styledView ? '#221d1c' : '#ffffff',
+				)
+			})()
+		</script>
+
+		<!--
+			This loads before Vue and provides the first painted background.
+		-->
+		<style>
+			html,
+			body,
+			#app {
+				min-height: 100%;
+				margin: 0;
+				background-color: #ffffff;
+			}
+
+			html.styled-view-active,
+			html.styled-view-active body,
+			html.styled-view-active #app {
+				background-color: #221d1c;
+			}
+
+			html.styled-view-active {
+				color-scheme: dark;
+			}
+		</style>
+
+		<link
+			rel="icon"
+			href="/favicon.ico"
+		>
+
+		<link
+			rel="stylesheet"
+			href="https://use.typekit.net/rmi4nef.css"
+		>
+
+		<title>VSFF2</title>
+	</head>
+
+	<body>
+		<div id="app"></div>
+
+		<script
+			type="module"
+			src="/src/main.js"
+		></script>
+	</body>
 </html>
