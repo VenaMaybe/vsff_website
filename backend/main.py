@@ -27,17 +27,20 @@ app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 db = SQLAlchemy(app)
 migrate = Migrate(app, db)
 
-# Websocket stuff
-allowed_frontend_origins = [
-	"http://localhost:5173",
-	"http://127.0.0.1:5173",
-	"http://192.168.4.66:5173",
+# Websocket stuff (env has site frontend, add 192... for mobile debug)
+frontend_origins = [
+	origin.strip()
+	for origin in os.getenv(
+		"FRONTEND_ORIGINS",
+		"http://localhost:5173,http://127.0.0.1:5173,http://192.168.4.66:5173",
+	).split(",")
+	if origin.strip()
 ]
 
 socketio = SocketIO(
 	app,
 	async_mode="threading",
-	cors_allowed_origins=allowed_frontend_origins,
+	cors_allowed_origins=frontend_origins,
 	#logger=True,	# useful for debugging
 	#engineio_logger=True, # ^
 )
@@ -91,7 +94,7 @@ CORS(
 	app,
 	resources={
 		r"/api/*": {
-			"origins": allowed_frontend_origins,
+			"origins": frontend_origins,
 		},
 	},
 )
