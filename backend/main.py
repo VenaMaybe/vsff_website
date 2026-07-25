@@ -1,16 +1,87 @@
 # run dis from backend/ >uv run flask --app main run --debug<
 
 import os
-import json
 
 import requests
 from dotenv import load_dotenv
 from flask import Flask, jsonify
 from flask_cors import CORS
 
-load_dotenv()
+from flask_migrate import Migrate
+from flask_socketio import SocketIO
+from flask_sqlalchemy import SQLAlchemy
 
+from comments import create_comments_blueprint
+
+load_dotenv()
 app = Flask(__name__)
+
+# DB for Comments
+app.config["SQLALCHEMY_DATABASE_URI"] = os.getenv(
+	"DATABASE_URL",
+	"sqlite:///vsff.db",
+)
+
+app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+
+db = SQLAlchemy(app)
+migrate = Migrate(app, db)
+
+# Websocket stuff
+allowed_frontend_origins = [
+	"http://localhost:5173",
+	"http://127.0.0.1:5173",
+	"http://192.168.4.66:5173",
+]
+
+socketio = SocketIO(
+	app,
+	async_mode="threading",
+	cors_allowed_origins=allowed_frontend_origins,
+	#logger=True,	# useful for debugging
+	#engineio_logger=True, # ^
+)
+
+# Adding our comment routes, socket hookup to the app
+comments_blueprint = create_comments_blueprint(
+	db,
+	socketio,
+)
+
+app.register_blueprint(comments_blueprint)
+
+''' Ran once
+Wacky started using old db from previous project, making a dedicated db now
+
+Local:
+DATABASE: vsff_website
+DBUSER: website_user
+
+
+Common:
+When changing a db model (think of it like git)
+	> uv run flask --app main db migrate -m "Describe change"
+	> uv run flask --app main db upgrade
+
+Deploying:
+	> git pull
+	> uv sync --frozen
+	> uv run flask --app main db upgrade
+	> sudo systemctl restart vsff-api
+
+Check info:
+	uv run python - <<'PY'
+	from sqlalchemy import inspect
+
+	from main import app, db
+
+	with app.app_context():
+		print("Database:", db.engine.url.database)
+		print("Tables:", inspect(db.engine).get_table_names())
+	PY
+'''
+
+# Sheets
 google_sheet_web_app_url = os.environ.get("GOOGLE_SHEET_WEB_APP_URL")
 
 if not google_sheet_web_app_url:
@@ -20,7 +91,7 @@ CORS(
 	app,
 	resources={
 		r"/api/*": {
-			"origins": "http://localhost:5173",
+			"origins": allowed_frontend_origins,
 		},
 	},
 )
@@ -71,3 +142,13 @@ def get_submissions():
 	data["submissionsClose"] = "2026-08-17T23:59:59-07:00"
 
 	return jsonify(data)
+
+# uv run flask --app main run --debug -> uv run python main.py
+if __name__ == "__main__":
+	socketio.run(
+		app,
+		host="127.0.0.1",
+		port=5000,
+		debug=True,
+		#use_reloader=False, # temporary disable
+	)

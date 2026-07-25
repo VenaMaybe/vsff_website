@@ -1,10 +1,14 @@
 <script setup>
 import { ref } from 'vue'
 import flyerImage from '@/assets/images/Artboard 1@2x.png'
+import CommentsWidget from './CommentsWidget.vue'
 
 /* What does this script do?
 	Magnifying glass
 */
+
+// Variables
+const commentsOpen = ref(false)
 
 const flyerLens = ref({
 	visible: false,
@@ -148,7 +152,12 @@ const emit = defineEmits([
 			class="background-flower background-flower--right"
 			aria-hidden="true"
 		></div>
-		<main class="container">
+		<main
+			class="container"
+			:class="{
+				'comments-open': commentsOpen,
+			}"
+		>
 			<header class="title hero">
 				<p class="eyebrow">
 					Writing competition
@@ -222,6 +231,10 @@ const emit = defineEmits([
 							@VenaMaybe
 						</li>
 					</ul>
+					<div
+						id="comments-collapsed-target"
+						class="comments-collapsed-target"
+					></div>
 				</aside>
 			</section>
 
@@ -290,7 +303,14 @@ const emit = defineEmits([
 			</li>
 		</ul>
 	</div>
-	</section>
+			</section>
+
+			<section class="comments-section">
+				<div id="comments-expanded-target"></div>
+			</section>
+
+			<!-- This will teleport between targets. Both must appear before!! -->
+			<CommentsWidget v-model:open="commentsOpen" />
 
 			<section class="submission-callout card call-to-action">
 				<div>
@@ -797,78 +817,6 @@ const emit = defineEmits([
 
 <style scoped>
 .styled-page {
-	/* Page */
-	--color-page-background: #221d1c;
-	--color-page-glow-left: rgba(228, 143, 136, 0.26);
-	--color-page-glow-right: rgba(244, 202, 201, 0.1);
-	--color-page-text: #f4cac9;
-	--color-transparent: transparent;
-	--color-white: #f4cac9;
-	--color-on-accent: #221d1c;
-
-	/* Accents */
-	--color-accent-primary: #e48f88;
-	--color-accent-dark: #c96f69;
-	--color-accent-pink: #f0aaa5;
-
-	/* Text */
-	--color-text-secondary: #eab8b5;
-	--color-text-muted: #c99591;
-	--color-text-button: #e48f88;
-	--color-tier-label: #d7a5a1;
-	--color-tier-badge-text: #f4cac9;
-	--color-error-text: #f0aaa5;
-	--color-table-header-text: #e48f88;
-
-	/* Backgrounds and surfaces */
-	--color-card-background: rgba(45, 37, 36, 0.94);
-	--color-surface-soft: #332a29;
-	--color-callout-gradient-start: rgba(45, 37, 36, 0.96);
-	--color-callout-gradient-end: rgba(59, 44, 42, 0.96);
-	--color-countdown-background: #3a2927;
-	--color-error-background: #3b2223;
-	--color-count-badge-background: #49312f;
-	--color-tier-badge-background: #4a302e;
-	--color-progress-track: #4a3836;
-	--color-prize-background: #2b2423;
-	--color-active-tier-background-end: #3a2b29;
-	--color-table-header-background: #342928;
-	--color-table-hover: #3a2d2b;
-
-	/* Borders */
-	--color-border-main: #5a403d;
-	--color-border-soft: #4a3634;
-	--color-divider: #543b39;
-	--color-border-button: #7a514d;
-	--color-error-border: #9d5955;
-	--color-information-divider: #4a3735;
-	--color-locked-border: #8b5f5b;
-	--color-prize-border: #5d4441;
-	--color-active-tier-border: #e48f88;
-	--color-table-border: #4b3735;
-	--color-table-row-border: #3f302e;
-
-	/* Hero and button gradients */
-	--color-hero-gradient-start: rgba(228, 143, 136, 0.92);
-	--color-hero-gradient-end: rgba(181, 92, 86, 0.94);
-
-	/* Shadows and focus */
-	--color-shadow-hero: rgba(0, 0, 0, 0.38);
-	--color-shadow-card: rgba(0, 0, 0, 0.24);
-	--color-shadow-primary-button: rgba(0, 0, 0, 0.28);
-	--color-shadow-hero-button: rgba(0, 0, 0, 0.3);
-	--color-shadow-active-tier: rgba(228, 143, 136, 0.16);
-	--color-focus-ring: rgba(228, 143, 136, 0.4);
-
-	/* Button glow */
-	--color-button-glow: rgba(255, 145, 72, 0.55);
-	--color-button-glow-soft: rgba(255, 112, 48, 0.3);
-	--color-button-glow-hover: rgba(255, 166, 92, 0.8);
-	--color-button-glow-hover-soft: rgba(255, 112, 48, 0.45);
-
-	
-
-
 	position: relative;
 	left: 50%;
 	width: 100vw;
@@ -959,6 +907,64 @@ const emit = defineEmits([
 
 .styled-page {
 	position: relative;
+}
+
+/* Comments Section */
+
+.comments-section {
+	display: none;
+	grid-area: comments;
+	min-width: 0;
+	padding: 1.5rem;
+	padding-inline: 10rem;
+}
+
+.container.comments-open .comments-section {
+	display: block;
+}
+
+.comments-collapsed-target {
+	position: absolute;
+	right: 1rem;
+	bottom: 1rem;
+	z-index: 30;
+
+	display: flex;
+	justify-content: flex-end;
+
+	max-width: calc(100% - 2rem);
+}
+
+.comments-collapsed-target {
+	position: absolute;
+	right: 1rem;
+	bottom: 1rem;
+	z-index: 10000;
+
+	display: flex;
+	justify-content: flex-end;
+
+	max-width: calc(100% - 2rem);
+}
+
+@media (max-width: 75rem) and (min-width: 52.001rem) {
+	.contact-me {
+		padding-bottom: 1rem;
+	}
+
+	.comments-collapsed-target {
+		position: relative;
+		right: auto;
+		bottom: auto;
+		z-index: 10000;
+
+		display: flex;
+		justify-content: flex-start;
+
+		width: 100%;
+		max-width: none;
+		margin-top: 0.75rem;
+	}
 }
 
 /* Magnifying Glass */
@@ -1161,7 +1167,7 @@ const emit = defineEmits([
 	width: var(--overlay-size);
 	height: var(--overlay-size);
 
-	background-image: url("@/assets/images/HardLight@2x.png");
+	background-image: url("@/assets/images/HardLight.webp");
 	background-position: center;
 	background-repeat: no-repeat;
 	background-size: cover;
@@ -1194,7 +1200,7 @@ const emit = defineEmits([
 	width: auto;
 	height: auto;
 
-	background-image: url("@/assets/images/Hue@2x.png");
+	background-image: url("@/assets/images/Hue.webp");
 	background-position: center;
 	background-repeat: no-repeat;
 	background-size: 100% 100%;
@@ -1290,6 +1296,19 @@ const emit = defineEmits([
 	width: min(100% - 2rem, 76rem);
 	margin: 0 auto;
 	padding: 2rem 0 4rem;
+}
+
+.container.comments-open {
+	grid-template-areas:
+		"title title"
+		"about rights"
+		"comments comments"
+		"callout callout"
+		"stats stats"
+		"close judging"
+		"prize prize"
+		"submissions submissions"
+		"flyer flyer";
 }
 
 .title {
@@ -1511,11 +1530,15 @@ const emit = defineEmits([
 }
 
 .contact-me {
+	position: relative;
 	grid-area: contact;
 	align-self: end;
+
 	padding: 1rem;
+
 	border: 1px solid var(--color-border-soft);
 	border-radius: 1rem;
+
 	background: var(--color-surface-soft);
 }
 
@@ -2091,9 +2114,39 @@ tbody tr:hover {
 			"prize"
 			"submissions"
 			"flyer";
+	}
 
-		row-gap: 0.5rem;
-		padding-top: 1rem;
+	.container.comments-open {
+		grid-template-areas:
+			"title"
+			"about"
+			"comments"
+			"rights"
+			"callout"
+			"stats"
+			"close"
+			"judging"
+			"prize"
+			"submissions"
+			"flyer";
+	}
+
+	.contact-me {
+		padding-bottom: 1rem;
+	}
+
+	.comments-section {
+		padding: 0;
+	}
+
+	.comments-collapsed-target {
+		position: static;
+
+		width: 100%;
+		max-width: none;
+		margin-top: 1rem;
+
+		justify-content: flex-start;
 	}
 
 	.statistics-row {
