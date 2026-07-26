@@ -188,7 +188,7 @@ const emit = defineEmits([
 					</p>
 
 					<p>
-						A semester or so ago, I hosted my first writing competition at our local creative writing club with my friends (ya'll) because I'd found my way into $50, and I had always wanted writers, including me, to have a way to make a bit of money from their writing while also getting feedback and sharing it with other ppl!
+						A semester or so ago, I hosted my first writing competition at our local creative writing club with my friends (y'all) because I'd found my way into $50, and I had always wanted writers, including me, to have a way to make a bit of money from their writing while also getting feedback and sharing it with other ppl!
 					</p>
 
 					<p>
@@ -283,7 +283,7 @@ const emit = defineEmits([
 
 			<li>
 				<strong>Creative layouts:</strong>
-				Interesting layouts and original art is awesome! But, think illustrated book or editorial design—not a comic/manga.
+				Interesting layouts and original art is totally allowed, but think illustrated book or editorial design—not a comic/manga.
 			</li>
 
 			<li>
