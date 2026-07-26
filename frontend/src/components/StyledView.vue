@@ -547,7 +547,7 @@ const emit = defineEmits([
 						<div class="prize-heading">
 							<div>
 								<p class="tier-label">
-									Tier 1
+									Tier 1 — 5+
 								</p>
 
 								<h3>$30 Prize Pool</h3>
@@ -590,7 +590,7 @@ const emit = defineEmits([
 						<div class="prize-heading">
 							<div>
 								<p class="tier-label">
-									Tier 2
+									Tier 2 — 15+
 								</p>
 
 								<h3>$100 Prize Pool</h3>
@@ -633,7 +633,7 @@ const emit = defineEmits([
 						<div class="prize-heading">
 							<div>
 								<p class="tier-label">
-									Tier 3
+									Tier 3 — 30+
 								</p>
 
 								<h3>$200 Prize Pool</h3>
