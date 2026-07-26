@@ -19,6 +19,12 @@ const router = createRouter({
 			name: 'admin-comments',
 			component: AdminCommentsView,
 		},
+		{
+			path: '/:pathMatch(.*)*',
+			redirect: {
+				name: 'home',
+			},
+		},
 	],
 })
 
