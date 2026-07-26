@@ -5,6 +5,7 @@ import {
 	onBeforeUnmount,
 	onMounted,
 	ref,
+	watch,
 } from 'vue'
 
 import { io } from 'socket.io-client'
@@ -54,6 +55,15 @@ async function scrollToNewest() {
 	commentsList.value.scrollTop =
 		commentsList.value.scrollHeight
 }
+
+watch(panelOpen, async isOpen => {
+	if (!isOpen) {
+		return
+	}
+
+	await nextTick()
+	await scrollToNewest()
+})
 
 async function addComment(comment) {
 	const commentAlreadyExists = comments.value.some(

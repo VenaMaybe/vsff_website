@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, current_app, jsonify, request
 from sqlalchemy.exc import SQLAlchemyError
 
 # A blueprint is a mini section of the flask app
@@ -42,6 +42,18 @@ def create_comments_blueprint(db, socketio):
 			).replace(tzinfo=None),
 		)
 
+		ip_address = db.Column(
+			db.String(45),
+			nullable=True,
+		)
+
+		hidden = db.Column(
+			db.Boolean,
+			nullable=False,
+			default=False,
+			server_default=db.false(),
+		)
+
 		def to_dict(self):
 			created_at = self.created_at
 
@@ -62,6 +74,7 @@ def create_comments_blueprint(db, socketio):
 	def get_comments():
 		comments = db.session.execute(
 			db.select(Comment)
+			.where(Comment.hidden.is_(False))
 			.order_by(Comment.id.desc())
 			.limit(100)
 		).scalars().all()
@@ -122,6 +135,7 @@ def create_comments_blueprint(db, socketio):
 		comment = Comment(
 			name=name,
 			body=body,
+			ip_address=request.remote_addr,
 		)
 
 		try:
@@ -129,6 +143,10 @@ def create_comments_blueprint(db, socketio):
 			db.session.commit()
 		except SQLAlchemyError:
 			db.session.rollback()
+
+			current_app.logger.exception(
+				"Could not save comment",
+			)
 
 			return jsonify({
 				"error": "Could not save the comment.",

@@ -11,10 +11,20 @@ from flask_migrate import Migrate
 from flask_socketio import SocketIO
 from flask_sqlalchemy import SQLAlchemy
 
+# Telling flask that apache is tis proxyyyyy
+from werkzeug.middleware.proxy_fix import ProxyFix
+
 from comments import create_comments_blueprint
 
 load_dotenv()
 app = Flask(__name__)
+
+app.wsgi_app = ProxyFix(
+	app.wsgi_app,
+	x_for=1,
+	x_proto=1,
+	x_host=1,
+)
 
 # DB for Comments
 app.config["SQLALCHEMY_DATABASE_URI"] = os.getenv(
