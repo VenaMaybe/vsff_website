@@ -157,10 +157,27 @@ function receiveComment(comment) {
 	addComment(comment)
 }
 
+function receiveVisibilityChange({ id, hidden }) {
+	if (hidden) {
+		comments.value = comments.value.filter(
+			(comment) => comment.id !== id,
+		)
+
+		return
+	}
+
+	loadComments()
+}
+
 onMounted(() => {
 	socket.on(
 		'comment_created',
 		receiveComment,
+	)
+	
+	socket.on(
+		'comment_visibility_changed',
+		receiveVisibilityChange,
 	)
 
 	socket.connect()
@@ -171,6 +188,11 @@ onBeforeUnmount(() => {
 	socket.off(
 		'comment_created',
 		receiveComment,
+	)
+
+	socket.off(
+		'comment_visibility_changed',
+		receiveVisibilityChange,
 	)
 
 	socket.disconnect()

@@ -1,20 +1,20 @@
 # run dis from backend/ >uv run flask --app main run --debug<
 
 import os
+from datetime import timedelta
 
 import requests
 from dotenv import load_dotenv
 from flask import Flask, jsonify
 from flask_cors import CORS
 
-from flask_migrate import Migrate
-from flask_socketio import SocketIO
-from flask_sqlalchemy import SQLAlchemy
+# Other Python Files
+from admin import admin_blueprint
+from comments import comments_blueprint
+from extensions import db, migrate, socketio
 
 # Telling flask that apache is tis proxyyyyy
 from werkzeug.middleware.proxy_fix import ProxyFix
-
-from comments import create_comments_blueprint
 
 load_dotenv()
 app = Flask(__name__)
@@ -26,6 +26,29 @@ app.wsgi_app = ProxyFix(
 	x_host=1,
 )
 
+# Admin secret stuff :>
+
+flask_secret_key = os.getenv("FLASK_SECRET_KEY")
+
+if not flask_secret_key:
+	raise RuntimeError(
+		"FLASK_SECRET_KEY is not configured",
+	)
+
+app.config.update(
+	SECRET_KEY=flask_secret_key,
+	SESSION_COOKIE_NAME="vsff_admin_session",
+	SESSION_COOKIE_HTTPONLY=True,
+	SESSION_COOKIE_SAMESITE="Lax",
+	SESSION_COOKIE_SECURE=os.getenv(
+		"SESSION_COOKIE_SECURE",
+		"false",
+	).lower() == "true",
+	PERMANENT_SESSION_LIFETIME=timedelta(
+		hours=8,
+	),
+)
+
 # DB for Comments
 app.config["SQLALCHEMY_DATABASE_URI"] = os.getenv(
 	"DATABASE_URL",
@@ -34,8 +57,11 @@ app.config["SQLALCHEMY_DATABASE_URI"] = os.getenv(
 
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
-db = SQLAlchemy(app)
-migrate = Migrate(app, db)
+db.init_app(app)
+migrate.init_app(
+	app,
+	db,
+)
 
 # Websocket stuff (env has site frontend, add 192... for mobile debug)
 frontend_origins = [
@@ -47,21 +73,22 @@ frontend_origins = [
 	if origin.strip()
 ]
 
-socketio = SocketIO(
+socketio.init_app(
 	app,
-	async_mode="threading",
 	cors_allowed_origins=frontend_origins,
 	#logger=True,	# useful for debugging
 	#engineio_logger=True, # ^
 )
 
 # Adding our comment routes, socket hookup to the app
-comments_blueprint = create_comments_blueprint(
-	db,
-	socketio,
+app.register_blueprint(
+	comments_blueprint,
 )
 
-app.register_blueprint(comments_blueprint)
+# Adding our admin routes
+app.register_blueprint(
+	admin_blueprint,
+)
 
 ''' Ran once
 Wacky started using old db from previous project, making a dedicated db now
