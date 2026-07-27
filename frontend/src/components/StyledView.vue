@@ -439,7 +439,7 @@ const emit = defineEmits([
 						<dt>Calculation</dt>
 
 						<dd>
-							{{ submissionData.count }}
+							{{ submissionData.count }} total submissions
 							×
 							{{ judgingDaysPerSubmission }}
 							days
