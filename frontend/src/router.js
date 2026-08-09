@@ -5,6 +5,7 @@ import {
 
 import AdminCommentsView from './views/AdminCommentsView.vue'
 import HomeView from './views/HomeView.vue'
+import ColorExplorerView from './views/ColorExplorerView.vue'
 
 const router = createRouter({
 	history: createWebHistory(),
@@ -18,6 +19,11 @@ const router = createRouter({
 			path: '/admin/comments',
 			name: 'admin-comments',
 			component: AdminCommentsView,
+		},
+		{
+			path: '/color',
+			name: 'color',
+			component: ColorExplorerView,
 		},
 		{
 			path: '/:pathMatch(.*)*',

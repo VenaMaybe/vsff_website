@@ -1,4 +1,4 @@
-# run dis from backend/ >uv run flask --app main run --debug<
+# run dis from backend/ 		>	uv run flask --app main run --debug		<
 
 import os
 from datetime import timedelta
