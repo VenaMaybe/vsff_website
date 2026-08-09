@@ -9,6 +9,15 @@ import * as THREE from 'three'
 import {
 	OrbitControls,
 } from 'three/addons/controls/OrbitControls.js'
+import {
+	LineSegments2,
+} from 'three/addons/lines/LineSegments2.js'
+import {
+	LineSegmentsGeometry,
+} from 'three/addons/lines/LineSegmentsGeometry.js'
+import {
+	LineMaterial,
+} from 'three/addons/lines/LineMaterial.js'
 
 import {
 	Pane,
@@ -16,9 +25,41 @@ import {
 
 
 // Add built-in presets here. Codes can be copied
-// from the Color Explorer's "Copy preset code" button.
+// from the Color Explorer's "Copy preset" button.
 
 const DEFAULT_PRESETS = [
+	{
+		"name": 'Default',
+		"code": 'color-explorer:eyJ2ZXJzaW9uIjoxLCJzZXR0aW5ncyI6eyJyZW5kZXJNb2RlIjoic3F1YXJlcyIsImRvdFNpemUiOjAuMjA1MDAwMDAwMDAwMDAwMDIsInBvaW50RGVuc2l0eSI6MjQsInNoYXBlIjoiY3ViZSIsImNvbG9yU3BhY2UiOiJoc3YiLCJjYW1lcmFQcm9qZWN0aW9uIjoicGVyc3BlY3RpdmUiLCJjYW1lcmFGb3YiOjc1LCJjYW1lcmFPcnRob1NpemUiOjgsImNhbWVyYU5lYXIiOjAuMSwiY2FtZXJhRmFyIjoxMDAwLCJjYW1lcmEiOnsicG9zaXRpb24iOnsieCI6NC42NTU4NDcwNzY5NDEzMDksInkiOjQuMzkyNjYxMDY4MDEyMTU1LCJ6IjozLjg5NDcxNzAzMzM2OTZ9LCJ0YXJnZXQiOnsieCI6MC45OTYzNTc5NzE3MDc0NDkyLCJ5IjowLjYzMjE0ODg0OTIzMjA4MTUsInoiOjAuNjI4NTExMDEyODU4Mzg1Nn0sInpvb20iOjF9LCJjdWJlV2lkdGgiOjUsImN1YmVIZWlnaHQiOjUsImN1YmVEZXB0aCI6NSwiY3lsaW5kZXJHYXAiOjMsImN5bGluZGVyUmFkaXVzIjozLCJjeWxpbmRlckhlaWdodCI6MywidG9ydXNSb3RhdGlvbiI6MCwicGFsZXR0ZUVuYWJsZWQiOnRydWUsInR1bm5lbEVuYWJsZWQiOnRydWUsImRlZm9ybWF0aW9uTW9kZSI6ImVsYXN0aWMiLCJ0dW5uZWxSYWRpdXMiOjAuMzUsImV4cGxvc2lvbldpZHRoIjowLjM1LCJleHBsb3Npb25TdHJlbmd0aCI6MC43NSwidHVubmVsSW5mbHVlbmNlU2NhbGUiOjIuMjUsImxhdHRpY2VSZWxheGF0aW9uU3RlcHMiOjEwLCJsYXR0aWNlUmVwdWxzaW9uU3RyZW5ndGgiOjAuMTgsImxhdHRpY2VTcHJpbmdTdHJlbmd0aCI6MC4zNSwibGF0dGljZVJlc3RvcmVTdHJlbmd0aCI6MC4wOCwicGFsZXR0ZVNpemUiOjMsInBhbGV0dGVDb2xvcnMiOnsiY29sb3IxIjoiI2ZmNGY4MSIsImNvbG9yMiI6IiNhODU1ZjciLCJjb2xvcjMiOiIjM2I4MmY2IiwiY29sb3I0IjoiIzIyYzU1ZSIsImNvbG9yNSI6IiNmYWNjMTUiLCJjb2xvcjYiOiIjZjk3MzE2IiwiY29sb3I3IjoiIzA2YjZkNCIsImNvbG9yOCI6IiNmZmZmZmYifX19'
+	},
+	{
+		"name": 'Through A Cylinder',
+		"code": "color-explorer:eyJ2ZXJzaW9uIjoxLCJzZXR0aW5ncyI6eyJyZW5kZXJNb2RlIjoic3BsYXRzIiwiZG90U2l6ZSI6MC4zNzUsInJlbGF0aW9uUmFkaXVzIjowLjM1LCJpbnNwZWN0aW9uTW9kZSI6InNwb2tlcyIsInNlbGVjdGlvbkVuYWJsZWQiOnRydWUsInBvaW50RGVuc2l0eSI6NTAsInNoYXBlIjoiY3lsaW5kZXIiLCJjb2xvclNwYWNlIjoiaHN2IiwiY2FtZXJhUHJvamVjdGlvbiI6InBlcnNwZWN0aXZlIiwiY2FtZXJhRm92Ijo3NSwiY2FtZXJhT3J0aG9TaXplIjo4LCJjYW1lcmFOZWFyIjowLjEsImNhbWVyYUZhciI6MTAwMCwiY2FtZXJhIjp7InBvc2l0aW9uIjp7IngiOjEwLjI3MDAyNDc1MjA4NjMwOSwieSI6Ni41NjA1MTgxNTM4NzE0MDcsInoiOjMuOTI1NzY5MzMyMDAxODE0M30sInRhcmdldCI6eyJ4IjoxLjIxNzI3OTExMTUwNTUwMjgsInkiOjAuNDIwNzE5NDA4NDU3MjM2NywieiI6MC40MjUyMjg3NTY2NDQwNjM1fSwiem9vbSI6MX0sImN1YmVXaWR0aCI6NSwiY3ViZUhlaWdodCI6NSwiY3ViZURlcHRoIjo1LCJjeWxpbmRlckdhcCI6MywiY3lsaW5kZXJSYWRpdXMiOjMsImN5bGluZGVySGVpZ2h0IjozLCJ0b3J1c1JvdGF0aW9uIjowLCJwYWxldHRlRW5hYmxlZCI6dHJ1ZSwidHVubmVsRW5hYmxlZCI6dHJ1ZSwiZGVmb3JtYXRpb25Nb2RlIjoib3JpZ2luYWwiLCJ0dW5uZWxSYWRpdXMiOjAuMzUsImVsYXN0aWNUdW5uZWxSYWRpdXMiOjAuMzUsIm9yaWdpbmFsVHVubmVsUmFkaXVzIjowLjk1MDAwMDAwMDAwMDAwMDEsImxvY2FsVHVubmVsUmFkaXVzIjowLjM1MDAwMDAwMDAwMDAwMDAzLCJleHBsb3Npb25XaWR0aCI6MC4zNSwiZXhwbG9zaW9uU3RyZW5ndGgiOjAuNzUsInR1bm5lbEluZmx1ZW5jZVNjYWxlIjoyLjI1LCJsYXR0aWNlUmVsYXhhdGlvblN0ZXBzIjoxMCwibGF0dGljZVJlcHVsc2lvblN0cmVuZ3RoIjowLjE3OTk5OTk5OTk5OTk5OTc3LCJsYXR0aWNlU3ByaW5nU3RyZW5ndGgiOjAuMzQ5OTk5OTk5OTk5OTk5NzYsImxhdHRpY2VSZXN0b3JlU3RyZW5ndGgiOjAuMDc5OTk5OTk5OTk5OTk5NzUsInBhbGV0dGVTaXplIjo4LCJwYWxldHRlQ29sb3JzIjp7ImNvbG9yMSI6IiNmZjRmODEiLCJjb2xvcjIiOiIjYTg1NWY3IiwiY29sb3IzIjoiIzNiODJmNiIsImNvbG9yNCI6IiMyMmM1NWUiLCJjb2xvcjUiOiIjZmFjYzE1IiwiY29sb3I2IjoiI2Y5NzMxNiIsImNvbG9yNyI6IiMwNmI2ZDQiLCJjb2xvcjgiOiIjZmZmZmZmIn19fQ"
+	},
+	{
+		"name": "Circles",
+		"code": "color-explorer:eyJ2ZXJzaW9uIjoxLCJzZXR0aW5ncyI6eyJyZW5kZXJNb2RlIjoic3BsYXRzIiwiZG90U2l6ZSI6MC4xNTUsInJlbGF0aW9uUmFkaXVzIjowLjM1LCJpbnNwZWN0aW9uTW9kZSI6InNwb2tlcyIsInNlbGVjdGlvbkVuYWJsZWQiOnRydWUsInBvaW50RGVuc2l0eSI6NTgsInNoYXBlIjoiY3ViZSIsImNvbG9yU3BhY2UiOiJoc3YiLCJjYW1lcmFQcm9qZWN0aW9uIjoicGVyc3BlY3RpdmUiLCJjYW1lcmFGb3YiOjc1LCJjYW1lcmFPcnRob1NpemUiOjgsImNhbWVyYU5lYXIiOjAuMSwiY2FtZXJhRmFyIjoxMDAwLCJjYW1lcmEiOnsicG9zaXRpb24iOnsieCI6LTQuNDYyNzM4NzQ0NDUxOTM4LCJ5Ijo4LjE2NDI0NTEzNzk1MjM4NSwieiI6LTcuMzI1NDYxMDM1NzkwNTUxfSwidGFyZ2V0Ijp7IngiOjAuNzg0NDczNTQ4MTUwODc4NCwieSI6MC4xOTI1MDc0OTMyNjEyNzMsInoiOi0wLjQzNjM3NzU3NTEwNzkyMDh9LCJ6b29tIjoxfSwiY3ViZVdpZHRoIjo1LCJjdWJlSGVpZ2h0Ijo1LCJjdWJlRGVwdGgiOjUsImN5bGluZGVyR2FwIjozLCJjeWxpbmRlclJhZGl1cyI6MywiY3lsaW5kZXJIZWlnaHQiOjMsInRvcnVzUm90YXRpb24iOjAsInBhbGV0dGVFbmFibGVkIjpmYWxzZSwidHVubmVsRW5hYmxlZCI6dHJ1ZSwiZGVmb3JtYXRpb25Nb2RlIjoiY29tYmluZWQiLCJ0dW5uZWxSYWRpdXMiOjIuMTIsImVsYXN0aWNUdW5uZWxSYWRpdXMiOjIuMTIsIm9yaWdpbmFsVHVubmVsUmFkaXVzIjoyLjQyLCJsb2NhbFR1bm5lbFJhZGl1cyI6MC4zNDk5OTk5OTk5OTk5OTk5LCJleHBsb3Npb25XaWR0aCI6MC4zNSwiZXhwbG9zaW9uU3RyZW5ndGgiOjAuNzUsInR1bm5lbEluZmx1ZW5jZVNjYWxlIjoyLjI1LCJsYXR0aWNlUmVsYXhhdGlvblN0ZXBzIjoxMCwibGF0dGljZVJlcHVsc2lvblN0cmVuZ3RoIjowLjE4MDAwMDAwMDAwMDAwMDEsImxhdHRpY2VTcHJpbmdTdHJlbmd0aCI6MC4zNDk5OTk5OTk5OTk5OTk2NCwibGF0dGljZVJlc3RvcmVTdHJlbmd0aCI6MC4wNzk5OTk5OTk5OTk5OTk5NywicGFsZXR0ZVNpemUiOjgsInBhbGV0dGVDb2xvcnMiOnsiY29sb3IxIjoiI2ZmNGY4MSIsImNvbG9yMiI6IiNhODU1ZjciLCJjb2xvcjMiOiIjM2I4MmY2IiwiY29sb3I0IjoiIzIyYzU1ZSIsImNvbG9yNSI6IiNmYWNjMTUiLCJjb2xvcjYiOiIjZjk3MzE2IiwiY29sb3I3IjoiIzA5MGMwYyIsImNvbG9yOCI6IiNmZmZmZmYifX19"
+	},
+	{
+		"name": "Cube Destruction",
+		"code": "color-explorer:eyJ2ZXJzaW9uIjoxLCJzZXR0aW5ncyI6eyJyZW5kZXJNb2RlIjoic3F1YXJlcyIsImRvdFNpemUiOjAuMDI0OTk5OTk5OTk5OTk5OTgsInBvaW50RGVuc2l0eSI6NzUsInNoYXBlIjoiY3ViZSIsImNhbWVyYVByb2plY3Rpb24iOiJwZXJzcGVjdGl2ZSIsImNhbWVyYUZvdiI6NzUsImNhbWVyYU9ydGhvU2l6ZSI6OCwiY2FtZXJhTmVhciI6MC4xLCJjYW1lcmFGYXIiOjEwMDAsImNhbWVyYSI6eyJwb3NpdGlvbiI6eyJ4IjotOS4yOTE0NTU3MTgyMjAzMzYsInkiOjEwLjczODc4NjkwNjUxNzE2MSwieiI6LTkuNzI5MTIzOTM0MzE3Mjk1fSwidGFyZ2V0Ijp7IngiOjAuMzI4ODU3OTA4ODM3MTQ4MTYsInkiOjAuNjg3ODQ5NTI0MTA2NDQ5NSwieiI6LTQuMjY4MzIxMjgwMTIwNDc5ZS0xN30sInpvb20iOjF9LCJjdWJlV2lkdGgiOjUsImN1YmVIZWlnaHQiOjUsImN1YmVEZXB0aCI6NSwiY3lsaW5kZXJHYXAiOjAsImN5bGluZGVyUmFkaXVzIjozLCJjeWxpbmRlckhlaWdodCI6MywidG9ydXNSb3RhdGlvbiI6MCwicGFsZXR0ZUVuYWJsZWQiOnRydWUsInR1bm5lbEVuYWJsZWQiOnRydWUsInR1bm5lbFJhZGl1cyI6Mi43NywidHVubmVsSW5mbHVlbmNlU2NhbGUiOjMuOTUsImxhdHRpY2VSZWxheGF0aW9uU3RlcHMiOjE0LCJsYXR0aWNlUmVwdWxzaW9uU3RyZW5ndGgiOjEuMTEsImxhdHRpY2VTcHJpbmdTdHJlbmd0aCI6Mi4zNDk5OTk5OTk5OTk5OTk2LCJsYXR0aWNlUmVzdG9yZVN0cmVuZ3RoIjoxLCJwYWxldHRlU2l6ZSI6OCwicGFsZXR0ZUNvbG9ycyI6eyJjb2xvcjEiOiIjNWEzZDNkIiwiY29sb3IyIjoiI2E4NTVmNyIsImNvbG9yMyI6IiMzYjgyZjYiLCJjb2xvcjQiOiIjNDY1NjI2IiwiY29sb3I1IjoiIzY0NTgyYSIsImNvbG9yNiI6IiNmZjY4MDAiLCJjb2xvcjciOiIjMDZiNmQ0IiwiY29sb3I4IjoiIzU0NDk0OSJ9fX0"
+	},
+	{
+		"name": "Infinite Mirror",
+		"code": "color-explorer:eyJ2ZXJzaW9uIjoxLCJzZXR0aW5ncyI6eyJyZW5kZXJNb2RlIjoic3F1YXJlcyIsImRvdFNpemUiOjAuMDEsInJlbGF0aW9uUmFkaXVzIjowLjM1LCJpbnNwZWN0aW9uTW9kZSI6InNwb2tlcyIsInNlbGVjdGlvbkVuYWJsZWQiOnRydWUsInBvaW50RGVuc2l0eSI6MzYsInNoYXBlIjoiY3ViZSIsImNvbG9yU3BhY2UiOiJoc3YiLCJjYW1lcmFQcm9qZWN0aW9uIjoicGVyc3BlY3RpdmUiLCJjYW1lcmFGb3YiOjc1LCJjYW1lcmFPcnRob1NpemUiOjgsImNhbWVyYU5lYXIiOjAuMSwiY2FtZXJhRmFyIjoxMDAwLCJjYW1lcmEiOnsicG9zaXRpb24iOnsieCI6OC4zMzA0ODI3MDM3OTU2NjIsInkiOjQuMjUxNjE3MzMzNjU5ODUzLCJ6IjotMTIuNjgwNjEyMDQzNTg4MzgzfSwidGFyZ2V0Ijp7IngiOjAuMTA3MzU0MDY4OTM1Nzg4MTUsInkiOjEuMTc1ODA0OTgxNjg2NzE2OSwieiI6MS4xMTY0MjM5NDY0OTA2NTR9LCJ6b29tIjoxfSwiY3ViZVdpZHRoIjo1LCJjdWJlSGVpZ2h0Ijo1LCJjdWJlRGVwdGgiOjUsImN5bGluZGVyR2FwIjozLCJjeWxpbmRlclJhZGl1cyI6MywiY3lsaW5kZXJIZWlnaHQiOjMsInRvcnVzUm90YXRpb24iOjAsInBhbGV0dGVFbmFibGVkIjp0cnVlLCJ0dW5uZWxFbmFibGVkIjp0cnVlLCJkZWZvcm1hdGlvbk1vZGUiOiJjb21iaW5lZCIsInR1bm5lbFJhZGl1cyI6MC4xOTAwMDAwMDAwMDAwMDAxNCwiZWxhc3RpY1R1bm5lbFJhZGl1cyI6MC4xOTAwMDAwMDAwMDAwMDAxNCwib3JpZ2luYWxUdW5uZWxSYWRpdXMiOjAuMzUwMDAwMDAwMDAwMDAwMSwibG9jYWxUdW5uZWxSYWRpdXMiOjIuNjAyMDg1MjEzOTY1MjEwNmUtMTcsImV4cGxvc2lvbldpZHRoIjowLjM1LCJleHBsb3Npb25TdHJlbmd0aCI6MC43NSwidHVubmVsSW5mbHVlbmNlU2NhbGUiOjIuMjUsImxhdHRpY2VSZWxheGF0aW9uU3RlcHMiOjEwLCJsYXR0aWNlUmVwdWxzaW9uU3RyZW5ndGgiOjEyLCJsYXR0aWNlU3ByaW5nU3RyZW5ndGgiOjEyLCJsYXR0aWNlUmVzdG9yZVN0cmVuZ3RoIjo2Ljc1NSwicGFsZXR0ZVNpemUiOjMsInBhbGV0dGVDb2xvcnMiOnsiY29sb3IxIjoiI2ZmNGY4MSIsImNvbG9yMiI6IiNhODU1ZjciLCJjb2xvcjMiOiIjM2I4MmY2IiwiY29sb3I0IjoiIzIyYzU1ZSIsImNvbG9yNSI6IiNmYWNjMTUiLCJjb2xvcjYiOiIjZjk3MzE2IiwiY29sb3I3IjoiIzA2YjZkNCIsImNvbG9yOCI6IiNmZmZmZmYifX19"
+	},
+	{
+		"name": "The Spire",
+		"code": "color-explorer:eyJ2ZXJzaW9uIjoxLCJzZXR0aW5ncyI6eyJyZW5kZXJNb2RlIjoic3F1YXJlcyIsImRvdFNpemUiOjAuMDI1LCJwb2ludERlbnNpdHkiOjc1LCJzaGFwZSI6ImN5bGluZGVyIiwiY2FtZXJhUHJvamVjdGlvbiI6InBlcnNwZWN0aXZlIiwiY2FtZXJhRm92Ijo3NSwiY2FtZXJhT3J0aG9TaXplIjo4LCJjYW1lcmFOZWFyIjowLjEsImNhbWVyYUZhciI6MzU0MCwiY2FtZXJhIjp7InBvc2l0aW9uIjp7IngiOi04LjA2MjMzOTg2NzAyNTY4MywieSI6LTkuNjgyMjk3MjAwMjc2NSwieiI6LTIzLjUxMTMxOTYxNTY1NzE2fSwidGFyZ2V0Ijp7IngiOi0wLjU5NjgzMjQ3MjI5NTc2ODIsInkiOjcuMjk4OTQ2MjM3NzcyODM3LCJ6IjozLjA5MDQ2NTk3MzkzNDgzNDZ9LCJ6b29tIjoxfSwiY3ViZVdpZHRoIjo1LCJjdWJlSGVpZ2h0Ijo1LCJjdWJlRGVwdGgiOjQuOTk5OTk5OTk5OTk5OTk5LCJjeWxpbmRlckdhcCI6MCwiY3lsaW5kZXJSYWRpdXMiOjMsImN5bGluZGVySGVpZ2h0IjoyLjk5OTk5OTk5OTk5OTk5OTYsInRvcnVzUm90YXRpb24iOjAsInBhbGV0dGVFbmFibGVkIjp0cnVlLCJ0dW5uZWxFbmFibGVkIjp0cnVlLCJ0dW5uZWxSYWRpdXMiOjEuNDQsInR1bm5lbEluZmx1ZW5jZVNjYWxlIjozLjk1LCJsYXR0aWNlUmVsYXhhdGlvblN0ZXBzIjoxOSwibGF0dGljZVJlcHVsc2lvblN0cmVuZ3RoIjowLjg4MDAwMDAwMDAwMDAwMDEsImxhdHRpY2VTcHJpbmdTdHJlbmd0aCI6Mi40MDk5OTk5OTk5OTk5OTk3LCJsYXR0aWNlUmVzdG9yZVN0cmVuZ3RoIjoxLCJwYWxldHRlU2l6ZSI6OCwicGFsZXR0ZUNvbG9ycyI6eyJjb2xvcjEiOiIjZmY0ZjgxIiwiY29sb3IyIjoiI2E4NTVmNyIsImNvbG9yMyI6IiMzYjgyZjYiLCJjb2xvcjQiOiIjMjJjNTVlIiwiY29sb3I1IjoiI2ZhY2MxNSIsImNvbG9yNiI6IiNmOTczMTYiLCJjb2xvcjciOiIjMDZiNmQ0IiwiY29sb3I4IjoiI2ZmZmZmZiJ9fX0"
+	},
+	{
+		"name": "Hue Squares",
+		"code": "color-explorer:eyJ2ZXJzaW9uIjoxLCJzZXR0aW5ncyI6eyJyZW5kZXJNb2RlIjoic3F1YXJlcyIsImRvdFNpemUiOjAuMDI0OTk5OTk5OTk5OTk5OTgsInBvaW50RGVuc2l0eSI6MjcsInNoYXBlIjoiY3ViZSIsImNhbWVyYVByb2plY3Rpb24iOiJwZXJzcGVjdGl2ZSIsImNhbWVyYUZvdiI6NzUsImNhbWVyYU9ydGhvU2l6ZSI6OCwiY2FtZXJhTmVhciI6MC4xLCJjYW1lcmFGYXIiOjEwMDAsImNhbWVyYSI6eyJwb3NpdGlvbiI6eyJ4IjotMS44NTYwMDU1MzA3Mzk4NTEsInkiOjEuMTgyODkzMTkzODExODI5NCwieiI6Ny41Njg2NjYzNDg3MTMyMTE1fSwidGFyZ2V0Ijp7IngiOjAuNDA0NjMyNDMxMDE0NjAyMywieSI6LTEuNDQwMDE5OTY0Mzk1MzYzMywieiI6MC43MTYxODUzMDY5NTkyMTV9LCJ6b29tIjoxfSwiY3ViZVdpZHRoIjowLjI1LCJjdWJlSGVpZ2h0IjowLjI1LCJjdWJlRGVwdGgiOjEyLCJjeWxpbmRlckdhcCI6MCwiY3lsaW5kZXJSYWRpdXMiOjAuMjUsImN5bGluZGVySGVpZ2h0IjoxMiwidG9ydXNSb3RhdGlvbiI6MCwicGFsZXR0ZUVuYWJsZWQiOnRydWUsInR1bm5lbEVuYWJsZWQiOmZhbHNlLCJ0dW5uZWxSYWRpdXMiOjIuNzcsInR1bm5lbEluZmx1ZW5jZVNjYWxlIjozLjk1LCJsYXR0aWNlUmVsYXhhdGlvblN0ZXBzIjoxNCwibGF0dGljZVJlcHVsc2lvblN0cmVuZ3RoIjoxLjExLCJsYXR0aWNlU3ByaW5nU3RyZW5ndGgiOjIuMzQ5OTk5OTk5OTk5OTk5NiwibGF0dGljZVJlc3RvcmVTdHJlbmd0aCI6MSwicGFsZXR0ZVNpemUiOjgsInBhbGV0dGVDb2xvcnMiOnsiY29sb3IxIjoiIzVhM2QzZCIsImNvbG9yMiI6IiNhODU1ZjciLCJjb2xvcjMiOiIjM2I4MmY2IiwiY29sb3I0IjoiIzQ2NTYyNiIsImNvbG9yNSI6IiM2NDU4MmEiLCJjb2xvcjYiOiIjZmY2ODAwIiwiY29sb3I3IjoiIzA2YjZkNCIsImNvbG9yOCI6IiM1NDQ5NDkifX19"
+	},
+	{
+		"name": "Value Cylinder",
+		"code": "color-explorer:eyJ2ZXJzaW9uIjoxLCJzZXR0aW5ncyI6eyJyZW5kZXJNb2RlIjoic3F1YXJlcyIsImRvdFNpemUiOjAuMDM5OTk5OTk5OTk5OTk5OTgsInBvaW50RGVuc2l0eSI6NDAsInNoYXBlIjoiY3lsaW5kZXIiLCJjYW1lcmFQcm9qZWN0aW9uIjoib3J0aG9ncmFwaGljIiwiY2FtZXJhRm92Ijo3NSwiY2FtZXJhT3J0aG9TaXplIjo3LjUsImNhbWVyYU5lYXIiOjAuMSwiY2FtZXJhRmFyIjoyNDAwLCJjYW1lcmEiOnsicG9zaXRpb24iOnsieCI6Mi43NDM2MTAyMTg0MTgzOTE3LCJ5IjozLjMwODY5MDg4OTg2ODk1MDQsInoiOjguMjE0OTkxMzE4NDUxNjE4fSwidGFyZ2V0Ijp7IngiOi0wLjAzMzE4MDU4MDc0MTIzMjA1NiwieSI6MS4yNTU0OTY0ODk5NzQ4MDY3LCJ6IjowLjU3NTkyMjA5MDYxNDcyMTl9LCJ6b29tIjowLjYzMzkwNzgzNjIwMzQ4Mn0sImN1YmVXaWR0aCI6NSwiY3ViZUhlaWdodCI6NSwiY3ViZURlcHRoIjo0Ljk5OTk5OTk5OTk5OTk5OSwiY3lsaW5kZXJHYXAiOjAsImN5bGluZGVyUmFkaXVzIjowLjI1LCJjeWxpbmRlckhlaWdodCI6MTIsInRvcnVzUm90YXRpb24iOjAsInBhbGV0dGVFbmFibGVkIjp0cnVlLCJ0dW5uZWxFbmFibGVkIjpmYWxzZSwidHVubmVsUmFkaXVzIjoyLjc3LCJ0dW5uZWxJbmZsdWVuY2VTY2FsZSI6My45NSwibGF0dGljZVJlbGF4YXRpb25TdGVwcyI6MTQsImxhdHRpY2VSZXB1bHNpb25TdHJlbmd0aCI6MS4xMSwibGF0dGljZVNwcmluZ1N0cmVuZ3RoIjoyLjM0OTk5OTk5OTk5OTk5OTYsImxhdHRpY2VSZXN0b3JlU3RyZW5ndGgiOjEsInBhbGV0dGVTaXplIjo4LCJwYWxldHRlQ29sb3JzIjp7ImNvbG9yMSI6IiM1YTNkM2QiLCJjb2xvcjIiOiIjYTg1NWY3IiwiY29sb3IzIjoiIzNiODJmNiIsImNvbG9yNCI6IiM0NjU2MjYiLCJjb2xvcjUiOiIjNjQ1ODJhIiwiY29sb3I2IjoiI2ZmNjgwMCIsImNvbG9yNyI6IiMwNmI2ZDQiLCJjb2xvcjgiOiIjNTQ0OTQ5In19fQ"
+	}
 	// {
 	// 	name: 'Example preset',
 	// 	code: 'color-explorer:PASTE_CODE_HERE',
@@ -48,6 +89,12 @@ const settingHelp =
 		'Click a setting name to see what it does.',
 	)
 
+const selectedPointInfo =
+	ref(null)
+
+const copiedPointHex =
+	ref(false)
+
 const presetEntries =
 	ref([])
 
@@ -56,6 +103,37 @@ const newPresetName =
 
 const activePresetName =
 	ref('None')
+
+const mobilePanel =
+	ref(null)
+
+const presetExportTextarea =
+	ref(null)
+
+const presetCodeTextarea =
+	ref(null)
+
+const presetCodeDialog =
+	ref({
+		open: false,
+		text: '',
+		copied: false,
+	})
+
+const presetExportDialog =
+	ref({
+		open: false,
+		text: '',
+		count: 0,
+		copied: false,
+	})
+
+const presetImportDialog =
+	ref({
+		open: false,
+		text: '',
+		error: '',
+	})
 
 const presetConfirmation =
 	ref({
@@ -78,6 +156,8 @@ let utilityPane
 let closingColorPickerButton = null
 let colorPickerToggleButtons = []
 let settingDescriptionLabels = []
+let fineSliderCleanups = []
+let activeFineSliderFinish = null
 
 let renderer
 let animationFrame
@@ -95,6 +175,7 @@ let dots
 
 let basePositions
 let baseColors
+let baseOriginalPositions
 let originalPositions
 
 let sortOrder
@@ -104,6 +185,24 @@ let sortedPositions
 let sortedColors
 
 let sortNeeded = true
+
+
+// Point inspection
+
+const pointRaycaster =
+	new THREE.Raycaster()
+
+const pointPointer =
+	new THREE.Vector2()
+
+let pointPointerDownX = 0
+let pointPointerDownY = 0
+let lastPointPickX = Infinity
+let lastPointPickY = Infinity
+let pointPickCycleIndex = 0
+let selectedPointIndex = -1
+let relationLines = null
+let copiedPointHexTimer = null
 
 
 // Palette Three.js stuff
@@ -125,6 +224,10 @@ let cubeDepthBinding = null
 let torusRotationBinding = null
 let cameraFovBinding = null
 let cameraOrthoSizeBinding = null
+let orbitSelectedButton = null
+let elasticLatticeFolder = null
+let originalExplosionFolder = null
+let localCutawayFolder = null
 
 
 // Storage
@@ -137,6 +240,9 @@ const SETTINGS_STORAGE_KEY =
 
 const PRESETS_STORAGE_KEY =
 	'color-explorer-presets'
+
+const PRESET_ORDER_STORAGE_KEY =
+	'color-explorer-preset-order'
 
 const PANE_STATE_STORAGE_KEY =
 	'color-explorer-pane-state'
@@ -155,6 +261,9 @@ const shape =
 
 const renderMode =
 	ref('squares')
+
+const color_space =
+	ref('hsv')
 
 
 // Camera settings
@@ -212,8 +321,23 @@ const palette_enabled =
 const tunnel_enabled =
 	ref(true)
 
+const deformation_mode =
+	ref('elastic')
+
 const tunnel_radius =
 	ref(0.35)
+
+const original_tunnel_radius =
+	ref(0.35)
+
+const local_tunnel_radius =
+	ref(0.35)
+
+const explosion_width =
+	ref(0.35)
+
+const explosion_strength =
+	ref(0.75)
 
 const palette_size =
 	ref(3)
@@ -259,6 +383,15 @@ const lattice_restore_strength =
 
 const dot_size =
 	ref(0.07)
+
+const relation_radius =
+	ref(0.35)
+
+const inspection_mode =
+	ref('spokes')
+
+const selection_enabled =
+	ref(true)
 
 
 // Settings persistence
@@ -329,6 +462,39 @@ function applySettings(
 
 	if (
 		[
+			'hsv',
+			'hsl',
+			'rgb',
+		].includes(
+			settings.colorSpace,
+		)
+	) {
+		color_space.value =
+			settings.colorSpace
+	}
+
+	if (
+		[
+			'spokes',
+			'stations',
+		].includes(
+			settings.inspectionMode,
+		)
+	) {
+		inspection_mode.value =
+			settings.inspectionMode
+	}
+
+	if (
+		typeof settings.selectionEnabled ===
+			'boolean'
+	) {
+		selection_enabled.value =
+			settings.selectionEnabled
+	}
+
+	if (
+		[
 			'perspective',
 			'orthographic',
 		].includes(
@@ -337,6 +503,20 @@ function applySettings(
 	) {
 		camera_projection.value =
 			settings.cameraProjection
+	}
+
+	if (
+		[
+			'elastic',
+			'original',
+			'local',
+			'combined',
+		].includes(
+			settings.deformationMode,
+		)
+	) {
+		deformation_mode.value =
+			settings.deformationMode
 	}
 
 	applySavedNumber(
@@ -372,6 +552,13 @@ function applySettings(
 		settings.dotSize,
 		0.01,
 		1,
+	)
+
+	applySavedNumber(
+		relation_radius,
+		settings.relationRadius,
+		0.01,
+		3,
 	)
 
 	applySavedNumber(
@@ -433,7 +620,38 @@ function applySettings(
 
 	applySavedNumber(
 		tunnel_radius,
-		settings.tunnelRadius,
+		settings.elasticTunnelRadius ??
+			settings.tunnelRadius,
+		0,
+		5,
+	)
+
+	applySavedNumber(
+		original_tunnel_radius,
+		settings.originalTunnelRadius ??
+			settings.tunnelRadius,
+		0,
+		5,
+	)
+
+	applySavedNumber(
+		local_tunnel_radius,
+		settings.localTunnelRadius ??
+			settings.tunnelRadius,
+		0,
+		5,
+	)
+
+	applySavedNumber(
+		explosion_width,
+		settings.explosionWidth,
+		0.01,
+		5,
+	)
+
+	applySavedNumber(
+		explosion_strength,
+		settings.explosionStrength,
 		0,
 		5,
 	)
@@ -457,7 +675,7 @@ function applySettings(
 		lattice_repulsion_strength,
 		settings.latticeRepulsionStrength,
 		0,
-		2,
+		12,
 	)
 
 	applySavedNumber(
@@ -471,13 +689,13 @@ function applySettings(
 		lattice_restore_strength,
 		settings.latticeRestoreStrength,
 		0,
-		1,
+		12,
 	)
 
 	applySavedNumber(
 		palette_size,
 		settings.paletteSize,
-		2,
+		1,
 		MAX_PALETTE_COLORS,
 		true,
 	)
@@ -628,6 +846,39 @@ function loadSettings() {
 
 	if (
 		[
+			'hsv',
+			'hsl',
+			'rgb',
+		].includes(
+			savedSettings.colorSpace,
+		)
+	) {
+		color_space.value =
+			savedSettings.colorSpace
+	}
+
+	if (
+		[
+			'spokes',
+			'stations',
+		].includes(
+			savedSettings.inspectionMode,
+		)
+	) {
+		inspection_mode.value =
+			savedSettings.inspectionMode
+	}
+
+	if (
+		typeof savedSettings.selectionEnabled ===
+			'boolean'
+	) {
+		selection_enabled.value =
+			savedSettings.selectionEnabled
+	}
+
+	if (
+		[
 			'perspective',
 			'orthographic',
 		].includes(
@@ -636,6 +887,20 @@ function loadSettings() {
 	) {
 		camera_projection.value =
 			savedSettings.cameraProjection
+	}
+
+	if (
+		[
+			'elastic',
+			'original',
+			'local',
+			'combined',
+		].includes(
+			savedSettings.deformationMode,
+		)
+	) {
+		deformation_mode.value =
+			savedSettings.deformationMode
 	}
 
 	applySavedNumber(
@@ -671,6 +936,13 @@ function loadSettings() {
 		savedSettings.dotSize,
 		0.01,
 		1,
+	)
+
+	applySavedNumber(
+		relation_radius,
+		savedSettings.relationRadius,
+		0.01,
+		3,
 	)
 
 	applySavedNumber(
@@ -732,7 +1004,38 @@ function loadSettings() {
 
 	applySavedNumber(
 		tunnel_radius,
-		savedSettings.tunnelRadius,
+		savedSettings.elasticTunnelRadius ??
+			savedSettings.tunnelRadius,
+		0,
+		5,
+	)
+
+	applySavedNumber(
+		original_tunnel_radius,
+		savedSettings.originalTunnelRadius ??
+			savedSettings.tunnelRadius,
+		0,
+		5,
+	)
+
+	applySavedNumber(
+		local_tunnel_radius,
+		savedSettings.localTunnelRadius ??
+			savedSettings.tunnelRadius,
+		0,
+		5,
+	)
+
+	applySavedNumber(
+		explosion_width,
+		savedSettings.explosionWidth,
+		0.01,
+		5,
+	)
+
+	applySavedNumber(
+		explosion_strength,
+		savedSettings.explosionStrength,
 		0,
 		5,
 	)
@@ -756,7 +1059,7 @@ function loadSettings() {
 		lattice_repulsion_strength,
 		savedSettings.latticeRepulsionStrength,
 		0,
-		2,
+		12,
 	)
 
 	applySavedNumber(
@@ -770,13 +1073,13 @@ function loadSettings() {
 		lattice_restore_strength,
 		savedSettings.latticeRestoreStrength,
 		0,
-		1,
+		12,
 	)
 
 	applySavedNumber(
 		palette_size,
 		savedSettings.paletteSize,
-		2,
+		1,
 		MAX_PALETTE_COLORS,
 		true,
 	)
@@ -848,11 +1151,23 @@ function getCurrentSettings() {
 		dotSize:
 			dot_size.value,
 
+		relationRadius:
+			relation_radius.value,
+
+		inspectionMode:
+			inspection_mode.value,
+
+		selectionEnabled:
+			selection_enabled.value,
+
 		pointDensity:
 			point_density.value,
 
 		shape:
 			shape.value,
+
+		colorSpace:
+			color_space.value,
 
 		cameraProjection:
 			camera_projection.value,
@@ -899,8 +1214,26 @@ function getCurrentSettings() {
 		tunnelEnabled:
 			tunnel_enabled.value,
 
+		deformationMode:
+			deformation_mode.value,
+
 		tunnelRadius:
 			tunnel_radius.value,
+
+		elasticTunnelRadius:
+			tunnel_radius.value,
+
+		originalTunnelRadius:
+			original_tunnel_radius.value,
+
+		localTunnelRadius:
+			local_tunnel_radius.value,
+
+		explosionWidth:
+			explosion_width.value,
+
+		explosionStrength:
+			explosion_strength.value,
 
 		tunnelInfluenceScale:
 			tunnel_influence_scale.value,
@@ -930,8 +1263,12 @@ function getDefaultPresetSettings() {
 	return {
 		renderMode: 'squares',
 		dotSize: 0.07,
+		relationRadius: 0.35,
+		inspectionMode: 'spokes',
+		selectionEnabled: true,
 		pointDensity: 50,
 		shape: 'cube',
+		colorSpace: 'hsv',
 		cameraProjection: 'perspective',
 		cameraFov: 75,
 		cameraOrthoSize: 8,
@@ -963,7 +1300,13 @@ function getDefaultPresetSettings() {
 		torusRotation: 0,
 		paletteEnabled: true,
 		tunnelEnabled: true,
+		deformationMode: 'elastic',
 		tunnelRadius: 0.35,
+		elasticTunnelRadius: 0.35,
+		originalTunnelRadius: 0.35,
+		localTunnelRadius: 0.35,
+		explosionWidth: 0.35,
+		explosionStrength: 0.75,
 		tunnelInfluenceScale: 2.25,
 		latticeRelaxationSteps: 10,
 		latticeRepulsionStrength: 0.18,
@@ -997,10 +1340,37 @@ function fillPresetDefaults(
 
 	const defaults =
 		getDefaultPresetSettings()
+	const legacyRadius =
+		Number.isFinite(
+			settings.tunnelRadius,
+		)
+			? settings.tunnelRadius
+			: defaults.tunnelRadius
 
 	return {
 		...defaults,
 		...settings,
+
+		elasticTunnelRadius:
+			Number.isFinite(
+				settings.elasticTunnelRadius,
+			)
+				? settings.elasticTunnelRadius
+				: legacyRadius,
+
+		originalTunnelRadius:
+			Number.isFinite(
+				settings.originalTunnelRadius,
+			)
+				? settings.originalTunnelRadius
+				: legacyRadius,
+
+		localTunnelRadius:
+			Number.isFinite(
+				settings.localTunnelRadius,
+			)
+				? settings.localTunnelRadius
+				: legacyRadius,
 
 		camera:
 			isValidCameraState(
@@ -1067,23 +1437,111 @@ function getSavedPresets() {
 	}
 }
 
+function getSavedPresetOrder(
+	presets,
+) {
+	const presetNames =
+		Object.keys(
+			presets,
+		)
+	let savedOrder = []
+
+	try {
+		const saved =
+			JSON.parse(
+				localStorage.getItem(
+					PRESET_ORDER_STORAGE_KEY,
+				) ||
+					'[]',
+			)
+
+		if (
+			Array.isArray(
+				saved,
+			)
+		) {
+			savedOrder = saved
+		}
+	} catch {
+		savedOrder = []
+	}
+
+	const orderedNames = []
+	const includedNames =
+		new Set()
+
+	for (
+		const name of savedOrder
+	) {
+		if (
+			typeof name === 'string' &&
+			Object.prototype.hasOwnProperty.call(
+				presets,
+				name,
+			) &&
+			!includedNames.has(
+				name,
+			)
+		) {
+			orderedNames.push(
+				name,
+			)
+			includedNames.add(
+				name,
+			)
+		}
+	}
+
+	for (
+		const name of
+			presetNames
+	) {
+		if (
+			!includedNames.has(
+				name,
+			)
+		) {
+			orderedNames.unshift(
+				name,
+			)
+			includedNames.add(
+				name,
+			)
+		}
+	}
+
+	return orderedNames
+}
+
+function storeSavedPresetOrder(
+	order,
+) {
+	try {
+		localStorage.setItem(
+			PRESET_ORDER_STORAGE_KEY,
+			JSON.stringify(
+				order,
+			),
+		)
+	} catch {
+		// Keep presets usable when storage is restricted.
+	}
+}
+
 function refreshPresetEntries() {
 	const localPresets =
 		getSavedPresets()
-
-	presetEntries.value = [
-		...DEFAULT_PRESETS.map(
-			(preset) => ({
-				name: preset.name,
-				code: preset.code,
-				source: 'default',
-			}),
-		),
-
-		...Object.keys(
+	const localPresetOrder =
+		getSavedPresetOrder(
 			localPresets,
 		)
-			.sort()
+
+	storeSavedPresetOrder(
+		localPresetOrder,
+	)
+
+	presetEntries.value = [
+		...localPresetOrder
 			.map(
 				(name) => ({
 					name,
@@ -1092,6 +1550,14 @@ function refreshPresetEntries() {
 					source: 'local',
 				}),
 			),
+
+		...DEFAULT_PRESETS.map(
+			(preset) => ({
+				name: preset.name,
+				code: preset.code,
+				source: 'default',
+			}),
+		),
 	]
 }
 
@@ -1231,13 +1697,34 @@ function savePresetWithName(
 ) {
 	const presets =
 		getSavedPresets()
+	const isNewPreset =
+		!Object.prototype.hasOwnProperty.call(
+			presets,
+			name,
+		)
 
 	presets[name] =
 		getCurrentSettings()
 
-	storeSavedPresets(
-		presets,
-	)
+	if (
+		storeSavedPresets(
+			presets,
+		) &&
+		isNewPreset
+	) {
+		const presetOrder =
+			getSavedPresetOrder(
+				presets,
+			)
+
+		storeSavedPresetOrder([
+			name,
+			...presetOrder.filter(
+				(presetName) =>
+					presetName !== name,
+			),
+		])
+	}
 
 	newPresetName.value = ''
 	activePresetName.value =
@@ -1284,15 +1771,23 @@ function deletePresetEntry(
 			`Permanently delete “${entry.name}”?`,
 		confirmLabel: 'Delete',
 		danger: true,
-		onConfirm: () => {
-			const presets =
-				getSavedPresets()
+			onConfirm: () => {
+				const presets =
+					getSavedPresets()
 
 			delete presets[entry.name]
 
-			storeSavedPresets(
-				presets,
-			)
+				if (
+					storeSavedPresets(
+						presets,
+					)
+				) {
+					storeSavedPresetOrder(
+						getSavedPresetOrder(
+							presets,
+						),
+					)
+				}
 
 			if (
 				activePresetName.value ===
@@ -1391,6 +1886,8 @@ function applyPreset(
 
 	updatePaletteBindingVisibility()
 
+	updateDeformationBindingVisibility()
+
 	pane
 		?.refresh()
 
@@ -1464,6 +1961,10 @@ function decodePreset(
 			/^color-explorer:/,
 			'',
 		)
+			.replace(
+				/[\s\u200B-\u200D\uFEFF]/g,
+				'',
+			)
 			.replaceAll(
 				'-',
 				'+',
@@ -1527,50 +2028,302 @@ async function copyShareUrl() {
 }
 
 async function copyPresetCode() {
+	const settings =
+		getCurrentSettings()
 	const code =
 		`color-explorer:${encodePreset(
-			getCurrentSettings(),
+			settings,
 		)}`
+
+	// Verify the exact text before showing or copying it.
+	decodePreset(
+		code,
+	)
+
+	presetCodeDialog.value = {
+		open: true,
+		text: code,
+		copied: false,
+	}
 
 	try {
 		await navigator.clipboard.writeText(
 			code,
 		)
 
-		window.alert(
-			'Preset code copied.',
-		)
+		presetCodeDialog.value = {
+			...presetCodeDialog.value,
+			copied: true,
+		}
 	} catch {
-		window.prompt(
-			'Copy this preset code:',
-			code,
-		)
+		// The multiline dialog provides a reliable
+		// manual copy path on iPadOS.
 	}
 }
 
-function importPreset() {
-	const input =
-		window.prompt(
-			'Paste a Color Explorer share URL or preset code:',
+async function copyCurrentPresetCode() {
+	const text =
+		presetCodeDialog.value.text
+	let copied = false
+
+	try {
+		await navigator.clipboard.writeText(
+			text,
 		)
+		copied = true
+	} catch {
+		const textArea =
+			presetCodeTextarea.value
+
+		if (
+			textArea
+		) {
+			textArea.focus()
+			textArea.select()
+			textArea.setSelectionRange(
+				0,
+				text.length,
+			)
+
+			try {
+				copied =
+					document.execCommand(
+						'copy',
+					)
+			} catch {
+				copied = false
+			}
+		}
+	}
+
+	presetCodeDialog.value = {
+		...presetCodeDialog.value,
+		copied,
+	}
+}
+
+function closePresetCode() {
+	presetCodeDialog.value = {
+		...presetCodeDialog.value,
+		open: false,
+		copied: false,
+	}
+}
+
+async function exportAllPresets() {
+	const localPresetEntries =
+		presetEntries.value.filter(
+			(entry) =>
+				entry.source ===
+				'local',
+		)
+	const exportedPresets =
+		localPresetEntries
+			.sort(
+				(entryA, entryB) =>
+					entryA.name.localeCompare(
+						entryB.name,
+					),
+			)
+			.map(
+				(entry) => ({
+					name:
+						entry.name,
+					code:
+						`color-explorer:${encodePreset(
+							entry.settings,
+						)}`,
+				}),
+			)
 
 	if (
-		!input
+		exportedPresets.length === 0
 	) {
+		window.alert(
+			'There are no named presets to export.',
+		)
 		return
 	}
 
+	const output =
+		JSON.stringify(
+			exportedPresets,
+			null,
+			'\t',
+		)
+
+	presetExportDialog.value = {
+		open: true,
+		text: output,
+		count:
+			exportedPresets.length,
+		copied: false,
+	}
+
 	try {
-		openPreset(
-			decodePreset(
-				input,
-			),
-			'Imported preset',
+		await navigator.clipboard.writeText(
+			output,
 		)
+
+		presetExportDialog.value = {
+			...presetExportDialog.value,
+			copied: true,
+		}
 	} catch {
-		window.alert(
-			'That preset URL or code is invalid.',
+		// The dialog remains open so iOS users can
+		// copy from its multiline text area.
+	}
+}
+
+async function copyAllPresetExport() {
+	const text =
+		presetExportDialog.value.text
+	let copied = false
+
+	try {
+		await navigator.clipboard.writeText(
+			text,
 		)
+		copied = true
+	} catch {
+		const textArea =
+			presetExportTextarea.value
+
+		if (
+			textArea
+		) {
+			textArea.focus()
+			textArea.select()
+			textArea.setSelectionRange(
+				0,
+				text.length,
+			)
+
+			try {
+				copied =
+					document.execCommand(
+						'copy',
+					)
+			} catch {
+				copied = false
+			}
+		}
+	}
+
+	presetExportDialog.value = {
+		...presetExportDialog.value,
+		copied,
+	}
+}
+
+function closePresetExport() {
+	presetExportDialog.value = {
+		...presetExportDialog.value,
+		open: false,
+		copied: false,
+	}
+}
+
+function toggleMobilePanel(
+	panel,
+) {
+	mobilePanel.value =
+		mobilePanel.value === panel
+			? null
+			: panel
+}
+
+function closeMobilePanels() {
+	mobilePanel.value = null
+}
+
+function importPreset() {
+	presetImportDialog.value = {
+		open: true,
+		text: '',
+		error: '',
+	}
+}
+
+function closePresetImport() {
+	presetImportDialog.value = {
+		...presetImportDialog.value,
+		open: false,
+		error: '',
+	}
+}
+
+function submitPresetImport() {
+	try {
+		let presetInput =
+			presetImportDialog.value.text
+				.trim()
+		let presetName =
+			'Imported preset'
+
+		if (
+			!presetInput
+		) {
+			throw new Error(
+				'Paste a preset before loading it.',
+			)
+		}
+
+		if (
+			presetInput.startsWith(
+				'{',
+			)
+		) {
+			const exportedEntry =
+				JSON.parse(
+					presetInput.replace(
+						/,\s*$/,
+						'',
+					),
+				)
+
+			if (
+				!exportedEntry ||
+				typeof exportedEntry.code !==
+					'string'
+			) {
+				throw new Error(
+					'Missing preset code',
+				)
+			}
+
+			presetInput =
+				exportedEntry.code
+
+			if (
+				typeof exportedEntry.name ===
+					'string' &&
+				exportedEntry.name.trim()
+			) {
+				presetName =
+					exportedEntry.name.trim()
+			}
+		}
+
+		const settings =
+			decodePreset(
+				presetInput,
+			)
+
+		closePresetImport()
+
+		openPreset(
+			settings,
+			presetName,
+		)
+	} catch (error) {
+		presetImportDialog.value = {
+			...presetImportDialog.value,
+			error:
+				error instanceof Error
+					? error.message
+					: 'That preset is invalid.',
+		}
 	}
 }
 
@@ -1932,6 +2685,51 @@ function getDotColorHSV(
 	)
 }
 
+function getDotColorRGB(
+	x,
+	y,
+	z,
+) {
+	return new THREE.Color()
+		.setRGB(
+			getLinearAlpha(x),
+			getLinearAlpha(y),
+			getLinearAlpha(z),
+			THREE.SRGBColorSpace,
+		)
+}
+
+function getDotColor(
+	x,
+	y,
+	z,
+) {
+	switch (
+		color_space.value
+	) {
+		case 'hsl':
+			return getDotColorHSL(
+				x,
+				y,
+				z,
+			)
+
+		case 'rgb':
+			return getDotColorRGB(
+				x,
+				y,
+				z,
+			)
+
+		default:
+			return getDotColorHSV(
+				x,
+				y,
+				z,
+			)
+	}
+}
+
 function getAxisValue(
 	coords,
 	axis,
@@ -2196,21 +2994,82 @@ function rgbToHsv(
 	}
 }
 
-function hexToHsv(hex) {
-	const {
-		r,
-		g,
-		b,
-	} =
-		hexToRgb(
-			hex,
+function rgbToHsl(
+	r,
+	g,
+	b,
+) {
+	const max =
+		Math.max(
+			r,
+			g,
+			b,
 		)
+	const min =
+		Math.min(
+			r,
+			g,
+			b,
+		)
+	const delta =
+		max - min
+	const l =
+		(
+			max + min
+		) * 0.5
 
-	return rgbToHsv(
-		r,
-		g,
-		b,
-	)
+	let h = 0
+	let s = 0
+
+	if (
+		delta !== 0
+	) {
+		s =
+			delta /
+			(
+				1 -
+				Math.abs(
+					2 * l - 1,
+				)
+			)
+
+		if (
+			max === r
+		) {
+			h =
+				(
+					(
+						g - b
+					) / delta
+				) % 6
+		} else if (
+			max === g
+		) {
+			h =
+				(
+					b - r
+				) / delta + 2
+		} else {
+			h =
+				(
+					r - g
+				) / delta + 4
+		}
+
+		h /= 6
+
+		if (
+			h < 0
+		) {
+			h += 1
+		}
+	}
+
+	return {
+		h,
+		s,
+		l,
+	}
 }
 
 function setAxisCoord(
@@ -2264,24 +3123,87 @@ function hsvToCoords(
 	return coords
 }
 
+function hslToCoords(
+	h,
+	s,
+	l,
+) {
+	const coords = {
+		x: 0,
+		y: 0,
+		z: 0,
+	}
+
+	setAxisCoord(
+		coords,
+		hslAxes.h,
+		h,
+	)
+	setAxisCoord(
+		coords,
+		hslAxes.s,
+		s,
+	)
+	setAxisCoord(
+		coords,
+		hslAxes.l,
+		l,
+	)
+
+	return coords
+}
+
 function getPaletteColorPosition(
 	hex,
 ) {
-	const {
-		h,
-		s,
-		v,
-	} =
-		hexToHsv(
+	const rgb =
+		hexToRgb(
 			hex,
 		)
 
-	const coords =
-		hsvToCoords(
-			h,
-			s,
-			v,
-		)
+	let coords
+
+	if (
+		color_space.value ===
+			'rgb'
+	) {
+		coords = {
+			x: rgb.r,
+			y: rgb.g,
+			z: rgb.b,
+		}
+	} else if (
+		color_space.value ===
+			'hsl'
+	) {
+		const hsl =
+			rgbToHsl(
+				rgb.r,
+				rgb.g,
+				rgb.b,
+			)
+
+		coords =
+			hslToCoords(
+				hsl.h,
+				hsl.s,
+				hsl.l,
+			)
+	} else {
+		const hsv =
+			rgbToHsv(
+				rgb.r,
+				rgb.g,
+				rgb.b,
+			)
+
+		coords =
+			hsvToCoords(
+				hsv.h,
+				hsv.s,
+				hsv.v,
+			)
+	}
 
 	const position =
 		getPositionFromCoords(
@@ -2610,10 +3532,554 @@ function rebuildPaletteData() {
 				),
 		})
 	}
+
+	if (
+		palettePath.length === 1
+	) {
+		const point =
+			palettePath[0]
+
+		paletteSegments.push({
+			ax: point.x,
+			ay: point.y,
+			az: point.z,
+			bx: point.x,
+			by: point.y,
+			bz: point.z,
+			abx: 0,
+			aby: 0,
+			abz: 0,
+			lengthSquared: 1,
+			length: 1,
+			minX: point.x,
+			maxX: point.x,
+			minY: point.y,
+			maxY: point.y,
+			minZ: point.z,
+			maxZ: point.z,
+			isPoint: true,
+		})
+	}
 }
 
 
 // Tunnel deformation
+
+function applyOriginalExplosion(
+	original,
+	radius = original_tunnel_radius.value,
+) {
+	const deformed =
+		new Float32Array(
+			original,
+		)
+
+	if (
+		!tunnel_enabled.value ||
+		radius <= 0 ||
+		paletteSegments.length === 0
+	) {
+		return deformed
+	}
+
+	const radiusSquared =
+		radius * radius
+
+	for (
+		let offset = 0;
+		offset < original.length;
+		offset += 3
+	) {
+		const px = original[offset]
+		const py = original[offset + 1]
+		const pz = original[offset + 2]
+
+		let closestDistanceSquared =
+			Infinity
+		let closestX = 0
+		let closestY = 0
+		let closestZ = 0
+		let closestSegment = null
+
+		for (
+			let segmentIndex = 0;
+			segmentIndex < paletteSegments.length;
+			segmentIndex++
+		) {
+			const segment =
+				paletteSegments[segmentIndex]
+
+			if (
+				px < segment.minX - radius ||
+				px > segment.maxX + radius ||
+				py < segment.minY - radius ||
+				py > segment.maxY + radius ||
+				pz < segment.minZ - radius ||
+				pz > segment.maxZ + radius
+			) {
+				continue
+			}
+
+			const apx = px - segment.ax
+			const apy = py - segment.ay
+			const apz = pz - segment.az
+
+			const alpha = Math.max(
+				0,
+				Math.min(
+					1,
+					(
+						apx * segment.abx +
+						apy * segment.aby +
+						apz * segment.abz
+					) / segment.lengthSquared,
+				),
+			)
+
+			const closestPointX =
+				segment.ax + segment.abx * alpha
+			const closestPointY =
+				segment.ay + segment.aby * alpha
+			const closestPointZ =
+				segment.az + segment.abz * alpha
+
+			const dx = px - closestPointX
+			const dy = py - closestPointY
+			const dz = pz - closestPointZ
+			const distanceSquared =
+				dx * dx + dy * dy + dz * dz
+
+			if (
+				distanceSquared <
+				closestDistanceSquared
+			) {
+				closestDistanceSquared =
+					distanceSquared
+				closestX = closestPointX
+				closestY = closestPointY
+				closestZ = closestPointZ
+				closestSegment = segment
+			}
+		}
+
+		if (
+			closestDistanceSquared >=
+			radiusSquared ||
+			!closestSegment
+		) {
+			continue
+		}
+
+		let dx = px - closestX
+		let dy = py - closestY
+		let dz = pz - closestZ
+		let distance =
+			Math.sqrt(
+				closestDistanceSquared,
+			)
+
+		if (
+			distance < 0.000001
+		) {
+			if (
+				closestSegment.isPoint
+			) {
+				dx = 0
+				dy = 1
+				dz = 0
+			} else if (
+				Math.abs(
+					closestSegment.abx /
+					closestSegment.length,
+				) < 0.9
+			) {
+				dx = 0
+				dy = closestSegment.abz
+				dz = -closestSegment.aby
+			} else {
+				dx = -closestSegment.abz
+				dy = 0
+				dz = closestSegment.abx
+			}
+
+			distance =
+				Math.sqrt(
+					dx * dx +
+					dy * dy +
+					dz * dz,
+				)
+		}
+
+		const scale =
+			radius / distance
+
+		deformed[offset] =
+			closestX + dx * scale
+		deformed[offset + 1] =
+			closestY + dy * scale
+		deformed[offset + 2] =
+			closestZ + dz * scale
+	}
+
+	return deformed
+}
+
+function applyLocalCutaway(
+	original,
+	colors,
+	startingPositions = original,
+	radius = local_tunnel_radius.value,
+) {
+	const maximumLength =
+		original.length
+	const deformed =
+		new Float32Array(
+			maximumLength,
+		)
+	const visibleColors =
+		new Float32Array(
+			maximumLength,
+		)
+	const visibleOriginals =
+		new Float32Array(
+			maximumLength,
+		)
+
+	const width =
+		explosion_width.value
+	const outerRadius =
+		radius + width
+	const outerRadiusSquared =
+		outerRadius * outerRadius
+	const blendBand =
+		Math.min(
+			0.15,
+			Math.max(
+				0.02,
+				width * 0.25,
+			),
+		)
+
+	let writeOffset = 0
+
+	for (
+		let offset = 0;
+		offset < original.length;
+		offset += 3
+	) {
+		const px = original[offset]
+		const py = original[offset + 1]
+		const pz = original[offset + 2]
+
+		let nearestDistanceSquared =
+			Infinity
+		let nearestDirectionX = 0
+		let nearestDirectionY = 1
+		let nearestDirectionZ = 0
+		let nearestSegment = null
+
+		for (
+			let segmentIndex = 0;
+			segmentIndex < paletteSegments.length;
+			segmentIndex++
+		) {
+			const segment =
+				paletteSegments[segmentIndex]
+
+			if (
+				px < segment.minX - outerRadius ||
+				px > segment.maxX + outerRadius ||
+				py < segment.minY - outerRadius ||
+				py > segment.maxY + outerRadius ||
+				pz < segment.minZ - outerRadius ||
+				pz > segment.maxZ + outerRadius
+			) {
+				continue
+			}
+
+			const apx = px - segment.ax
+			const apy = py - segment.ay
+			const apz = pz - segment.az
+			const alpha = Math.max(
+				0,
+				Math.min(
+					1,
+					(
+						apx * segment.abx +
+						apy * segment.aby +
+						apz * segment.abz
+					) / segment.lengthSquared,
+				),
+			)
+			const dx =
+				px -
+				(
+					segment.ax +
+					segment.abx * alpha
+				)
+			const dy =
+				py -
+				(
+					segment.ay +
+					segment.aby * alpha
+				)
+			const dz =
+				pz -
+				(
+					segment.az +
+					segment.abz * alpha
+				)
+			const distanceSquared =
+				dx * dx + dy * dy + dz * dz
+
+			if (
+				distanceSquared <
+				nearestDistanceSquared
+			) {
+				nearestDistanceSquared =
+					distanceSquared
+				nearestDirectionX = dx
+				nearestDirectionY = dy
+				nearestDirectionZ = dz
+				nearestSegment = segment
+			}
+		}
+
+		if (
+			nearestDistanceSquared <
+			radius * radius
+		) {
+			continue
+		}
+
+		let outputX = startingPositions[offset]
+		let outputY = startingPositions[offset + 1]
+		let outputZ = startingPositions[offset + 2]
+
+		if (
+			nearestDistanceSquared <
+				outerRadiusSquared &&
+			nearestSegment
+		) {
+			const nearestDistance =
+				Math.sqrt(
+					nearestDistanceSquared,
+				)
+			let blendedX = 0
+			let blendedY = 0
+			let blendedZ = 0
+			let totalWeight = 0
+
+			for (
+				let segmentIndex = 0;
+				segmentIndex < paletteSegments.length;
+				segmentIndex++
+			) {
+				const segment =
+					paletteSegments[segmentIndex]
+				const apx = px - segment.ax
+				const apy = py - segment.ay
+				const apz = pz - segment.az
+				const alpha = Math.max(
+					0,
+					Math.min(
+						1,
+						(
+							apx * segment.abx +
+							apy * segment.aby +
+							apz * segment.abz
+						) / segment.lengthSquared,
+					),
+				)
+				let dx =
+					px -
+					(
+						segment.ax +
+						segment.abx * alpha
+					)
+				let dy =
+					py -
+					(
+						segment.ay +
+						segment.aby * alpha
+					)
+				let dz =
+					pz -
+					(
+						segment.az +
+						segment.abz * alpha
+					)
+				const distance =
+					Math.sqrt(
+						dx * dx +
+						dy * dy +
+						dz * dz,
+					)
+
+				if (
+					distance >
+						nearestDistance +
+						blendBand ||
+					distance >= outerRadius
+				) {
+					continue
+				}
+
+				if (
+					distance > 0.000001
+				) {
+					dx /= distance
+					dy /= distance
+					dz /= distance
+				} else {
+					continue
+				}
+
+				const blendAlpha =
+					Math.min(
+						1,
+						(
+							distance -
+							nearestDistance
+						) / blendBand,
+					)
+				const weight =
+					1 -
+					blendAlpha *
+						blendAlpha *
+						(
+							3 -
+							2 * blendAlpha
+						)
+
+				blendedX += dx * weight
+				blendedY += dy * weight
+				blendedZ += dz * weight
+				totalWeight += weight
+			}
+
+			let directionLength =
+				Math.sqrt(
+					blendedX * blendedX +
+					blendedY * blendedY +
+					blendedZ * blendedZ,
+				)
+
+			if (
+				totalWeight <= 0 ||
+				directionLength < 0.000001
+			) {
+				blendedX = nearestDirectionX
+				blendedY = nearestDirectionY
+				blendedZ = nearestDirectionZ
+				directionLength =
+					Math.sqrt(
+						blendedX * blendedX +
+						blendedY * blendedY +
+						blendedZ * blendedZ,
+					)
+			}
+
+			if (
+				directionLength < 0.000001
+			) {
+				if (
+					nearestSegment.isPoint
+				) {
+					blendedX = 0
+					blendedY = 1
+					blendedZ = 0
+				} else if (
+					Math.abs(
+						nearestSegment.abx /
+						nearestSegment.length,
+					) < 0.9
+				) {
+					blendedX = 0
+					blendedY = nearestSegment.abz
+					blendedZ = -nearestSegment.aby
+				} else {
+					blendedX = -nearestSegment.abz
+					blendedY = 0
+					blendedZ = nearestSegment.abx
+				}
+
+				directionLength =
+					Math.sqrt(
+						blendedX * blendedX +
+						blendedY * blendedY +
+						blendedZ * blendedZ,
+					)
+			}
+
+			const falloffAlpha =
+				Math.max(
+					0,
+					Math.min(
+						1,
+						(
+							nearestDistance - radius
+						) / width,
+					),
+				)
+			const falloff =
+				1 -
+				falloffAlpha *
+					falloffAlpha *
+					(
+						3 -
+						2 * falloffAlpha
+					)
+			const displacement =
+				explosion_strength.value *
+				falloff
+
+			outputX +=
+				blendedX /
+				directionLength *
+				displacement
+			outputY +=
+				blendedY /
+				directionLength *
+				displacement
+			outputZ +=
+				blendedZ /
+				directionLength *
+				displacement
+		}
+
+		deformed[writeOffset] = outputX
+		deformed[writeOffset + 1] = outputY
+		deformed[writeOffset + 2] = outputZ
+		visibleColors[writeOffset] = colors[offset]
+		visibleColors[writeOffset + 1] = colors[offset + 1]
+		visibleColors[writeOffset + 2] = colors[offset + 2]
+		visibleOriginals[writeOffset] = original[offset]
+		visibleOriginals[writeOffset + 1] = original[offset + 1]
+		visibleOriginals[writeOffset + 2] = original[offset + 2]
+		writeOffset += 3
+	}
+
+	return {
+		positions:
+			deformed.subarray(
+				0,
+				writeOffset,
+			),
+
+		colors:
+			visibleColors.subarray(
+				0,
+				writeOffset,
+			),
+
+		originals:
+			visibleOriginals.subarray(
+				0,
+				writeOffset,
+			),
+	}
+}
 
 function setLatticeNeighbor(
 	neighborIndexes,
@@ -2887,6 +4353,7 @@ function createLatticeNeighbors(
 function relaxPaletteLattice(
 	original,
 	density,
+	radius = tunnel_radius.value,
 ) {
 	let current =
 		new Float32Array(
@@ -2895,7 +4362,7 @@ function relaxPaletteLattice(
 
 	if (
 		!tunnel_enabled.value ||
-		tunnel_radius.value <= 0 ||
+		radius <= 0 ||
 		paletteSegments.length === 0
 	) {
 		return current
@@ -2920,7 +4387,7 @@ function relaxPaletteLattice(
 		)
 
 	const influenceRadius =
-		tunnel_radius.value *
+		radius *
 		tunnel_influence_scale.value
 
 	const influenceRadiusSquared =
@@ -3103,6 +4570,12 @@ function relaxPaletteLattice(
 					dy /= distance
 					dz /= distance
 				} else if (
+					segment.isPoint
+				) {
+					dx = 0
+					dy = 1
+					dz = 0
+				} else if (
 					Math.abs(
 						segment.abx /
 							segment.length,
@@ -3198,7 +4671,7 @@ function relaxPaletteLattice(
 					)
 
 				const repulsionScale =
-					tunnel_radius.value *
+					radius *
 					lattice_repulsion_strength.value *
 					fieldStrength /
 					repulsionWeight
@@ -3979,6 +5452,13 @@ function setupScene() {
 }
 
 function setupRenderer() {
+	const width =
+		threeContainer.value.clientWidth ||
+		window.innerWidth
+	const height =
+		threeContainer.value.clientHeight ||
+		window.innerHeight
+
 	renderer =
 		new THREE.WebGLRenderer({
 			antialias:
@@ -3986,15 +5466,93 @@ function setupRenderer() {
 		})
 
 	renderer.setSize(
-		window.innerWidth,
-		window.innerHeight,
+		width,
+		height,
 	)
+
+	if (
+		relationLines
+	) {
+		relationLines.material
+			.resolution
+			.set(
+				width,
+				height,
+			)
+	}
 
 	threeContainer
 		.value
 		.appendChild(
 			renderer.domElement,
 		)
+
+	renderer.domElement
+		.addEventListener(
+			'pointerdown',
+			handlePointPointerDown,
+		)
+
+	renderer.domElement
+		.addEventListener(
+			'pointerup',
+			handlePointPointerUp,
+		)
+}
+
+function handleWindowResize() {
+	if (
+		!renderer ||
+		!camera ||
+		!threeContainer.value
+	) {
+		return
+	}
+
+	const width =
+		threeContainer.value.clientWidth
+	const height =
+		threeContainer.value.clientHeight
+	const aspect =
+		width / Math.max(
+			height,
+			1,
+		)
+
+	renderer.setSize(
+		width,
+		height,
+	)
+
+	if (
+		camera.isPerspectiveCamera
+	) {
+		camera.aspect = aspect
+	} else {
+		const halfHeight =
+			camera_ortho_size.value *
+			0.5
+		const halfWidth =
+			halfHeight * aspect
+
+		camera.left = -halfWidth
+		camera.right = halfWidth
+		camera.top = halfHeight
+		camera.bottom = -halfHeight
+	}
+
+	camera.updateProjectionMatrix()
+
+	if (
+		renderMode.value ===
+			'squares' &&
+		material
+	) {
+		material.size =
+			getSquarePointSize()
+	}
+
+	sortNeeded = true
 }
 
 
@@ -4008,9 +5566,6 @@ function setupGeometry() {
 		density *
 		density *
 		density
-
-	pointCountDisplay.value =
-		pointCount.toLocaleString()
 
 	const original =
 		new Float32Array(
@@ -4072,7 +5627,7 @@ function setupGeometry() {
 					position.z
 
 				const color =
-					getDotColorHSV(
+					getDotColor(
 						i,
 						j,
 						k,
@@ -4099,21 +5654,111 @@ function setupGeometry() {
 	originalPositions =
 		original
 
-	const positions =
-		relaxPaletteLattice(
-			originalPositions,
-			density,
-		)
+	let positions =
+		originalPositions
+
+	let visibleColors =
+		colors
+
+	let visibleOriginals =
+		originalPositions
+
+	if (
+		tunnel_enabled.value &&
+		paletteSegments.length > 0
+	) {
+		if (
+			deformation_mode.value ===
+				'elastic'
+		) {
+			positions =
+				relaxPaletteLattice(
+					originalPositions,
+					density,
+				)
+		} else if (
+			deformation_mode.value ===
+				'original'
+		) {
+			positions =
+				applyOriginalExplosion(
+					originalPositions,
+				)
+		} else if (
+			deformation_mode.value ===
+				'local'
+		) {
+			const cutaway =
+				applyLocalCutaway(
+					originalPositions,
+					colors,
+				)
+
+			positions =
+				cutaway.positions
+			visibleColors =
+				cutaway.colors
+			visibleOriginals =
+				cutaway.originals
+		} else {
+			const elasticPositions =
+				relaxPaletteLattice(
+					originalPositions,
+					density,
+					tunnel_radius.value,
+				)
+			const originalExplosionPositions =
+				applyOriginalExplosion(
+					originalPositions,
+					original_tunnel_radius.value,
+				)
+			const combinedPositions =
+				new Float32Array(
+					originalPositions.length,
+				)
+
+			for (
+				let offset = 0;
+				offset < originalPositions.length;
+				offset++
+			) {
+				combinedPositions[offset] =
+					elasticPositions[offset] +
+					originalExplosionPositions[offset] -
+					originalPositions[offset]
+			}
+
+			const cutaway =
+				applyLocalCutaway(
+					originalPositions,
+					colors,
+					combinedPositions,
+					local_tunnel_radius.value,
+				)
+
+			positions = cutaway.positions
+			visibleColors = cutaway.colors
+			visibleOriginals = cutaway.originals
+		}
+	}
+
+	pointCountDisplay.value =
+		(
+			positions.length /
+			3
+		).toLocaleString()
 
 	setupGeometryBuffers(
 		positions,
-		colors,
+		visibleColors,
+		visibleOriginals,
 	)
 }
 
 function setupGeometryBuffers(
 	positions,
 	colors,
+	originals,
 ) {
 	geometry =
 		new THREE.BufferGeometry()
@@ -4123,6 +5768,9 @@ function setupGeometryBuffers(
 
 	baseColors =
 		colors
+
+	baseOriginalPositions =
+		originals
 
 	const pointCount =
 		basePositions.length /
@@ -4169,12 +5817,749 @@ function setupGeometryBuffers(
 	)
 }
 
+function disposeRelationLines() {
+	if (
+		!relationLines
+	) {
+		return
+	}
+
+	scene.remove(
+		relationLines,
+	)
+
+	relationLines.geometry
+		.dispose()
+	relationLines.material
+		.dispose()
+
+	relationLines = null
+}
+
+function clearPointSelection() {
+	selectedPointIndex = -1
+	selectedPointInfo.value = null
+	copiedPointHex.value = false
+	disposeRelationLines()
+	updateOrbitSelectedButton()
+}
+
+function rebuildRelationLines() {
+	disposeRelationLines()
+
+	if (
+		selectedPointIndex < 0 ||
+		!basePositions ||
+		!baseOriginalPositions
+	) {
+		return
+	}
+
+	const selectedOffset =
+		selectedPointIndex * 3
+	const originalX =
+		baseOriginalPositions[
+			selectedOffset
+		]
+	const originalY =
+		baseOriginalPositions[
+			selectedOffset + 1
+		]
+	const originalZ =
+		baseOriginalPositions[
+			selectedOffset + 2
+		]
+	const radiusSquared =
+		relation_radius.value *
+		relation_radius.value
+
+	const neighborIndexes = []
+
+	for (
+		let offset = 0;
+		offset < baseOriginalPositions.length;
+		offset += 3
+	) {
+		if (
+			offset === selectedOffset
+		) {
+			continue
+		}
+
+		const dx =
+			baseOriginalPositions[offset] -
+			originalX
+		const dy =
+			baseOriginalPositions[offset + 1] -
+			originalY
+		const dz =
+			baseOriginalPositions[offset + 2] -
+			originalZ
+
+		if (
+			dx * dx +
+				dy * dy +
+				dz * dz <=
+			radiusSquared
+		) {
+			neighborIndexes.push(
+				offset / 3,
+			)
+		}
+	}
+
+	if (
+		neighborIndexes.length === 0
+	) {
+		return
+	}
+
+	const linePositions =
+		new Float32Array(
+			neighborIndexes.length * 6,
+		)
+	let writeOffset = 0
+
+	if (
+		inspection_mode.value ===
+			'stations'
+	) {
+		let route
+
+		if (
+			neighborIndexes.length <=
+			2500
+		) {
+			const remaining =
+				neighborIndexes.slice()
+
+			route = [
+				selectedPointIndex,
+			]
+
+			while (
+				remaining.length > 0
+			) {
+				const currentIndex =
+					route[
+						route.length - 1
+					]
+				const currentOffset =
+					currentIndex * 3
+				let nearestArrayIndex = 0
+				let nearestDistanceSquared =
+					Infinity
+
+				for (
+					let i = 0;
+					i < remaining.length;
+					i++
+				) {
+					const candidateOffset =
+						remaining[i] * 3
+					const dx =
+						baseOriginalPositions[candidateOffset] -
+						baseOriginalPositions[currentOffset]
+					const dy =
+						baseOriginalPositions[candidateOffset + 1] -
+						baseOriginalPositions[currentOffset + 1]
+					const dz =
+						baseOriginalPositions[candidateOffset + 2] -
+						baseOriginalPositions[currentOffset + 2]
+					const distanceSquared =
+						dx * dx +
+						dy * dy +
+						dz * dz
+
+					if (
+						distanceSquared <
+						nearestDistanceSquared
+					) {
+						nearestDistanceSquared =
+							distanceSquared
+						nearestArrayIndex = i
+					}
+				}
+
+				route.push(
+					remaining[
+						nearestArrayIndex
+					],
+				)
+
+				remaining[nearestArrayIndex] =
+					remaining[
+						remaining.length - 1
+					]
+				remaining.pop()
+			}
+		} else {
+			route = [
+				selectedPointIndex,
+
+				...neighborIndexes.sort(
+					(a, b) => {
+						const aOffset = a * 3
+						const bOffset = b * 3
+						const adx =
+							baseOriginalPositions[aOffset] - originalX
+						const ady =
+							baseOriginalPositions[aOffset + 1] - originalY
+						const adz =
+							baseOriginalPositions[aOffset + 2] - originalZ
+						const bdx =
+							baseOriginalPositions[bOffset] - originalX
+						const bdy =
+							baseOriginalPositions[bOffset + 1] - originalY
+						const bdz =
+							baseOriginalPositions[bOffset + 2] - originalZ
+
+						return (
+							adx * adx + ady * ady + adz * adz -
+							(
+								bdx * bdx + bdy * bdy + bdz * bdz
+							)
+						)
+					},
+				),
+			]
+		}
+
+		for (
+			let i = 1;
+			i < route.length;
+			i++
+		) {
+			const startOffset =
+				route[i - 1] * 3
+			const endOffset =
+				route[i] * 3
+
+			linePositions[writeOffset] = basePositions[startOffset]
+			linePositions[writeOffset + 1] = basePositions[startOffset + 1]
+			linePositions[writeOffset + 2] = basePositions[startOffset + 2]
+			linePositions[writeOffset + 3] = basePositions[endOffset]
+			linePositions[writeOffset + 4] = basePositions[endOffset + 1]
+			linePositions[writeOffset + 5] = basePositions[endOffset + 2]
+			writeOffset += 6
+		}
+	} else {
+		for (
+			const neighborIndex of neighborIndexes
+		) {
+			const offset =
+				neighborIndex * 3
+
+			linePositions[writeOffset] = basePositions[selectedOffset]
+			linePositions[writeOffset + 1] = basePositions[selectedOffset + 1]
+			linePositions[writeOffset + 2] = basePositions[selectedOffset + 2]
+			linePositions[writeOffset + 3] = basePositions[offset]
+			linePositions[writeOffset + 4] = basePositions[offset + 1]
+			linePositions[writeOffset + 5] = basePositions[offset + 2]
+			writeOffset += 6
+		}
+	}
+
+	const lineGeometry =
+		new LineSegmentsGeometry()
+
+	lineGeometry.setPositions(
+		linePositions,
+	)
+
+	const lineMaterial =
+		new LineMaterial({
+			color: 0xffffff,
+			linewidth: 2,
+			transparent: true,
+			opacity: 0.38,
+			depthWrite: false,
+		})
+
+	lineMaterial.resolution.set(
+		renderer.domElement.clientWidth,
+		renderer.domElement.clientHeight,
+	)
+
+	relationLines =
+		new LineSegments2(
+			lineGeometry,
+			lineMaterial,
+		)
+
+	relationLines.frustumCulled =
+		false
+
+	scene.add(
+		relationLines,
+	)
+}
+
+function getPointColorInfo(
+	pointIndex,
+) {
+	const offset =
+		pointIndex * 3
+	const color =
+		new THREE.Color(
+			baseColors[offset],
+			baseColors[offset + 1],
+			baseColors[offset + 2],
+		)
+
+	color.convertLinearToSRGB()
+
+	const r =
+		THREE.MathUtils.clamp(
+			color.r,
+			0,
+			1,
+		)
+	const g =
+		THREE.MathUtils.clamp(
+			color.g,
+			0,
+			1,
+		)
+	const b =
+		THREE.MathUtils.clamp(
+			color.b,
+			0,
+			1,
+		)
+	const red = Math.round(r * 255)
+	const green = Math.round(g * 255)
+	const blue = Math.round(b * 255)
+	const hex =
+		`#${[
+			red,
+			green,
+			blue,
+		].map(
+			(value) =>
+				value
+					.toString(16)
+					.padStart(2, '0'),
+		).join('')}`
+
+	if (
+		color_space.value ===
+			'rgb'
+	) {
+		return {
+			space: 'RGB',
+			values:
+				`R ${red} · G ${green} · B ${blue}`,
+			hex,
+		}
+	}
+
+	if (
+		color_space.value ===
+			'hsl'
+	) {
+		const hsl =
+			rgbToHsl(
+				r,
+				g,
+				b,
+			)
+
+		return {
+			space: 'HSL',
+			values:
+				`H ${Math.round(hsl.h * 360)}° · S ${Math.round(hsl.s * 100)}% · L ${Math.round(hsl.l * 100)}%`,
+			hex,
+		}
+	}
+
+	const hsv =
+		rgbToHsv(
+			r,
+			g,
+			b,
+		)
+
+	return {
+		space: 'HSV',
+		values:
+			`H ${Math.round(hsv.h * 360)}° · S ${Math.round(hsv.s * 100)}% · V ${Math.round(hsv.v * 100)}%`,
+		hex,
+	}
+}
+
+function selectRenderedPoint(
+	renderedIndex,
+) {
+	const sourceIndex =
+		sortOrder[
+			renderedIndex
+		]
+
+	if (
+		!Number.isInteger(
+			sourceIndex,
+		)
+	) {
+		return
+	}
+
+	selectSourcePoint(
+		sourceIndex,
+	)
+}
+
+function selectSourcePoint(
+	sourceIndex,
+) {
+	if (
+		sourceIndex < 0 ||
+		sourceIndex * 3 >=
+			basePositions.length
+	) {
+		return
+	}
+
+	selectedPointIndex =
+		sourceIndex
+	selectedPointInfo.value =
+		getPointColorInfo(
+			sourceIndex,
+		)
+	copiedPointHex.value = false
+	updateOrbitSelectedButton()
+
+	rebuildRelationLines()
+}
+
+function updateOrbitSelectedButton() {
+	if (
+		orbitSelectedButton
+	) {
+		orbitSelectedButton.disabled =
+			selectedPointIndex < 0
+	}
+}
+
+function orbitSelectedPoint() {
+	if (
+		selectedPointIndex < 0 ||
+		!basePositions ||
+		!camera ||
+		!controls
+	) {
+		return
+	}
+
+	const offset =
+		selectedPointIndex * 3
+	const target =
+		new THREE.Vector3(
+			basePositions[offset],
+			basePositions[offset + 1],
+			basePositions[offset + 2],
+		)
+	const targetOffset =
+		target.clone()
+			.sub(
+				controls.target,
+			)
+
+	camera.position.add(
+		targetOffset,
+	)
+	controls.target.copy(
+		target,
+	)
+	controls.update()
+
+	sortNeeded = true
+	saveCameraState()
+	saveSettings()
+}
+
+function restoreSelectedPoint(
+	selectedColor,
+) {
+	if (
+		!selectedColor ||
+		!baseColors ||
+		baseColors.length === 0
+	) {
+		clearPointSelection()
+		return
+	}
+
+	let nearestIndex = 0
+	let nearestColorDistanceSquared =
+		Infinity
+	let nearestOriginalDistanceSquared =
+		Infinity
+
+	for (
+		let offset = 0;
+		offset < baseColors.length;
+		offset += 3
+	) {
+		const dr =
+			baseColors[offset] -
+			selectedColor.r
+		const dg =
+			baseColors[offset + 1] -
+			selectedColor.g
+		const db =
+			baseColors[offset + 2] -
+			selectedColor.b
+		const colorDistanceSquared =
+			dr * dr +
+			dg * dg +
+			db * db
+		const dx =
+			baseOriginalPositions[offset] -
+			selectedColor.x
+		const dy =
+			baseOriginalPositions[offset + 1] -
+			selectedColor.y
+		const dz =
+			baseOriginalPositions[offset + 2] -
+			selectedColor.z
+		const originalDistanceSquared =
+			dx * dx +
+			dy * dy +
+			dz * dz
+
+		if (
+			colorDistanceSquared <
+				nearestColorDistanceSquared -
+				0.000000000001 ||
+			(
+				Math.abs(
+					colorDistanceSquared -
+					nearestColorDistanceSquared,
+				) <= 0.000000000001 &&
+				originalDistanceSquared <
+					nearestOriginalDistanceSquared
+			)
+		) {
+			nearestColorDistanceSquared =
+				colorDistanceSquared
+			nearestOriginalDistanceSquared =
+				originalDistanceSquared
+			nearestIndex =
+				offset / 3
+		}
+	}
+
+	selectSourcePoint(
+		nearestIndex,
+	)
+}
+
+function handlePointPointerDown(
+	event,
+) {
+	if (
+		!selection_enabled.value
+	) {
+		return
+	}
+
+	pointPointerDownX =
+		event.clientX
+	pointPointerDownY =
+		event.clientY
+}
+
+function handlePointPointerUp(
+	event,
+) {
+	if (
+		!selection_enabled.value ||
+		Math.hypot(
+			event.clientX - pointPointerDownX,
+			event.clientY - pointPointerDownY,
+		) > 5
+	) {
+		return
+	}
+
+	const bounds =
+		renderer.domElement
+			.getBoundingClientRect()
+
+	pointPointer.x =
+		(
+			(
+				event.clientX - bounds.left
+			) / bounds.width
+		) * 2 - 1
+	pointPointer.y =
+		-(
+			(
+				event.clientY - bounds.top
+			) / bounds.height
+		) * 2 + 1
+
+	pointRaycaster.params.Points.threshold =
+		Math.max(
+			0.04,
+			dot_size.value * 1.25,
+		)
+	pointRaycaster.setFromCamera(
+		pointPointer,
+		camera,
+	)
+
+
+	const intersections =
+		pointRaycaster
+			.intersectObject(
+				dots,
+				false,
+			)
+
+	intersections.sort(
+		(a, b) =>
+			(
+				a.distanceToRay ??
+				Infinity
+			) -
+			(
+				b.distanceToRay ??
+				Infinity
+			) ||
+			a.distance - b.distance,
+	)
+
+	const repeatsPreviousPick =
+		Math.hypot(
+			event.clientX - lastPointPickX,
+			event.clientY - lastPointPickY,
+		) <= 8
+
+	pointPickCycleIndex =
+		repeatsPreviousPick
+			? pointPickCycleIndex + 1
+			: 0
+	lastPointPickX = event.clientX
+	lastPointPickY = event.clientY
+
+	const intersection =
+		intersections.length > 0
+			? intersections[
+				pointPickCycleIndex %
+				intersections.length
+			]
+			: null
+
+	if (
+		intersection
+	) {
+		selectRenderedPoint(
+			intersection.index,
+		)
+	} else {
+		pointPickCycleIndex = 0
+		clearPointSelection()
+	}
+}
+
+async function copySelectedPointHex() {
+	const hex =
+		selectedPointInfo.value
+			?.hex
+
+	if (
+		!hex
+	) {
+		return
+	}
+
+	try {
+		await navigator.clipboard.writeText(
+			hex,
+		)
+	} catch {
+		const textArea =
+			document.createElement(
+				'textarea',
+			)
+
+		textArea.value = hex
+		textArea.style.position =
+			'fixed'
+		textArea.style.opacity =
+			'0'
+
+		document.body.appendChild(
+			textArea,
+		)
+		textArea.select()
+		document.execCommand(
+			'copy',
+		)
+		textArea.remove()
+	}
+
+	copiedPointHex.value = true
+	clearTimeout(
+		copiedPointHexTimer,
+	)
+	copiedPointHexTimer =
+		setTimeout(
+			() => {
+				copiedPointHex.value =
+					false
+			},
+			1200,
+		)
+}
+
 function updateGeometry() {
 	if (
 		!dots
 	) {
 		return
 	}
+
+	const selectedColor =
+		selectedPointIndex >= 0 &&
+		baseColors &&
+		baseOriginalPositions
+			? {
+				r:
+					baseColors[
+						selectedPointIndex * 3
+					],
+
+				g:
+					baseColors[
+						selectedPointIndex * 3 + 1
+					],
+
+				b:
+					baseColors[
+						selectedPointIndex * 3 + 2
+					],
+
+				x:
+					baseOriginalPositions[
+						selectedPointIndex * 3
+					],
+
+				y:
+					baseOriginalPositions[
+						selectedPointIndex * 3 + 1
+					],
+
+				z:
+					baseOriginalPositions[
+						selectedPointIndex * 3 + 2
+					],
+			}
+			: null
+
+	disposeRelationLines()
 
 	rebuildPaletteData()
 	rebuildPaletteOverlay()
@@ -4186,6 +6571,14 @@ function updateGeometry() {
 
 	dots.geometry =
 		geometry
+
+	if (
+		selectedColor
+	) {
+		restoreSelectedPoint(
+			selectedColor,
+		)
+	}
 
 	oldGeometry
 		?.dispose()
@@ -4402,6 +6795,10 @@ function setupControls(
 }
 
 function handleCameraChange() {
+	lastPointPickX = Infinity
+	lastPointPickY = Infinity
+	pointPickCycleIndex = 0
+
 	if (
 		renderMode.value ===
 			'squares' &&
@@ -4524,6 +6921,44 @@ function updateShapeBindingVisibility() {
 	}
 }
 
+function updateDeformationBindingVisibility() {
+	if (
+		elasticLatticeFolder
+	) {
+		elasticLatticeFolder.hidden =
+			![
+				'elastic',
+				'combined',
+			].includes(
+				deformation_mode.value,
+			)
+	}
+
+	if (
+		originalExplosionFolder
+	) {
+		originalExplosionFolder.hidden =
+			![
+				'original',
+				'combined',
+			].includes(
+				deformation_mode.value,
+			)
+	}
+
+	if (
+		localCutawayFolder
+	) {
+		localCutawayFolder.hidden =
+			![
+				'local',
+				'combined',
+			].includes(
+				deformation_mode.value,
+			)
+	}
+}
+
 function loadPaneState() {
 	try {
 		const saved =
@@ -4614,6 +7049,9 @@ function setupSettingDescriptions(
 	targetPane,
 ) {
 	const descriptions = {
+		'Color space':
+			'Chooses HSV, HSL, or RGB interpolation for both the cloud and palette coordinates.',
+
 		Mode:
 			'Chooses between crisp square points and soft Gaussian splats.',
 
@@ -4622,6 +7060,15 @@ function setupSettingDescriptions(
 
 		'Point density':
 			'Sets the grid resolution per axis, so the total point count is density cubed.',
+
+		'Enable selection':
+			'Allows points to be selected by clicking or tapping the color cloud.',
+
+		'Relation radius':
+			'Chooses neighboring points by their distance from the selected point before deformation.',
+
+		'Line layout':
+			'Shows either spokes from the selected point or a nearest-unvisited station route.',
 
 		Shape:
 			'Maps the color space onto a cube, cylinder, or torus.',
@@ -4650,11 +7097,20 @@ function setupSettingDescriptions(
 		'Show palette':
 			'Shows or hides the palette markers and connecting curve.',
 
-		'Show lattice':
-			'Shows or hides the elastic explosion influence on the background cloud.',
+		'Deform':
+			'Enables or disables the selected tunnel deformation on the background cloud.',
+
+		Algorithm:
+			'Switches between each deformation algorithm or combines all three effects.',
 
 		'Tunnel radius':
-			'Sets the desired amount of open space around the palette path.',
+			'Sets the radius immediately around the palette curve used by the selected algorithm.',
+
+		'Explosion width':
+			'Sets the narrow band outside the empty tube where local cutaway points are pushed.',
+
+		'Explosion strength':
+			'Controls how far points in the local cutaway explosion band move outward.',
 
 		Colors:
 			'Sets how many palette colors are active in the path.',
@@ -4837,6 +7293,607 @@ function handleColorPickerClick(
 	closingColorPickerButton = null
 }
 
+function beginFineSliderScrub(
+	binding,
+	track,
+	startX,
+	startY,
+	registerMove,
+	registerEnd,
+) {
+	activeFineSliderFinish?.()
+
+	const minimum = binding.min
+	const maximum = binding.max
+	const width = Math.max(
+		track.getBoundingClientRect().width,
+		1,
+	)
+	let lastX = startX
+	let preciseValue =
+		binding.controller.value.rawValue
+	let finished = false
+
+	const move =
+		(clientX, clientY) => {
+			const verticalDistance =
+				Math.abs(
+					clientY - startY,
+				)
+			const sensitivity =
+				Math.max(
+					0.0001,
+					Math.pow(
+						0.1,
+						verticalDistance / 100,
+					),
+				)
+			const deltaX =
+				clientX - lastX
+
+			preciseValue +=
+				deltaX /
+				width *
+				(
+					maximum - minimum
+				) *
+				sensitivity
+			preciseValue =
+				THREE.MathUtils.clamp(
+					preciseValue,
+					minimum,
+					maximum,
+				)
+			lastX = clientX
+
+			binding.controller.value
+				.setRawValue(
+					preciseValue,
+					{
+						forceEmit: false,
+						last: false,
+					},
+				)
+		}
+
+	const finish =
+		() => {
+			if (
+				finished
+			) {
+				return
+			}
+
+			finished = true
+			registerMove(
+				null,
+			)
+			registerEnd(
+				null,
+			)
+
+			binding.controller.value
+				.setRawValue(
+					preciseValue,
+					{
+						forceEmit: true,
+						last: true,
+					},
+				)
+
+			if (
+				activeFineSliderFinish ===
+				finish
+			) {
+				activeFineSliderFinish =
+					null
+			}
+		}
+
+	activeFineSliderFinish = finish
+	registerMove(
+		move,
+	)
+	registerEnd(
+		finish,
+	)
+}
+
+function setupFineSliderBinding(
+	binding,
+) {
+	const track =
+		binding.element.querySelector(
+			'.tp-sldv_t',
+		)
+
+	if (
+		!track ||
+		track.dataset.fineScrub ===
+			'true' ||
+		!Number.isFinite(
+			binding.min,
+		) ||
+		!Number.isFinite(
+			binding.max,
+		)
+	) {
+		return
+	}
+
+	track.dataset.fineScrub =
+		'true'
+
+	let activePointerId = null
+
+	const handlePointerDown =
+		(event) => {
+			if (
+				!event.isPrimary ||
+				(
+					event.pointerType ===
+						'mouse' &&
+					event.button !== 0
+				)
+			) {
+				return
+			}
+
+			event.preventDefault()
+			event.stopImmediatePropagation()
+			track.focus()
+
+			activePointerId =
+				event.pointerId
+
+			try {
+				track.setPointerCapture(
+					event.pointerId,
+				)
+			} catch {
+				// Document listeners still keep the scrub active.
+			}
+
+			let pointerMove = null
+			let pointerEnd = null
+
+			beginFineSliderScrub(
+				binding,
+				track,
+				event.clientX,
+				event.clientY,
+				(handler) => {
+					if (
+						pointerMove
+					) {
+						document.removeEventListener(
+							'pointermove',
+							pointerMove,
+							true,
+						)
+					}
+
+					pointerMove = handler
+						? (moveEvent) => {
+							if (
+								moveEvent.pointerId !==
+									activePointerId
+							) {
+								return
+							}
+
+							moveEvent.preventDefault()
+							moveEvent.stopImmediatePropagation()
+							handler(
+								moveEvent.clientX,
+								moveEvent.clientY,
+							)
+						}
+						: null
+
+					if (
+						pointerMove
+					) {
+						document.addEventListener(
+							'pointermove',
+							pointerMove,
+							{
+								capture: true,
+								passive: false,
+							},
+						)
+					}
+				},
+				(handler) => {
+					if (
+						pointerEnd
+					) {
+						document.removeEventListener(
+							'pointerup',
+							pointerEnd,
+							true,
+						)
+						document.removeEventListener(
+							'pointercancel',
+							pointerEnd,
+							true,
+						)
+					}
+
+					pointerEnd = handler
+						? (endEvent) => {
+							if (
+								endEvent.pointerId !==
+									activePointerId
+							) {
+								return
+							}
+
+							const pointerId =
+								activePointerId
+
+							activePointerId = null
+
+							if (
+								pointerId !== null &&
+								track.hasPointerCapture(
+									pointerId,
+								)
+							) {
+								track.releasePointerCapture(
+									pointerId,
+								)
+							}
+
+							handler()
+						}
+						: null
+
+					if (
+						!handler &&
+						activePointerId !== null
+					) {
+						if (
+							track.hasPointerCapture(
+								activePointerId,
+							)
+						) {
+							track.releasePointerCapture(
+								activePointerId,
+							)
+						}
+
+						activePointerId = null
+					}
+
+					if (
+						pointerEnd
+					) {
+						document.addEventListener(
+							'pointerup',
+							pointerEnd,
+							true,
+						)
+						document.addEventListener(
+							'pointercancel',
+							pointerEnd,
+							true,
+						)
+					}
+				},
+			)
+		}
+
+	const handleMouseDown =
+		(event) => {
+			if (
+				activePointerId !== null
+			) {
+				event.preventDefault()
+				event.stopImmediatePropagation()
+				return
+			}
+
+			if (
+				event.button !== 0
+			) {
+				return
+			}
+
+			event.preventDefault()
+			event.stopImmediatePropagation()
+			track.focus()
+
+			let mouseMove = null
+			let mouseUp = null
+
+			beginFineSliderScrub(
+				binding,
+				track,
+				event.clientX,
+				event.clientY,
+				(handler) => {
+					if (
+						mouseMove
+					) {
+						document.removeEventListener(
+							'mousemove',
+							mouseMove,
+							true,
+						)
+					}
+
+					mouseMove = handler
+						? (moveEvent) => {
+							moveEvent.preventDefault()
+							handler(
+								moveEvent.clientX,
+								moveEvent.clientY,
+							)
+						}
+						: null
+
+					if (
+						mouseMove
+					) {
+						document.addEventListener(
+							'mousemove',
+							mouseMove,
+							true,
+						)
+					}
+				},
+				(handler) => {
+					if (
+						mouseUp
+					) {
+						document.removeEventListener(
+							'mouseup',
+							mouseUp,
+							true,
+						)
+					}
+
+					mouseUp = handler
+
+					if (
+						handler
+					) {
+						document.addEventListener(
+							'mouseup',
+							handler,
+							true,
+						)
+					}
+				},
+			)
+		}
+
+	const handleTouchStart =
+		(event) => {
+			if (
+				activePointerId !== null
+			) {
+				event.preventDefault()
+				event.stopImmediatePropagation()
+				return
+			}
+
+			const touch =
+				event.changedTouches[0]
+
+			if (
+				!touch
+			) {
+				return
+			}
+
+			event.preventDefault()
+			event.stopImmediatePropagation()
+			track.focus()
+
+			const identifier =
+				touch.identifier
+			let touchMove = null
+			let touchEnd = null
+
+			const findActiveTouch =
+				(touches) => {
+					for (
+						let index = 0;
+						index < touches.length;
+						index += 1
+					) {
+						const activeTouch =
+							touches.item(index)
+
+						if (
+							activeTouch?.identifier ===
+								identifier
+						) {
+							return activeTouch
+						}
+					}
+
+					return null
+				}
+
+			beginFineSliderScrub(
+				binding,
+				track,
+				touch.clientX,
+				touch.clientY,
+				(handler) => {
+					if (
+						touchMove
+					) {
+						document.removeEventListener(
+							'touchmove',
+							touchMove,
+							true,
+						)
+					}
+
+					touchMove = handler
+						? (moveEvent) => {
+							const activeTouch =
+								findActiveTouch(
+									moveEvent.touches,
+								)
+
+							if (
+								activeTouch
+							) {
+								moveEvent.preventDefault()
+								handler(
+									activeTouch.clientX,
+									activeTouch.clientY,
+								)
+							}
+						}
+						: null
+
+					if (
+						touchMove
+					) {
+						document.addEventListener(
+							'touchmove',
+							touchMove,
+							{
+								capture: true,
+								passive: false,
+							},
+						)
+					}
+				},
+				(handler) => {
+					if (
+						touchEnd
+					) {
+						document.removeEventListener(
+							'touchend',
+							touchEnd,
+							true,
+						)
+						document.removeEventListener(
+							'touchcancel',
+							touchEnd,
+							true,
+						)
+					}
+
+					touchEnd = handler
+
+					if (
+						touchEnd
+					) {
+						document.addEventListener(
+							'touchend',
+							touchEnd,
+							true,
+						)
+						document.addEventListener(
+							'touchcancel',
+							touchEnd,
+							true,
+						)
+					}
+				},
+			)
+		}
+
+	const blockLegacyTouchMove =
+		(event) => {
+			if (
+				activePointerId === null
+			) {
+				return
+			}
+
+			event.preventDefault()
+			event.stopImmediatePropagation()
+		}
+
+	track.addEventListener(
+		'pointerdown',
+		handlePointerDown,
+		{
+			capture: true,
+			passive: false,
+		},
+	)
+
+	track.addEventListener(
+		'mousedown',
+		handleMouseDown,
+		true,
+	)
+
+	track.addEventListener(
+		'touchstart',
+		handleTouchStart,
+		{
+			capture: true,
+			passive: false,
+		},
+	)
+
+	track.addEventListener(
+		'touchmove',
+		blockLegacyTouchMove,
+		{
+			capture: true,
+			passive: false,
+		},
+	)
+
+	fineSliderCleanups.push(
+		() => {
+			track.removeEventListener(
+				'pointerdown',
+				handlePointerDown,
+				true,
+			)
+			track.removeEventListener(
+				'mousedown',
+				handleMouseDown,
+				true,
+			)
+			track.removeEventListener(
+				'touchstart',
+				handleTouchStart,
+				true,
+			)
+			track.removeEventListener(
+				'touchmove',
+				blockLegacyTouchMove,
+				true,
+			)
+		},
+	)
+}
+
+function setupFineSliderScrubbing(
+	container,
+) {
+	for (
+		const child of
+		container.children ?? []
+	) {
+		setupFineSliderBinding(
+			child,
+		)
+
+		if (
+			child.children
+		) {
+			setupFineSliderScrubbing(
+				child,
+			)
+		}
+	}
+}
+
 function setupPane() {
 	const paneState =
 		loadPaneState()
@@ -4880,6 +7937,33 @@ function setupPane() {
 		'rendering',
 		renderingFolder,
 	)
+
+	renderingFolder
+		.addBinding(
+			color_space,
+			'value',
+			{
+				label:
+					'Color space',
+
+				options: {
+					HSV:
+						'hsv',
+
+					HSL:
+						'hsl',
+
+					RGB:
+						'rgb',
+				},
+			},
+		)
+		.on(
+			'change',
+			() => {
+				updateGeometry()
+			},
+		)
 
 	renderingFolder
 		.addBinding(
@@ -4955,6 +8039,103 @@ function setupPane() {
 					event.last
 				) {
 					updateGeometry()
+				}
+			},
+		)
+
+
+	// Point inspection
+
+	const inspectionFolder =
+		pane.addFolder({
+			title:
+				'Point inspection',
+
+			expanded:
+				getPaneExpanded(
+					paneState,
+					'inspection',
+				),
+		})
+
+	trackPaneExpanded(
+		'inspection',
+		inspectionFolder,
+	)
+
+	inspectionFolder
+		.addBinding(
+			selection_enabled,
+			'value',
+			{
+				label:
+					'Enable selection',
+			},
+		)
+		.on(
+			'change',
+			() => {
+				if (
+					!selection_enabled.value
+				) {
+					clearPointSelection()
+				}
+
+				saveSettings()
+			},
+		)
+
+	inspectionFolder
+		.addBinding(
+			inspection_mode,
+			'value',
+			{
+				label:
+					'Line layout',
+
+				options: {
+					'Local spokes':
+						'spokes',
+
+					'Station route':
+						'stations',
+				},
+			},
+		)
+		.on(
+			'change',
+			() => {
+				rebuildRelationLines()
+				saveSettings()
+			},
+		)
+
+	inspectionFolder
+		.addBinding(
+			relation_radius,
+			'value',
+			{
+				label:
+					'Relation radius',
+
+				min:
+					0.01,
+
+				max:
+					3,
+
+				step:
+					0.01,
+			},
+		)
+		.on(
+			'change',
+			(event) => {
+				if (
+					event.last
+				) {
+					rebuildRelationLines()
+					saveSettings()
 				}
 			},
 		)
@@ -5219,7 +8400,7 @@ function setupPane() {
 			'value',
 			{
 				label:
-					'Show lattice',
+					'Deform',
 			},
 		)
 		.on(
@@ -5231,30 +8412,32 @@ function setupPane() {
 
 	paletteFolder
 		.addBinding(
-			tunnel_radius,
+			deformation_mode,
 			'value',
 			{
 				label:
-					'Tunnel radius',
+					'Algorithm',
 
-				min:
-					0,
+				options: {
+					'Elastic lattice':
+						'elastic',
 
-				max:
-					5,
+					'Original explosion':
+						'original',
 
-				step:
-					0.01,
+					'Local cutaway':
+						'local',
+
+					Combined:
+						'combined',
+				},
 			},
 		)
 		.on(
 			'change',
-			(event) => {
-				if (
-					event.last
-				) {
-					updateGeometry()
-				}
+			() => {
+				updateDeformationBindingVisibility()
+				updateGeometry()
 			},
 		)
 
@@ -5267,7 +8450,7 @@ function setupPane() {
 					'Colors',
 
 				min:
-					2,
+					1,
 
 				max:
 					MAX_PALETTE_COLORS,
@@ -5333,9 +8516,146 @@ function setupPane() {
 
 	updatePaletteBindingVisibility()
 
+
+	// Original explosion
+
+	originalExplosionFolder =
+		pane.addFolder({
+			title:
+				'Original explosion',
+
+			expanded:
+				getPaneExpanded(
+					paneState,
+					'originalExplosion',
+				),
+		})
+
+	trackPaneExpanded(
+		'originalExplosion',
+		originalExplosionFolder,
+	)
+
+	originalExplosionFolder.element
+		.style.marginTop = '0'
+
+	originalExplosionFolder
+		.addBinding(
+			original_tunnel_radius,
+			'value',
+			{
+				label:
+					'Tunnel radius',
+
+				min: 0,
+				max: 5,
+				step: 0.01,
+			},
+		)
+		.on(
+			'change',
+			(event) => {
+				if (
+					event.last
+				) {
+					updateGeometry()
+				}
+			},
+		)
+
+	// Local cutaway
+
+	localCutawayFolder =
+		pane.addFolder({
+			title:
+				'Local cutaway',
+
+			expanded:
+				getPaneExpanded(
+					paneState,
+					'localCutaway',
+				),
+		})
+
+	trackPaneExpanded(
+		'localCutaway',
+		localCutawayFolder,
+	)
+
+	localCutawayFolder.element
+		.style.marginTop = '0'
+
+	for (
+		const binding of
+		[
+			localCutawayFolder
+				.addBinding(
+					local_tunnel_radius,
+					'value',
+					{
+						label:
+							'Tunnel radius',
+						min: 0,
+						max: 5,
+						step: 0.01,
+					},
+				),
+
+			localCutawayFolder
+				.addBinding(
+					explosion_width,
+					'value',
+					{
+						label:
+							'Explosion width',
+
+						min:
+							0.01,
+
+						max:
+							5,
+
+						step:
+							0.01,
+					},
+				),
+
+			localCutawayFolder
+				.addBinding(
+					explosion_strength,
+					'value',
+					{
+						label:
+							'Explosion strength',
+
+						min:
+							0,
+
+						max:
+							5,
+
+						step:
+							0.01,
+					},
+				),
+		]
+	) {
+		binding.on(
+			'change',
+			(event) => {
+				if (
+					event.last
+				) {
+					updateGeometry()
+				}
+			},
+		)
+	}
+
+
 	// Elastic lattice
 
-	const latticeFolder =
+	elasticLatticeFolder =
 		pane.addFolder({
 			title:
 				'Elastic lattice',
@@ -5349,10 +8669,36 @@ function setupPane() {
 
 	trackPaneExpanded(
 		'lattice',
-		latticeFolder,
+		elasticLatticeFolder,
 	)
 
-	latticeFolder
+	elasticLatticeFolder.element
+		.style.marginTop = '0'
+
+	elasticLatticeFolder
+		.addBinding(
+			tunnel_radius,
+			'value',
+			{
+				label:
+					'Tunnel radius',
+				min: 0,
+				max: 5,
+				step: 0.01,
+			},
+		)
+		.on(
+			'change',
+			(event) => {
+				if (
+					event.last
+				) {
+					updateGeometry()
+				}
+			},
+		)
+
+	elasticLatticeFolder
 		.addBinding(
 			tunnel_influence_scale,
 			'value',
@@ -5381,7 +8727,7 @@ function setupPane() {
 			},
 		)
 
-	latticeFolder
+	elasticLatticeFolder
 		.addBinding(
 			lattice_relaxation_steps,
 			'value',
@@ -5410,7 +8756,7 @@ function setupPane() {
 			},
 		)
 
-	latticeFolder
+	elasticLatticeFolder
 		.addBinding(
 			lattice_repulsion_strength,
 			'value',
@@ -5422,7 +8768,7 @@ function setupPane() {
 					0,
 
 				max:
-					2,
+					12,
 
 				step:
 					0.01,
@@ -5439,7 +8785,7 @@ function setupPane() {
 			},
 		)
 
-	latticeFolder
+	elasticLatticeFolder
 		.addBinding(
 			lattice_spring_strength,
 			'value',
@@ -5468,7 +8814,7 @@ function setupPane() {
 			},
 		)
 
-	latticeFolder
+	elasticLatticeFolder
 		.addBinding(
 			lattice_restore_strength,
 			'value',
@@ -5480,7 +8826,7 @@ function setupPane() {
 					0,
 
 				max:
-					1,
+					12,
 
 				step:
 					0.005,
@@ -5497,8 +8843,13 @@ function setupPane() {
 			},
 		)
 
+	updateDeformationBindingVisibility()
 
 	setupSettingDescriptions(
+		pane,
+	)
+
+	setupFineSliderScrubbing(
 		pane,
 	)
 }
@@ -5612,10 +8963,11 @@ function setupUtilityPane() {
 			},
 		)
 
-	presetFolder
+	const copyPresetButton =
+		presetFolder
 		.addButton({
 			title:
-				'Copy preset code',
+				'Copy preset',
 		})
 		.on(
 			'click',
@@ -5623,6 +8975,34 @@ function setupUtilityPane() {
 				copyPresetCode()
 			},
 		)
+
+	const exportAllButton =
+		presetFolder
+			.addButton({
+				title:
+					'Export all',
+			})
+			.on(
+				'click',
+				() => {
+					exportAllPresets()
+				},
+			)
+
+	const presetExportRow =
+		document.createElement(
+			'div',
+		)
+
+	presetExportRow.className =
+		'preset-export-row'
+	copyPresetButton.element.before(
+		presetExportRow,
+	)
+	presetExportRow.append(
+		copyPresetButton.element,
+		exportAllButton.element,
+	)
 
 	presetFolder
 		.addButton({
@@ -5810,9 +9190,28 @@ function setupUtilityPane() {
 			},
 		)
 
+	orbitSelectedButton =
+		cameraFolder
+			.addButton({
+				title:
+					'Orbit selected',
+			})
+			.on(
+				'click',
+				() => {
+					orbitSelectedPoint()
+				},
+			)
+
+	updateOrbitSelectedButton()
+
 	updateCameraBindingVisibility()
 
 	setupSettingDescriptions(
+		utilityPane,
+	)
+
+	setupFineSliderScrubbing(
 		utilityPane,
 	)
 }
@@ -5837,11 +9236,39 @@ onMounted(() => {
 	setupPane()
 	setupUtilityPane()
 
+	window.addEventListener(
+		'resize',
+		handleWindowResize,
+	)
+
 	startAnimation()
 })
 
 onBeforeUnmount(() => {
 	saveSettings()
+
+	window.removeEventListener(
+		'resize',
+		handleWindowResize,
+	)
+
+	renderer
+		?.domElement
+		.removeEventListener(
+			'pointerdown',
+			handlePointPointerDown,
+		)
+
+	renderer
+		?.domElement
+		.removeEventListener(
+			'pointerup',
+			handlePointPointerUp,
+		)
+
+	clearTimeout(
+		copiedPointHexTimer,
+	)
 
 	for (
 		const button of
@@ -5879,6 +9306,18 @@ onBeforeUnmount(() => {
 
 	settingDescriptionLabels = []
 
+	activeFineSliderFinish?.()
+	activeFineSliderFinish = null
+
+	for (
+		const cleanup of
+		fineSliderCleanups
+	) {
+		cleanup()
+	}
+
+	fineSliderCleanups = []
+
 	cancelAnimationFrame(
 		animationFrame,
 	)
@@ -5891,6 +9330,8 @@ onBeforeUnmount(() => {
 
 	utilityPane
 		?.dispose()
+
+	disposeRelationLines()
 
 	disposePaletteGroup()
 
@@ -5907,12 +9348,46 @@ onBeforeUnmount(() => {
 
 
 <template>
+	<button
+		type="button"
+		class="mobile-panel-toggle mobile-settings-toggle"
+		:class="{ active: mobilePanel === 'settings' }"
+		:aria-expanded="mobilePanel === 'settings'"
+		aria-controls="color-explorer-settings"
+		@click="toggleMobilePanel('settings')"
+	>
+		{{ mobilePanel === 'settings' ? 'Close' : 'Settings' }}
+	</button>
+
+	<button
+		type="button"
+		class="mobile-panel-toggle mobile-utility-toggle"
+		:class="{ active: mobilePanel === 'utility' }"
+		:aria-expanded="mobilePanel === 'utility'"
+		aria-controls="color-explorer-utility"
+		@click="toggleMobilePanel('utility')"
+	>
+		{{ mobilePanel === 'utility' ? 'Close' : 'Info & presets' }}
+	</button>
+
 	<div
-		ref="paneContainer"
-		class="pane-container"
+		v-if="mobilePanel"
+		class="mobile-panel-backdrop"
+		@click="closeMobilePanels"
 	></div>
 
-	<div class="utility-container">
+	<div
+		id="color-explorer-settings"
+		ref="paneContainer"
+		class="pane-container"
+		:class="{ 'mobile-open': mobilePanel === 'settings' }"
+	></div>
+
+	<div
+		id="color-explorer-utility"
+		class="utility-container"
+		:class="{ 'mobile-open': mobilePanel === 'utility' }"
+	>
 		<div class="info-panel">
 			<div class="point-count">
 				<span>Spawned points</span>
@@ -5922,7 +9397,42 @@ onBeforeUnmount(() => {
 				</strong>
 			</div>
 
-			<p>{{ settingHelp }}</p>
+			<div
+				v-if="selectedPointInfo"
+				class="selected-point-info"
+			>
+				<div class="selected-point-heading">
+					<span>Selected point</span>
+
+					<strong>{{ selectedPointInfo.space }}</strong>
+				</div>
+
+				<div class="selected-point-values">
+					{{ selectedPointInfo.values }}
+				</div>
+
+				<button
+					type="button"
+					class="point-hex-button"
+					:title="`Copy ${selectedPointInfo.hex}`"
+					@click="copySelectedPointHex"
+				>
+					<span
+						class="selected-color-swatch"
+						:style="{ backgroundColor: selectedPointInfo.hex }"
+					></span>
+
+					<span>
+						{{ copiedPointHex ? 'Copied!' : selectedPointInfo.hex }}
+					</span>
+				</button>
+
+				<small class="selection-cycle-hint">
+					Tap the same spot again to cycle through overlapping points.
+				</small>
+			</div>
+
+			<p v-else>{{ settingHelp }}</p>
 		</div>
 
 		<div
@@ -6010,6 +9520,185 @@ onBeforeUnmount(() => {
 		></div>
 	</div>
 
+	<button
+		v-if="selectedPointInfo"
+		:key="`${selectedPointInfo.hex}:${selectedPointInfo.values}`"
+		type="button"
+		class="mobile-selected-color"
+		:title="`Copy ${selectedPointInfo.hex}`"
+		@click="copySelectedPointHex"
+	>
+		<span
+			class="mobile-selected-swatch"
+			:style="{ backgroundColor: selectedPointInfo.hex }"
+		></span>
+
+		<span class="mobile-selected-details">
+			<strong>
+				{{ selectedPointInfo.space }} {{ selectedPointInfo.values }}
+			</strong>
+
+			<small>
+				{{ copiedPointHex ? 'Copied!' : selectedPointInfo.hex }}
+			</small>
+		</span>
+	</button>
+
+	<div
+		v-if="presetCodeDialog.open"
+		class="confirmation-backdrop"
+		role="presentation"
+		@click.self="closePresetCode"
+	>
+		<div
+			class="confirmation-dialog preset-export-dialog"
+			role="dialog"
+			aria-modal="true"
+			aria-labelledby="preset-code-title"
+			@keydown.esc="closePresetCode"
+		>
+			<h2 id="preset-code-title">
+				Copy current preset
+			</h2>
+
+			<p>
+				The full code is shown below. A preset name is optional and
+				does not affect whether this code can be loaded.
+			</p>
+
+			<textarea
+				ref="presetCodeTextarea"
+				class="preset-export-textarea preset-code-textarea"
+				:readonly="true"
+				:value="presetCodeDialog.text"
+				aria-label="Current preset code"
+				@focus="$event.target.select()"
+			></textarea>
+
+			<div class="confirmation-actions">
+				<button
+					type="button"
+					@click="closePresetCode"
+				>
+					Close
+				</button>
+
+				<button
+					type="button"
+					@click="copyCurrentPresetCode"
+				>
+					{{ presetCodeDialog.copied ? 'Copied!' : 'Copy code' }}
+				</button>
+			</div>
+		</div>
+	</div>
+
+	<div
+		v-if="presetExportDialog.open"
+		class="confirmation-backdrop"
+		role="presentation"
+		@click.self="closePresetExport"
+	>
+		<div
+			class="confirmation-dialog preset-export-dialog"
+			role="dialog"
+			aria-modal="true"
+			aria-labelledby="preset-export-title"
+			@keydown.esc="closePresetExport"
+		>
+			<h2 id="preset-export-title">
+				Export all named presets
+			</h2>
+
+			<p>
+				{{ presetExportDialog.count }} local preset{{
+					presetExportDialog.count === 1 ? '' : 's'
+				}} included. Paste this array into
+				<code>DEFAULT_PRESETS</code>.
+			</p>
+
+			<textarea
+				ref="presetExportTextarea"
+				class="preset-export-textarea"
+				:readonly="true"
+				:value="presetExportDialog.text"
+				aria-label="Exported named presets"
+				@focus="$event.target.select()"
+			></textarea>
+
+			<div class="confirmation-actions">
+				<button
+					type="button"
+					@click="closePresetExport"
+				>
+					Close
+				</button>
+
+				<button
+					type="button"
+					@click="copyAllPresetExport"
+				>
+					{{ presetExportDialog.copied ? 'Copied all!' : 'Copy all' }}
+				</button>
+			</div>
+		</div>
+	</div>
+
+	<div
+		v-if="presetImportDialog.open"
+		class="confirmation-backdrop"
+		role="presentation"
+		@click.self="closePresetImport"
+	>
+		<div
+			class="confirmation-dialog preset-export-dialog"
+			role="dialog"
+			aria-modal="true"
+			aria-labelledby="preset-import-title"
+			@keydown.esc="closePresetImport"
+		>
+			<h2 id="preset-import-title">
+				Import preset
+			</h2>
+
+			<p>
+				Paste a share URL, bare preset code, or exported
+				<code>{ name, code }</code> entry.
+			</p>
+
+			<textarea
+				v-model="presetImportDialog.text"
+				class="preset-export-textarea preset-import-textarea"
+				autofocus
+				aria-label="Preset to import"
+				placeholder="Paste preset here…"
+			></textarea>
+
+			<p
+				v-if="presetImportDialog.error"
+				class="preset-import-error"
+			>
+				{{ presetImportDialog.error }}
+			</p>
+
+			<div class="confirmation-actions">
+				<button
+					type="button"
+					@click="closePresetImport"
+				>
+					Cancel
+				</button>
+
+				<button
+					type="button"
+					@click="submitPresetImport"
+				>
+					Load preset
+				</button>
+			</div>
+		</div>
+	</div>
+
 	<div
 		v-if="presetConfirmation.open"
 		class="confirmation-backdrop"
@@ -6065,9 +9754,29 @@ onBeforeUnmount(() => {
 
 
 <style scoped>
+:global(html),
+:global(body),
+:global(#app) {
+	width: 100%;
+	height: 100%;
+	margin: 0;
+	overflow: hidden;
+}
+
 .three-container {
-	width: 100vw;
-	height: 100vh;
+	position: fixed;
+	inset: 0;
+	overflow: hidden;
+}
+
+.three-container :deep(canvas) {
+	display: block;
+}
+
+.mobile-panel-toggle,
+.mobile-panel-backdrop,
+.mobile-selected-color {
+	display: none;
 }
 
 .pane-container {
@@ -6076,6 +9785,14 @@ onBeforeUnmount(() => {
 	left: 10px;
 	z-index: 10;
 	width: 280px;
+	max-height: calc(100vh - 20px);
+	max-height: calc(100dvh - 20px);
+	overflow-x: hidden;
+	overflow-y: auto;
+	overscroll-behavior: contain;
+	scrollbar-width: thin;
+	-webkit-overflow-scrolling: touch;
+	touch-action: pan-y;
 }
 
 .utility-container {
@@ -6084,6 +9801,32 @@ onBeforeUnmount(() => {
 	right: 10px;
 	z-index: 10;
 	width: 300px;
+	max-height: calc(100vh - 20px);
+	max-height: calc(100dvh - 20px);
+	overflow-x: hidden;
+	overflow-y: auto;
+	overscroll-behavior: contain;
+	scrollbar-width: thin;
+	-webkit-overflow-scrolling: touch;
+	touch-action: pan-y;
+}
+
+:deep(.preset-export-row) {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+	gap: 4px;
+}
+
+:deep(.preset-export-row > *) {
+	min-width: 0;
+}
+
+:deep(.preset-export-row > :first-child) {
+	padding-right: 0;
+}
+
+:deep(.preset-export-row > :last-child) {
+	padding-left: 0;
 }
 
 .info-panel {
@@ -6119,6 +9862,64 @@ onBeforeUnmount(() => {
 	padding-top: 8px;
 	border-top: 1px solid rgb(187 188 196 / 15%);
 	line-height: 1.3;
+}
+
+.selected-point-info {
+	margin-top: 8px;
+	padding-top: 8px;
+	border-top: 1px solid rgb(187 188 196 / 15%);
+}
+
+.selected-point-heading {
+	display: flex;
+	justify-content: space-between;
+	gap: 12px;
+}
+
+.selected-point-heading strong {
+	color: white;
+}
+
+.selected-point-values {
+	margin-top: 7px;
+	color: hsl(230deg 7% 88%);
+	line-height: 1.4;
+}
+
+.point-hex-button {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	margin-top: 7px;
+	padding: 2px 7px 2px 2px;
+	border: 0;
+	border-radius: 3px;
+	background: hsl(230deg 7% 28%);
+	color: white;
+	font: inherit;
+	cursor: pointer;
+}
+
+.point-hex-button:hover,
+.point-hex-button:focus-visible {
+	background: hsl(230deg 7% 36%);
+}
+
+.selected-color-swatch {
+	display: block;
+	width: 20px;
+	height: 20px;
+	flex: 0 0 20px;
+	border-radius: 2px;
+	box-shadow: inset 0 0 0 1px rgb(255 255 255 / 18%);
+}
+
+.selection-cycle-hint {
+	display: block;
+	margin-top: 7px;
+	color: hsl(230deg 7% 55%);
+	font-size: 9px;
+	line-height: 1.35;
 }
 
 .preset-browser-body {
@@ -6267,6 +10068,48 @@ onBeforeUnmount(() => {
 	line-height: 1.5;
 }
 
+.preset-export-dialog {
+	width: min(720px, 100%);
+}
+
+.preset-export-dialog code {
+	color: white;
+}
+
+.preset-export-textarea {
+	box-sizing: border-box;
+	display: block;
+	width: 100%;
+	height: min(46dvh, 360px);
+	margin-bottom: 14px;
+	padding: 10px;
+	border: 1px solid rgb(255 255 255 / 14%);
+	border-radius: 4px;
+	outline: none;
+	background: hsl(230deg 7% 11%);
+	color: hsl(230deg 7% 88%);
+	font: 10px/1.45 Roboto Mono, Source Code Pro, Menlo, monospace;
+	resize: vertical;
+	-webkit-overflow-scrolling: touch;
+}
+
+.preset-export-textarea:focus {
+	border-color: hsl(211deg 70% 55%);
+}
+
+.preset-import-textarea {
+	height: min(38dvh, 280px);
+}
+
+.preset-code-textarea {
+	height: min(32dvh, 220px);
+}
+
+.confirmation-dialog .preset-import-error {
+	margin: -4px 0 12px;
+	color: hsl(5deg 80% 70%);
+}
+
 .confirmation-actions {
 	display: flex;
 	justify-content: flex-end;
@@ -6301,6 +10144,149 @@ onBeforeUnmount(() => {
 	hyphens: none;
 	overflow-wrap: normal;
 	word-break: normal;
+}
+
+:deep(.tp-sldv_t) {
+	cursor: ew-resize;
+	touch-action: none !important;
+}
+
+@media (max-width: 700px),
+	(max-height: 500px) and (pointer: coarse) {
+	.mobile-panel-toggle {
+		position: fixed;
+		top: calc(8px + env(safe-area-inset-top));
+		z-index: 13;
+		display: inline-flex;
+		align-items: center;
+		min-height: 32px;
+		padding: 6px 10px;
+		border: 1px solid rgb(255 255 255 / 14%);
+		border-radius: 6px;
+		background: hsl(230deg 7% 17% / 94%);
+		box-shadow: 0 2px 6px rgb(0 0 0 / 25%);
+		color: hsl(230deg 7% 88%);
+		font: 11px/1.2 Roboto Mono, Source Code Pro, Menlo, monospace;
+		cursor: pointer;
+		-webkit-tap-highlight-color: transparent;
+	}
+
+	.mobile-panel-toggle.active {
+		background: hsl(211deg 55% 38% / 96%);
+		color: white;
+	}
+
+	.mobile-settings-toggle {
+		left: max(8px, env(safe-area-inset-left));
+	}
+
+	.mobile-utility-toggle {
+		right: max(8px, env(safe-area-inset-right));
+	}
+
+	.mobile-panel-backdrop {
+		position: fixed;
+		inset: 0;
+		z-index: 11;
+		display: block;
+		background: rgb(0 0 0 / 28%);
+	}
+
+	.mobile-selected-color {
+		position: fixed;
+		bottom: calc(10px + env(safe-area-inset-bottom));
+		left: 50%;
+		z-index: 10;
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		max-width: calc(100vw - 24px);
+		padding: 7px 11px 7px 7px;
+		border: 1px solid rgb(255 255 255 / 16%);
+		border-radius: 7px;
+		background: hsl(230deg 7% 17% / 94%);
+		box-shadow: 0 3px 12px rgb(0 0 0 / 35%);
+		color: hsl(230deg 7% 92%);
+		font: 10px/1.3 Roboto Mono, Source Code Pro, Menlo, monospace;
+		text-align: left;
+		transform: translateX(-50%);
+		animation: mobile-color-pop 180ms ease-out;
+		cursor: pointer;
+		-webkit-tap-highlight-color: transparent;
+	}
+
+	.mobile-selected-swatch {
+		display: block;
+		width: 28px;
+		height: 28px;
+		flex: 0 0 28px;
+		border-radius: 4px;
+		box-shadow: inset 0 0 0 1px rgb(255 255 255 / 20%);
+	}
+
+	.mobile-selected-details {
+		display: flex;
+		min-width: 0;
+		flex-direction: column;
+		gap: 1px;
+	}
+
+	.mobile-selected-details strong {
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.mobile-selected-details small {
+		color: hsl(230deg 7% 72%);
+		font: inherit;
+	}
+
+	.pane-container,
+	.utility-container {
+		top: calc(48px + env(safe-area-inset-top));
+		z-index: 12;
+		box-sizing: border-box;
+		width: min(320px, calc(100vw - 44px));
+		max-height: calc(
+			100dvh - 58px - env(safe-area-inset-top) -
+				env(safe-area-inset-bottom)
+		);
+		visibility: hidden;
+		pointer-events: none;
+		transition:
+			transform 180ms ease,
+			visibility 180ms;
+	}
+
+	.pane-container {
+		left: max(8px, env(safe-area-inset-left));
+		transform: translateX(calc(-100% - 16px));
+	}
+
+	.utility-container {
+		right: max(8px, env(safe-area-inset-right));
+		transform: translateX(calc(100% + 16px));
+	}
+
+	.pane-container.mobile-open,
+	.utility-container.mobile-open {
+		visibility: visible;
+		pointer-events: auto;
+		transform: translateX(0);
+	}
+}
+
+@keyframes mobile-color-pop {
+	from {
+		opacity: 0;
+		transform: translate(-50%, 10px) scale(0.96);
+	}
+
+	to {
+		opacity: 1;
+		transform: translateX(-50%) scale(1);
+	}
 }
 
 </style>
