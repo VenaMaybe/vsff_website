@@ -2093,20 +2093,208 @@ function getShareUrl() {
 	return url.toString()
 }
 
+function captureSharePreview() {
+	return new Promise(
+		(resolve, reject) => {
+			if (
+				!renderer ||
+				!scene ||
+				!camera
+			) {
+				reject(
+					new Error(
+						'The color scene is not ready.',
+					),
+				)
+				return
+			}
+
+			const source =
+				renderer.domElement
+			const preview =
+				document.createElement(
+					'canvas',
+				)
+			const previewWidth = 1200
+			const previewHeight = 630
+
+			preview.width = previewWidth
+			preview.height = previewHeight
+
+			const context =
+				preview.getContext(
+					'2d',
+				)
+
+			if (
+				!context ||
+				source.width < 1 ||
+				source.height < 1
+			) {
+				reject(
+					new Error(
+						'The color preview could not be drawn.',
+					),
+				)
+				return
+			}
+
+			renderer.render(
+				scene,
+				camera,
+			)
+
+			context.fillStyle = '#000000'
+			context.fillRect(
+				0,
+				0,
+				previewWidth,
+				previewHeight,
+			)
+
+			const scale =
+				Math.min(
+					previewWidth /
+						source.width,
+					previewHeight /
+						source.height,
+				)
+			const drawWidth =
+				source.width * scale
+			const drawHeight =
+				source.height * scale
+
+			context.drawImage(
+				source,
+				(
+					previewWidth -
+						drawWidth
+				) * 0.5,
+				(
+					previewHeight -
+						drawHeight
+				) * 0.5,
+				drawWidth,
+				drawHeight,
+			)
+
+			preview.toBlob(
+				(blob) => {
+					if (
+						blob
+					) {
+						resolve(blob)
+					} else {
+						reject(
+							new Error(
+								'The color preview could not be encoded.',
+							),
+						)
+					}
+				},
+				'image/png',
+			)
+		},
+	)
+}
+
+async function createPreviewShareUrl(
+	directUrl,
+) {
+	const preview =
+		await captureSharePreview()
+	const formData =
+		new FormData()
+
+	formData.append(
+		'preview',
+		preview,
+		'color-scene.png',
+	)
+
+	const response =
+		await fetch(
+			'/api/color-previews',
+			{
+				method: 'POST',
+				body: formData,
+			},
+		)
+
+	if (
+		!response.ok
+	) {
+		throw new Error(
+			'The color preview could not be saved.',
+		)
+	}
+
+	const result =
+		await response.json()
+	const shareUrl =
+		new URL(
+			result.sharePath,
+			window.location.origin,
+		)
+	const directSceneUrl =
+		new URL(directUrl)
+
+	shareUrl.searchParams.set(
+		'preset',
+		directSceneUrl.searchParams.get(
+			'preset',
+		),
+	)
+
+	if (
+		activePresetName.value &&
+		activePresetName.value !==
+			'Unsaved scene'
+	) {
+		shareUrl.searchParams.set(
+			'name',
+			activePresetName.value,
+		)
+	}
+
+	return shareUrl.toString()
+}
+
 async function copyShareUrl() {
-	const url =
+	const directUrl =
 		getShareUrl()
+	let url = directUrl
 
 	presetCodeDialog.value = {
 		open: true,
 		title: 'Copy share URL',
 		description:
-			'Anyone who opens this URL will load the current scene and settings.',
+			'Creating a social preview of the current scene…',
 		ariaLabel:
 			'Current scene share URL',
 		copyLabel: 'Copy URL',
 		text: url,
 		copied: false,
+	}
+
+	try {
+		url = await createPreviewShareUrl(
+			directUrl,
+		)
+
+		presetCodeDialog.value = {
+			...presetCodeDialog.value,
+			description:
+				'Anyone who opens this URL will load the current scene, and social posts can show its preview image.',
+			text: url,
+		}
+	} catch {
+		presetCodeDialog.value = {
+			...presetCodeDialog.value,
+			description:
+				'The scene URL works, but its preview image could not be saved. You can try Copy share URL again.',
+			text: directUrl,
+		}
 	}
 
 	try {

@@ -10,6 +10,7 @@ from flask_cors import CORS
 
 # Other Python Files
 from admin import admin_blueprint
+from color_previews import color_previews_blueprint
 from comments import comments_blueprint
 from extensions import db, migrate, socketio
 
@@ -37,6 +38,7 @@ if not flask_secret_key:
 
 app.config.update(
 	SECRET_KEY=flask_secret_key,
+	MAX_CONTENT_LENGTH=3 * 1024 * 1024,
 	SESSION_COOKIE_NAME="vsff_admin_session",
 	SESSION_COOKIE_HTTPONLY=True,
 	SESSION_COOKIE_SAMESITE="Lax",
@@ -88,6 +90,11 @@ app.register_blueprint(
 # Adding our admin routes
 app.register_blueprint(
 	admin_blueprint,
+)
+
+# Social cards for shared Color Explorer scenes.
+app.register_blueprint(
+	color_previews_blueprint,
 )
 
 ''' Ran once
