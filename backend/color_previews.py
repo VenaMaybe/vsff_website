@@ -79,6 +79,105 @@ def _valid_png(data):
 	)
 
 
+def _jpeg_dimensions(data):
+	if (
+		len(data) < 4
+		or data[:2] != b"\xff\xd8"
+		or data[-2:] != b"\xff\xd9"
+	):
+		return None
+
+	start_of_frame_markers = {
+		0xC0,
+		0xC1,
+		0xC2,
+		0xC3,
+		0xC5,
+		0xC6,
+		0xC7,
+		0xC9,
+		0xCA,
+		0xCB,
+		0xCD,
+		0xCE,
+		0xCF,
+	}
+	index = 2
+
+	while index < len(data):
+		while index < len(data) and data[index] != 0xFF:
+			index += 1
+
+		while index < len(data) and data[index] == 0xFF:
+			index += 1
+
+		if index >= len(data):
+			break
+
+		marker = data[index]
+		index += 1
+
+		if marker == 0xDA:
+			break
+
+		if (
+			marker == 0x01
+			or 0xD0 <= marker <= 0xD9
+		):
+			continue
+
+		if index + 2 > len(data):
+			break
+
+		segment_length = struct.unpack(
+			">H",
+			data[index:index + 2],
+		)[0]
+
+		if (
+			segment_length < 2
+			or index + segment_length > len(data)
+		):
+			break
+
+		if marker in start_of_frame_markers:
+			if segment_length < 7:
+				break
+
+			height, width = struct.unpack(
+				">HH",
+				data[index + 3:index + 7],
+			)
+
+			return width, height
+
+		index += segment_length
+
+	return None
+
+
+def _valid_jpeg(data):
+	return _jpeg_dimensions(data) == (
+		PREVIEW_WIDTH,
+		PREVIEW_HEIGHT,
+	)
+
+
+def _find_preview(preview_id):
+	directory = _preview_directory()
+
+	for extension, mimetype in (
+		("jpg", "image/jpeg"),
+		("png", "image/png"),
+	):
+		path = directory / f"{preview_id}.{extension}"
+
+		if path.is_file():
+			return path, extension, mimetype
+
+	return None
+
+
 def _upload_allowed():
 	now = time.monotonic()
 	cutoff = now - 3600
@@ -121,20 +220,26 @@ def create_color_preview():
 			"error": "The preview image is too large.",
 		}), 413
 
-	if not _valid_png(data):
+	if _valid_jpeg(data):
+		extension = "jpg"
+	elif _valid_png(data):
+		extension = "png"
+	else:
 		return jsonify({
-			"error": "The preview must be a 1200 by 630 PNG image.",
+			"error": (
+				"The preview must be a 1200 by 630 JPEG or PNG image."
+			),
 		}), 400
 
 	preview_id = hashlib.sha256(data).hexdigest()[:32]
 	preview_path = (
 		_preview_directory()
-		/ f"{preview_id}.png"
+		/ f"{preview_id}.{extension}"
 	)
 
 	if not preview_path.exists():
 		temporary_path = preview_path.with_suffix(
-			".png.tmp",
+			f".{extension}.tmp",
 		)
 		temporary_path.write_bytes(data)
 		os.replace(
@@ -149,18 +254,26 @@ def create_color_preview():
 
 
 @color_previews_blueprint.get(
-	"/api/color-previews/<preview_id>.png",
+	"/api/color-previews/<preview_id>.<extension>",
 )
-def get_color_preview(preview_id):
-	if not _PREVIEW_ID_PATTERN.fullmatch(preview_id):
+def get_color_preview(preview_id, extension):
+	if (
+		not _PREVIEW_ID_PATTERN.fullmatch(preview_id)
+		or extension not in {"jpg", "png"}
+	):
 		return jsonify({
 			"error": "Invalid color preview.",
 		}), 404
 
+	mimetype = (
+		"image/jpeg"
+		if extension == "jpg"
+		else "image/png"
+	)
 	response = send_from_directory(
 		_preview_directory(),
-		f"{preview_id}.png",
-		mimetype="image/png",
+		f"{preview_id}.{extension}",
+		mimetype=mimetype,
 		conditional=True,
 	)
 	response.headers["Cache-Control"] = (
@@ -189,15 +302,14 @@ def get_color_share(preview_id):
 			"error": "Invalid color scene share link.",
 		}), 400
 
-	preview_path = (
-		_preview_directory()
-		/ f"{preview_id}.png"
-	)
+	preview = _find_preview(preview_id)
 
-	if not preview_path.is_file():
+	if preview is None:
 		return jsonify({
 			"error": "This color preview is no longer available.",
 		}), 404
+
+	_, extension, image_mimetype = preview
 
 	preset_name = request.args.get(
 		"name",
@@ -222,8 +334,10 @@ def get_color_share(preview_id):
 	image_url = url_for(
 		"color_previews.get_color_preview",
 		preview_id=preview_id,
+		extension=extension,
 		_external=True,
 	)
+	share_url = request.url
 
 	escaped_title = html.escape(
 		title,
@@ -241,6 +355,10 @@ def get_color_share(preview_id):
 		image_url,
 		quote=True,
 	)
+	escaped_share_url = html.escape(
+		share_url,
+		quote=True,
+	)
 	redirect_url = json.dumps(color_url)
 
 	document = f"""<!doctype html>
@@ -249,15 +367,15 @@ def get_color_share(preview_id):
 	<meta charset="UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1">
 	<meta name="description" content="{escaped_description}">
-	<link rel="canonical" href="{escaped_color_url}">
+	<link rel="canonical" href="{escaped_share_url}">
 	<meta property="og:type" content="website">
 	<meta property="og:site_name" content="Vena's Color Explorer">
-	<meta property="og:url" content="{escaped_color_url}">
+	<meta property="og:url" content="{escaped_share_url}">
 	<meta property="og:title" content="{escaped_title}">
 	<meta property="og:description" content="{escaped_description}">
 	<meta property="og:image" content="{escaped_image_url}">
 	<meta property="og:image:secure_url" content="{escaped_image_url}">
-	<meta property="og:image:type" content="image/png">
+	<meta property="og:image:type" content="{image_mimetype}">
 	<meta property="og:image:width" content="{PREVIEW_WIDTH}">
 	<meta property="og:image:height" content="{PREVIEW_HEIGHT}">
 	<meta property="og:image:alt" content="Preview of the shared color-space scene">

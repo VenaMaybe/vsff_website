@@ -2192,7 +2192,8 @@ function captureSharePreview() {
 						)
 					}
 				},
-				'image/png',
+				'image/jpeg',
+				0.84,
 			)
 		},
 	)
@@ -2209,7 +2210,7 @@ async function createPreviewShareUrl(
 	formData.append(
 		'preview',
 		preview,
-		'color-scene.png',
+		'color-scene.jpg',
 	)
 
 	const response =
@@ -2238,6 +2239,11 @@ async function createPreviewShareUrl(
 		)
 	const directSceneUrl =
 		new URL(directUrl)
+
+	shareUrl.searchParams.set(
+		'card',
+		'2',
+	)
 
 	shareUrl.searchParams.set(
 		'preset',
@@ -2288,13 +2294,21 @@ async function copyShareUrl() {
 				'Anyone who opens this URL will load the current scene, and social posts can show its preview image.',
 			text: url,
 		}
-	} catch {
+	} catch (error) {
 		presetCodeDialog.value = {
 			...presetCodeDialog.value,
 			description:
-				'The scene URL works, but its preview image could not be saved. You can try Copy share URL again.',
+				'The scene URL works, but its preview image could not be saved, so it has not been copied automatically. You can retry or copy it without a preview.',
+			copyLabel:
+				'Copy without preview',
 			text: directUrl,
 		}
+
+		console.error(
+			'Could not create the color-scene social preview.',
+			error,
+		)
+		return
 	}
 
 	try {
