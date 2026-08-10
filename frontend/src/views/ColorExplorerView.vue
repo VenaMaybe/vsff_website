@@ -2242,7 +2242,7 @@ async function createPreviewShareUrl(
 
 	shareUrl.searchParams.set(
 		'card',
-		'2',
+		'3',
 	)
 
 	shareUrl.searchParams.set(
@@ -2252,14 +2252,24 @@ async function createPreviewShareUrl(
 		),
 	)
 
+	const sharePresetName =
+		activePresetName.value
+			?.trim()
+
 	if (
-		activePresetName.value &&
-		activePresetName.value !==
-			'Unsaved scene'
+		sharePresetName &&
+		![
+			'none',
+			'null',
+			'undefined',
+			'unsaved scene',
+		].includes(
+			sharePresetName.toLowerCase(),
+		)
 	) {
 		shareUrl.searchParams.set(
 			'name',
-			activePresetName.value,
+			sharePresetName,
 		)
 	}
 

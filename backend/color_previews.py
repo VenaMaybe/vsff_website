@@ -316,13 +316,12 @@ def get_color_share(preview_id):
 		"",
 	).strip()[:80]
 	title = (
-		f"{preset_name} — Vena's Color Explorer"
+		f"Preset — {preset_name}"
 		if preset_name
-		else "Vena's Color Explorer"
+		else "Vena's Colors"
 	)
 	description = (
-		"Explore this interactive 3D color-space scene and fly through "
-		"its palette deformation."
+		"It's dangerous, take some colors :>"
 	)
 	color_url = urljoin(
 		request.host_url,
@@ -369,7 +368,7 @@ def get_color_share(preview_id):
 	<meta name="description" content="{escaped_description}">
 	<link rel="canonical" href="{escaped_share_url}">
 	<meta property="og:type" content="website">
-	<meta property="og:site_name" content="Vena's Color Explorer">
+	<meta property="og:site_name" content="Vena's Colors">
 	<meta property="og:url" content="{escaped_share_url}">
 	<meta property="og:title" content="{escaped_title}">
 	<meta property="og:description" content="{escaped_description}">
