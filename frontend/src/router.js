@@ -21,9 +21,17 @@ const router = createRouter({
 			component: AdminCommentsView,
 		},
 		{
-			path: '/color',
-			name: 'color',
+			path: '/colors',
+			name: 'colors',
 			component: ColorExplorerView,
+		},
+		{
+			path: '/color',
+			redirect: (to) => ({
+				name: 'colors',
+				query: to.query,
+				hash: to.hash,
+			}),
 		},
 		{
 			path: '/:pathMatch(.*)*',

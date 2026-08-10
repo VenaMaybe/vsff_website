@@ -280,17 +280,34 @@ onBeforeUnmount(() => { // kill the timer when shit leaves
 			'app-shell--styled': styledView,
 		}"
 	>
-		<button
-			class="view-toggle"
+		<div
+			class="home-actions"
 			:class="{
-				'view-toggle--styled': styledView,
-				'view-toggle--hidden': viewToggleHidden,
+				'home-actions--hidden': viewToggleHidden,
 			}"
-			type="button"
-			@click="toggleView"
 		>
-			Switch to {{ styledView ? 'plain' : 'styled' }} view
-		</button>
+			<button
+				class="view-toggle"
+				:class="{
+					'view-toggle--styled': styledView,
+				}"
+				type="button"
+				@click="toggleView"
+			>
+				Switch to {{ styledView ? 'plain' : 'styled' }} view
+			</button>
+
+			<button
+				class="view-toggle"
+				:class="{
+					'view-toggle--styled': styledView,
+				}"
+				type="button"
+				@click="$router.push('/colors')"
+			>
+				Check out Colors!
+			</button>
+		</div>
 
 		<StyledView
 			v-if="styledView"
@@ -389,11 +406,21 @@ onBeforeUnmount(() => { // kill the timer when shit leaves
 }
 
 /* Basic appearance used in plain view */
-.view-toggle {
+.home-actions {
 	position: fixed;
 	top: 1rem;
 	right: 1rem;
 	z-index: 1000;
+	display: flex;
+	flex-direction: column;
+	align-items: flex-end;
+	gap: 0.5rem;
+	transition:
+		transform 180ms ease,
+		opacity 180ms ease;
+}
+
+.view-toggle {
 
 	/* Mostly normal browser button styling */
 	padding: 0.25rem 0.5rem;
@@ -403,10 +430,6 @@ onBeforeUnmount(() => { // kill the timer when shit leaves
 
 /* Styled-view appearance */
 .view-toggle--styled {
-	position: fixed;
-	top: 1rem;
-	right: 1rem;
-	z-index: 1000;
 	margin: 0;
 	padding: 0.7rem 1rem;
 	border: 1px solid #7a514d;
@@ -438,13 +461,7 @@ onBeforeUnmount(() => { // kill the timer when shit leaves
 	transform: translateY(-2px);
 }
 
-.view-toggle {
-	transition:
-		transform 180ms ease,
-		opacity 180ms ease;
-}
-
-.view-toggle.view-toggle--hidden {
+.home-actions.home-actions--hidden {
 	opacity: 0;
 	pointer-events: none;
 	transform: translateX(calc(100% + 2rem));
@@ -460,9 +477,12 @@ onBeforeUnmount(() => { // kill the timer when shit leaves
 }
 
 @media (max-width: 36rem) {
-	.view-toggle--styled {
+	.home-actions {
 		top: 0.65rem;
 		right: 0.65rem;
+	}
+
+	.view-toggle--styled {
 		max-width: calc(100vw - 1.3rem);
 		padding: 0.6rem 0.8rem;
 		font-size: 0.78rem;

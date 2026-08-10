@@ -23,6 +23,11 @@ import {
 	Pane,
 } from 'tweakpane'
 
+import {
+	ColorExplorerFlightController,
+	FLIGHT_TUNING,
+} from '../ColorExplorerFlightController.js'
+
 
 // Add built-in presets here. Codes can be copied
 // from the Color Explorer's "Copy preset" button.
@@ -107,6 +112,24 @@ const activePresetName =
 const mobilePanel =
 	ref(null)
 
+const flightActive =
+	ref(false)
+
+const flightSpeedDisplay =
+	ref('0.0')
+
+const flightRollDegrees =
+	ref(0)
+
+const flightPitchOffset =
+	ref(0)
+
+const flightJoystick =
+	ref({
+		x: 0,
+		y: 0,
+	})
+
 const presetExportTextarea =
 	ref(null)
 
@@ -116,6 +139,10 @@ const presetCodeTextarea =
 const presetCodeDialog =
 	ref({
 		open: false,
+		title: '',
+		description: '',
+		ariaLabel: '',
+		copyLabel: '',
 		text: '',
 		copied: false,
 	})
@@ -161,10 +188,17 @@ let activeFineSliderFinish = null
 
 let renderer
 let animationFrame
+let canvasResizeObserver = null
+let pendingCanvasResizeFrame = null
 let camera
 let controls
+let flightController = null
+let flightViewSettings = null
+let flightFrame = 0
+let lastAnimationTime = 0
 let material
 let pendingCameraState = null
+let pendingCameraOverridesSavedState = false
 
 let scene
 let geometry
@@ -225,6 +259,7 @@ let torusRotationBinding = null
 let cameraFovBinding = null
 let cameraOrthoSizeBinding = null
 let orbitSelectedButton = null
+let flyButton = null
 let elasticLatticeFolder = null
 let originalExplosionFolder = null
 let localCutawayFolder = null
@@ -393,6 +428,12 @@ const inspection_mode =
 const selection_enabled =
 	ref(true)
 
+const flight_sensitivity =
+	ref(0.5)
+
+const flight_wind_volume =
+	ref(1)
+
 
 // Settings persistence
 
@@ -492,6 +533,20 @@ function applySettings(
 		selection_enabled.value =
 			settings.selectionEnabled
 	}
+
+	applySavedNumber(
+		flight_sensitivity,
+		settings.flightSensitivity,
+		0.1,
+		2,
+	)
+
+	applySavedNumber(
+		flight_wind_volume,
+		settings.flightWindVolume,
+		0,
+		1,
+	)
 
 	if (
 		[
@@ -877,6 +932,20 @@ function loadSettings() {
 			savedSettings.selectionEnabled
 	}
 
+	applySavedNumber(
+		flight_sensitivity,
+		savedSettings.flightSensitivity,
+		0.1,
+		2,
+	)
+
+	applySavedNumber(
+		flight_wind_volume,
+		savedSettings.flightWindVolume,
+		0,
+		1,
+	)
+
 	if (
 		[
 			'perspective',
@@ -1160,6 +1229,12 @@ function getCurrentSettings() {
 		selectionEnabled:
 			selection_enabled.value,
 
+		flightSensitivity:
+			flight_sensitivity.value,
+
+		flightWindVolume:
+			flight_wind_volume.value,
+
 		pointDensity:
 			point_density.value,
 
@@ -1266,6 +1341,8 @@ function getDefaultPresetSettings() {
 		relationRadius: 0.35,
 		inspectionMode: 'spokes',
 		selectionEnabled: true,
+		flightSensitivity: 0.5,
+		flightWindVolume: 1,
 		pointDensity: 50,
 		shape: 'cube',
 		colorSpace: 'hsv',
@@ -1869,6 +1946,15 @@ function storeSavedPresets(
 function applyPreset(
 	settings,
 ) {
+	if (
+		flightActive.value
+	) {
+		stopFlight({
+			restoreViewSettings: false,
+			persist: false,
+		})
+	}
+
 	const completeSettings =
 		fillPresetDefaults(
 			settings,
@@ -2011,19 +2097,29 @@ async function copyShareUrl() {
 	const url =
 		getShareUrl()
 
+	presetCodeDialog.value = {
+		open: true,
+		title: 'Copy share URL',
+		description:
+			'Anyone who opens this URL will load the current scene and settings.',
+		ariaLabel:
+			'Current scene share URL',
+		copyLabel: 'Copy URL',
+		text: url,
+		copied: false,
+	}
+
 	try {
 		await navigator.clipboard.writeText(
 			url,
 		)
 
-		window.alert(
-			'Share URL copied.',
-		)
+		presetCodeDialog.value = {
+			...presetCodeDialog.value,
+			copied: true,
+		}
 	} catch {
-		window.prompt(
-			'Copy this share URL:',
-			url,
-		)
+		// The centered dialog provides a manual copy path.
 	}
 }
 
@@ -2042,6 +2138,12 @@ async function copyPresetCode() {
 
 	presetCodeDialog.value = {
 		open: true,
+		title: 'Copy current preset',
+		description:
+			'The full code is shown below. A preset name is optional and does not affect whether this code can be loaded.',
+		ariaLabel:
+			'Current preset code',
+		copyLabel: 'Copy code',
 		text: code,
 		copied: false,
 	}
@@ -2328,6 +2430,19 @@ function submitPresetImport() {
 }
 
 function loadPresetFromUrl() {
+	const navigationEntry =
+		performance
+			.getEntriesByType?.(
+				'navigation',
+			)?.[0]
+
+	if (
+		navigationEntry?.type ===
+			'reload'
+	) {
+		return
+	}
+
 	const code =
 		new URLSearchParams(
 			window.location.search,
@@ -2343,13 +2458,31 @@ function loadPresetFromUrl() {
 	}
 
 	try {
-		openPreset(
+		const settings =
 			decodePreset(
 				code,
-			),
+			)
+		const completeSettings =
+			fillPresetDefaults(
+				settings,
+			)
+
+		pendingCameraOverridesSavedState =
+			Boolean(
+				completeSettings &&
+				completeSettings.pointDensity <= 40 &&
+				isValidCameraState(
+					completeSettings.camera,
+				),
+			)
+
+		openPreset(
+			settings,
 			'Shared preset',
 		)
 	} catch {
+		pendingCameraOverridesSavedState = false
+
 		// Ignore malformed shared URLs and
 		// retain the locally saved settings.
 	}
@@ -4833,7 +4966,463 @@ function relaxPaletteLattice(
 
 // Camera
 
+function updateFlyButton() {
+	if (
+		flyButton
+	) {
+		flyButton.title =
+			flightActive.value
+				? 'Stop flying'
+				: 'Fly'
+	}
+}
+
+function collapseFlightPanes() {
+	if (
+		pane
+	) {
+		pane.expanded = false
+	}
+
+	if (
+		utilityPane
+	) {
+		utilityPane.expanded = false
+	}
+
+	const paneState =
+		loadPaneState()
+
+	paneState.root = false
+	paneState.utilityRoot = false
+
+	try {
+		localStorage.setItem(
+			PANE_STATE_STORAGE_KEY,
+			JSON.stringify(
+				paneState,
+			),
+		)
+	} catch {
+		// Keep flight available when storage is restricted.
+	}
+}
+
+function startFlight() {
+	if (
+		flightActive.value ||
+		!camera ||
+		!controls ||
+		!flightController
+	) {
+		return
+	}
+
+	// Unlock Web Audio directly from the initiating tap.
+	flightController.primeAudio()
+
+	flightViewSettings = {
+		projection:
+			camera_projection.value,
+		fov:
+			camera_fov.value,
+		near:
+			camera_near.value,
+	}
+
+	if (
+		camera_projection.value ===
+			'orthographic'
+	) {
+		camera_projection.value =
+			'perspective'
+		rebuildCamera()
+	}
+
+	controls.enabled = false
+	camera.near = 0.001
+
+	if (
+		camera.isPerspectiveCamera
+	) {
+		camera.fov =
+			Math.max(
+				camera.fov,
+				FLIGHT_TUNING
+					.minimumFlightFov,
+			)
+	}
+
+	camera.updateProjectionMatrix()
+	flightController.setCamera(
+		camera,
+	)
+	flightController.setJoystickSensitivity(
+		flight_sensitivity.value,
+	)
+	flightController.setWindVolume(
+		flight_wind_volume.value,
+	)
+	flightController.start(
+		controls.target,
+	)
+	flightActive.value = true
+	document.documentElement
+		.classList.add(
+			'color-explorer-flight-active',
+		)
+	flightFrame = 0
+	lastAnimationTime =
+		performance.now()
+	mobilePanel.value = null
+	collapseFlightPanes()
+	clearPointSelection()
+	updateFlyButton()
+	updateOrbitSelectedButton()
+	sortNeeded = true
+}
+
+function stopFlight({
+	restoreViewSettings = true,
+	persist = true,
+} = {}) {
+	if (
+		!flightActive.value
+	) {
+		return
+	}
+
+	const direction =
+		flightController
+			?.getDirection() ||
+			new THREE.Vector3(0, 0, -1)
+
+	flightController?.stop()
+	flightActive.value = false
+	document.documentElement
+		.classList.remove(
+			'color-explorer-flight-active',
+		)
+	flightJoystick.value = {
+		x: 0,
+		y: 0,
+	}
+	flightSpeedDisplay.value =
+		'0.0'
+	flightRollDegrees.value = 0
+	flightPitchOffset.value = 0
+
+	if (
+		controls &&
+		camera
+	) {
+		controls.enabled = true
+		controls.target
+			.copy(
+				camera.position,
+			)
+			.addScaledVector(
+				direction,
+				0.6,
+			)
+	}
+
+	if (
+		restoreViewSettings &&
+		flightViewSettings
+	) {
+		camera_projection.value =
+			flightViewSettings.projection
+		camera_fov.value =
+			flightViewSettings.fov
+		camera_near.value =
+			flightViewSettings.near
+
+		const needsRebuild =
+			(
+				camera_projection.value ===
+					'orthographic'
+			) !==
+			Boolean(
+				camera?.isOrthographicCamera,
+			)
+
+		if (
+			needsRebuild
+		) {
+			rebuildCamera()
+		} else if (
+			camera
+		) {
+			camera.near =
+				camera_near.value
+
+			if (
+				camera.isPerspectiveCamera
+			) {
+				camera.fov =
+					camera_fov.value
+			}
+
+			camera.updateProjectionMatrix()
+			controls?.update()
+		}
+	}
+
+	flightViewSettings = null
+	updateFlyButton()
+	updateOrbitSelectedButton()
+	sortNeeded = true
+
+	if (
+		persist
+	) {
+		saveCameraState()
+		saveSettings()
+	}
+}
+
+function toggleFlight() {
+	if (
+		flightActive.value
+	) {
+		stopFlight()
+	} else {
+		startFlight()
+	}
+}
+
+function updateFlightJoystick(
+	event,
+) {
+	const bounds =
+		event.currentTarget
+			.getBoundingClientRect()
+	const radius =
+		Math.max(
+			bounds.width * 0.315,
+			1,
+		)
+	const x =
+		THREE.MathUtils.clamp(
+			(
+				event.clientX -
+				(
+					bounds.left +
+					bounds.width * 0.5
+				)
+			) / radius,
+			-1,
+			1,
+		)
+	const y =
+		THREE.MathUtils.clamp(
+			(
+				event.clientY -
+				(
+					bounds.top +
+					bounds.height * 0.5
+				)
+			) / radius,
+			-1,
+			1,
+		)
+
+	flightJoystick.value = {
+		x,
+		y,
+	}
+	flightController?.setJoystick(
+		x,
+		-y,
+	)
+}
+
+function handleFlightJoystickDown(
+	event,
+) {
+	event.preventDefault()
+	event.currentTarget
+		.setPointerCapture(
+			event.pointerId,
+		)
+	updateFlightJoystick(
+		event,
+	)
+}
+
+function handleFlightJoystickMove(
+	event,
+) {
+	if (
+		event.currentTarget
+			.hasPointerCapture(
+				event.pointerId,
+			)
+	) {
+		event.preventDefault()
+		updateFlightJoystick(
+			event,
+		)
+	}
+}
+
+function handleFlightJoystickUp(
+	event,
+) {
+	event.preventDefault()
+
+	if (
+		event.currentTarget
+			.hasPointerCapture(
+				event.pointerId,
+			)
+	) {
+		event.currentTarget
+			.releasePointerCapture(
+				event.pointerId,
+			)
+	}
+
+	flightJoystick.value = {
+		x: 0,
+		y: 0,
+	}
+	flightController?.setJoystick(
+		0,
+		0,
+	)
+}
+
+function handleFlightBoost(
+	event,
+	boosting,
+) {
+	event.preventDefault()
+
+	if (
+		boosting
+	) {
+		event.currentTarget
+			.setPointerCapture(
+				event.pointerId,
+			)
+	}
+
+	flightController?.setBoosting(
+		boosting,
+	)
+}
+
+function handleFlightBoostTouch(
+	boosting,
+) {
+	flightController?.setBoosting(
+		boosting,
+	)
+}
+
+function updateFlightProximity() {
+	if (
+		!flightController ||
+		!basePositions ||
+		!camera
+	) {
+		return
+	}
+
+	const pointCount =
+		basePositions.length / 3
+	const stride =
+		Math.max(
+			1,
+			Math.ceil(
+				pointCount / 150000,
+			),
+		)
+	const phase =
+		flightFrame % stride
+	let nearestDistanceSquared =
+		Infinity
+
+	for (
+		let offset = phase * 3;
+		offset < basePositions.length;
+		offset += 3 * stride
+	) {
+		const dx =
+			basePositions[offset] -
+			camera.position.x
+		const dy =
+			basePositions[offset + 1] -
+			camera.position.y
+		const dz =
+			basePositions[offset + 2] -
+			camera.position.z
+		const distanceSquared =
+			dx * dx +
+			dy * dy +
+			dz * dz
+
+		if (
+			distanceSquared <
+				nearestDistanceSquared
+		) {
+			nearestDistanceSquared =
+				distanceSquared
+		}
+	}
+
+	const distance =
+		Math.sqrt(
+			nearestDistanceSquared,
+		)
+	const innerDistance =
+		Math.max(
+			0.012,
+			dot_size.value * 0.35,
+		)
+	const outerDistance =
+		Math.max(
+			0.16,
+			dot_size.value * 1.8,
+		)
+	const normalizedDistance =
+		THREE.MathUtils.clamp(
+			(
+				distance -
+				innerDistance
+			) /
+			(
+				outerDistance -
+				innerDistance
+			),
+			0,
+			1,
+		)
+	const smoothDistance =
+		normalizedDistance *
+		normalizedDistance *
+		(
+			3 -
+			2 * normalizedDistance
+		)
+
+	flightController.setProximity(
+		1 - smoothDistance,
+	)
+}
+
 function resetCamera() {
+	if (
+		flightActive.value
+	) {
+		stopFlight({
+			restoreViewSettings: false,
+			persist: false,
+		})
+	}
+
 	const defaults =
 		getDefaultPresetSettings()
 
@@ -5007,10 +5596,18 @@ function setupCamera(
 	camera =
 		createCamera()
 
+	const savedCameraState =
+		loadCameraState()
 	const state =
 		stateOverride ||
-		pendingCameraState ||
-		loadCameraState()
+		(
+			pendingCameraOverridesSavedState
+				? pendingCameraState
+				: savedCameraState ||
+					pendingCameraState
+		)
+
+	pendingCameraOverridesSavedState = false
 
 	if (
 		state
@@ -5037,9 +5634,20 @@ function setupCamera(
 			8,
 		)
 	}
+
+	return state
 }
 
 function rebuildCamera() {
+	if (
+		flightActive.value
+	) {
+		stopFlight({
+			restoreViewSettings: false,
+			persist: false,
+		})
+	}
+
 	const state =
 		getCurrentCameraState()
 
@@ -5058,6 +5666,10 @@ function rebuildCamera() {
 
 	setupControls(
 		state,
+	)
+
+	flightController?.setCamera(
+		camera,
 	)
 
 	if (
@@ -5510,9 +6122,17 @@ function handleWindowResize() {
 	}
 
 	const width =
-		threeContainer.value.clientWidth
+		Math.max(
+			threeContainer.value.clientWidth ||
+				window.innerWidth,
+			1,
+		)
 	const height =
-		threeContainer.value.clientHeight
+		Math.max(
+			threeContainer.value.clientHeight ||
+				window.innerHeight,
+			1,
+		)
 	const aspect =
 		width / Math.max(
 			height,
@@ -5544,6 +6164,17 @@ function handleWindowResize() {
 	camera.updateProjectionMatrix()
 
 	if (
+		relationLines
+	) {
+		relationLines.material
+			.resolution
+			.set(
+				width,
+				height,
+			)
+	}
+
+	if (
 		renderMode.value ===
 			'squares' &&
 		material
@@ -5553,6 +6184,53 @@ function handleWindowResize() {
 	}
 
 	sortNeeded = true
+}
+
+function scheduleCanvasResize() {
+	if (
+		pendingCanvasResizeFrame !==
+		null
+	) {
+		return
+	}
+
+	pendingCanvasResizeFrame =
+		requestAnimationFrame(
+			() => {
+				pendingCanvasResizeFrame =
+					null
+				handleWindowResize()
+			},
+		)
+}
+
+function setupCanvasResizeTracking() {
+	if (
+		typeof ResizeObserver !==
+			'undefined' &&
+		threeContainer.value
+	) {
+		canvasResizeObserver =
+			new ResizeObserver(
+				scheduleCanvasResize,
+			)
+
+		canvasResizeObserver.observe(
+			threeContainer.value,
+		)
+
+		canvasResizeObserver.observe(
+			document.documentElement,
+		)
+	}
+
+	window.visualViewport
+		?.addEventListener(
+			'resize',
+			scheduleCanvasResize,
+		)
+
+	scheduleCanvasResize()
 }
 
 
@@ -6237,7 +6915,8 @@ function updateOrbitSelectedButton() {
 		orbitSelectedButton
 	) {
 		orbitSelectedButton.disabled =
-			selectedPointIndex < 0
+			selectedPointIndex < 0 ||
+			flightActive.value
 	}
 }
 
@@ -6359,7 +7038,8 @@ function handlePointPointerDown(
 	event,
 ) {
 	if (
-		!selection_enabled.value
+		!selection_enabled.value ||
+		flightActive.value
 	) {
 		return
 	}
@@ -6375,6 +7055,7 @@ function handlePointPointerUp(
 ) {
 	if (
 		!selection_enabled.value ||
+		flightActive.value ||
 		Math.hypot(
 			event.clientX - pointPointerDownX,
 			event.clientY - pointPointerDownY,
@@ -6822,13 +7503,109 @@ function handleCameraChange() {
 
 // Animation
 
-function animate() {
+function animate(
+	timestamp = performance.now(),
+) {
 	animationFrame =
 		requestAnimationFrame(
 			animate,
 		)
 
-	controls.update()
+	const deltaSeconds =
+		lastAnimationTime > 0
+			? (
+				timestamp -
+				lastAnimationTime
+			) / 1000
+			: 1 / 60
+
+	lastAnimationTime = timestamp
+
+	if (
+		flightActive.value &&
+		flightController
+	) {
+		const flightState =
+			flightController.update(
+				deltaSeconds,
+			)
+
+		flightRollDegrees.value =
+			-flightState.roll *
+				180 / Math.PI
+		flightPitchOffset.value =
+			THREE.MathUtils.clamp(
+				flightState.pitch /
+					(Math.PI * 0.5) *
+					9,
+				-9,
+				9,
+			)
+
+		if (
+			camera.isPerspectiveCamera
+		) {
+			const baseFlightFov =
+				Math.max(
+					flightViewSettings?.fov ??
+						camera_fov.value,
+					FLIGHT_TUNING
+						.minimumFlightFov,
+				)
+			const targetFlightFov =
+				Math.min(
+					baseFlightFov +
+						(
+							flightState.boosting
+								? FLIGHT_TUNING
+									.boostFovIncrease
+								: 0
+						),
+					150,
+				)
+
+			camera.fov +=
+				(
+					targetFlightFov -
+						camera.fov
+				) *
+				(
+					1 -
+						Math.exp(
+							-FLIGHT_TUNING
+								.fovResponse *
+								deltaSeconds,
+						)
+				)
+			camera.updateProjectionMatrix()
+		}
+
+		flightFrame += 1
+
+		if (
+			flightFrame % 4 === 0
+		) {
+			flightSpeedDisplay.value =
+				flightState.speed
+					.toFixed(1)
+		}
+
+		if (
+			flightFrame % 6 === 0
+		) {
+			updateFlightProximity()
+		}
+
+		if (
+			renderMode.value ===
+				'splats' &&
+			flightFrame % 8 === 0
+		) {
+			sortNeeded = true
+		}
+	} else {
+		controls.update()
+	}
 
 	if (
 		renderMode.value ===
@@ -7069,6 +7846,12 @@ function setupSettingDescriptions(
 
 		'Line layout':
 			'Shows either spokes from the selected point or a nearest-unvisited station route.',
+
+		'Sensitivity':
+			'Controls how quickly the mobile flight joystick turns without changing keyboard steering.',
+
+		'Wind volume':
+			'Controls the volume of the procedural wind sound while flying.',
 
 		Shape:
 			'Maps the color space onto a cube, cylinder, or torus.',
@@ -9203,7 +9986,73 @@ function setupUtilityPane() {
 				},
 			)
 
+	flyButton =
+		cameraFolder
+			.addButton({
+				title:
+					'Fly',
+			})
+			.on(
+				'click',
+				() => {
+					toggleFlight()
+				},
+			)
+
+	cameraFolder
+		.addBinding(
+			flight_sensitivity,
+			'value',
+			{
+				label:
+					'Sensitivity',
+				min:
+					0.1,
+				max:
+					2,
+				step:
+					0.05,
+			},
+		)
+
+	cameraFolder
+		.addBinding(
+			flight_wind_volume,
+			'value',
+			{
+				label:
+					'Wind volume',
+				min:
+					0,
+				max:
+					1,
+				step:
+					0.01,
+			},
+		)
+		.on(
+			'change',
+			() => {
+				flightController
+					?.setWindVolume(
+						flight_wind_volume.value,
+					)
+				saveSettings()
+			},
+		)
+		.on(
+			'change',
+			() => {
+				flightController
+					?.setJoystickSensitivity(
+						flight_sensitivity.value,
+					)
+				saveSettings()
+			},
+		)
+
 	updateOrbitSelectedButton()
+	updateFlyButton()
 
 	updateCameraBindingVisibility()
 
@@ -9220,26 +10069,47 @@ function setupUtilityPane() {
 // Vue lifecycle
 
 onMounted(() => {
+	document.documentElement
+		.classList.add(
+			'color-explorer-active',
+		)
+
 	loadSettings()
 	loadPresetFromUrl()
 	refreshPresetEntries()
 
 	setupScene()
-	setupCamera()
+	const initialCameraState =
+		setupCamera()
 	setupRenderer()
 
 	setupPalette()
 	setupGeometry()
 	setupPoints()
 
-	setupControls()
+	setupControls(
+		initialCameraState,
+	)
+	saveCameraState()
+	saveSettings()
+	flightController =
+		new ColorExplorerFlightController({
+			camera,
+			onExit: () => {
+				stopFlight()
+			},
+		})
+	flightController.setWindVolume(
+		flight_wind_volume.value,
+	)
 	setupPane()
 	setupUtilityPane()
 
 	window.addEventListener(
 		'resize',
-		handleWindowResize,
+		scheduleCanvasResize,
 	)
+	setupCanvasResizeTracking()
 
 	startAnimation()
 })
@@ -9249,8 +10119,29 @@ onBeforeUnmount(() => {
 
 	window.removeEventListener(
 		'resize',
-		handleWindowResize,
+		scheduleCanvasResize,
 	)
+
+	window.visualViewport
+		?.removeEventListener(
+			'resize',
+			scheduleCanvasResize,
+		)
+
+	canvasResizeObserver
+		?.disconnect()
+	canvasResizeObserver = null
+
+	if (
+		pendingCanvasResizeFrame !==
+		null
+	) {
+		cancelAnimationFrame(
+			pendingCanvasResizeFrame,
+		)
+		pendingCanvasResizeFrame =
+			null
+	}
 
 	renderer
 		?.domElement
@@ -9322,6 +10213,19 @@ onBeforeUnmount(() => {
 		animationFrame,
 	)
 
+	document.documentElement
+		.classList.remove(
+			'color-explorer-flight-active',
+		)
+	document.documentElement
+		.classList.remove(
+			'color-explorer-active',
+		)
+
+	flightController
+		?.dispose()
+	flightController = null
+
 	controls
 		?.dispose()
 
@@ -9349,6 +10253,7 @@ onBeforeUnmount(() => {
 
 <template>
 	<button
+		v-if="!flightActive"
 		type="button"
 		class="mobile-panel-toggle mobile-settings-toggle"
 		:class="{ active: mobilePanel === 'settings' }"
@@ -9360,6 +10265,7 @@ onBeforeUnmount(() => {
 	</button>
 
 	<button
+		v-if="!flightActive"
 		type="button"
 		class="mobile-panel-toggle mobile-utility-toggle"
 		:class="{ active: mobilePanel === 'utility' }"
@@ -9375,6 +10281,84 @@ onBeforeUnmount(() => {
 		class="mobile-panel-backdrop"
 		@click="closeMobilePanels"
 	></div>
+
+	<div
+		v-if="flightActive"
+		class="flight-hud"
+	>
+		<div class="flight-status-group">
+			<div class="flight-status">
+				<span>Gliding</span>
+				<strong>{{ flightSpeedDisplay }}</strong>
+				<small>units/s</small>
+			</div>
+
+			<svg
+				class="flight-roll-indicator"
+				viewBox="0 0 90 18"
+				role="img"
+				aria-label="Aircraft roll relative to the horizon"
+			>
+				<g :transform="`translate(0 ${flightPitchOffset})`">
+					<line
+						class="flight-roll-horizon"
+						x1="8"
+						y1="11"
+						x2="82"
+						y2="11"
+						:transform="`rotate(${flightRollDegrees} 45 11)`"
+					></line>
+				</g>
+
+				<path
+					class="flight-roll-reference"
+					d="M39 3 L45 9 L51 3"
+				></path>
+			</svg>
+		</div>
+
+		<button
+			type="button"
+			class="flight-exit-button"
+			@click="stopFlight()"
+		>
+			Exit flight
+		</button>
+
+		<div class="flight-keyboard-help">
+			WASD / arrows to steer · Space to boost · Esc to exit
+		</div>
+
+		<div
+			class="flight-joystick"
+			aria-label="Flight steering joystick"
+			@pointerdown="handleFlightJoystickDown"
+			@pointermove="handleFlightJoystickMove"
+			@pointerup="handleFlightJoystickUp"
+			@pointercancel="handleFlightJoystickUp"
+		>
+			<div
+				class="flight-joystick-knob"
+				:style="{
+					left: `${50 + flightJoystick.x * 31.5}%`,
+					top: `${50 + flightJoystick.y * 31.5}%`,
+				}"
+			></div>
+		</div>
+
+		<button
+			type="button"
+			class="flight-boost-button"
+			@pointerdown="handleFlightBoost($event, true)"
+			@pointerup="handleFlightBoost($event, false)"
+			@pointercancel="handleFlightBoost($event, false)"
+			@touchstart.stop.prevent="handleFlightBoostTouch(true)"
+			@touchend.stop.prevent="handleFlightBoostTouch(false)"
+			@touchcancel.stop.prevent="handleFlightBoostTouch(false)"
+		>
+			Boost
+		</button>
+	</div>
 
 	<div
 		id="color-explorer-settings"
@@ -9518,6 +10502,15 @@ onBeforeUnmount(() => {
 			ref="utilityPaneContainer"
 			class="utility-pane-container"
 		></div>
+
+		<button
+			v-if="flightActive"
+			type="button"
+			class="flight-exit-button-ipad"
+			@click="stopFlight()"
+		>
+			Exit flight
+		</button>
 	</div>
 
 	<button
@@ -9558,12 +10551,11 @@ onBeforeUnmount(() => {
 			@keydown.esc="closePresetCode"
 		>
 			<h2 id="preset-code-title">
-				Copy current preset
+				{{ presetCodeDialog.title }}
 			</h2>
 
 			<p>
-				The full code is shown below. A preset name is optional and
-				does not affect whether this code can be loaded.
+				{{ presetCodeDialog.description }}
 			</p>
 
 			<textarea
@@ -9571,7 +10563,7 @@ onBeforeUnmount(() => {
 				class="preset-export-textarea preset-code-textarea"
 				:readonly="true"
 				:value="presetCodeDialog.text"
-				aria-label="Current preset code"
+				:aria-label="presetCodeDialog.ariaLabel"
 				@focus="$event.target.select()"
 			></textarea>
 
@@ -9587,7 +10579,7 @@ onBeforeUnmount(() => {
 					type="button"
 					@click="copyCurrentPresetCode"
 				>
-					{{ presetCodeDialog.copied ? 'Copied!' : 'Copy code' }}
+					{{ presetCodeDialog.copied ? 'Copied!' : presetCodeDialog.copyLabel }}
 				</button>
 			</div>
 		</div>
@@ -9750,17 +10742,36 @@ onBeforeUnmount(() => {
 		ref="threeContainer"
 		class="three-container"
 	></div>
+
+
+	<div class="creator-credit">
+		v1.
+		<br>
+		Made by Vena.
+	</div>
 </template>
 
 
 <style scoped>
-:global(html),
-:global(body),
-:global(#app) {
+:global(html.color-explorer-active),
+:global(html.color-explorer-active body),
+:global(html.color-explorer-active #app) {
 	width: 100%;
 	height: 100%;
 	margin: 0;
 	overflow: hidden;
+}
+
+:global(html.color-explorer-flight-active),
+:global(html.color-explorer-flight-active *) {
+	-webkit-user-select: none;
+	user-select: none;
+	-webkit-touch-callout: none;
+}
+
+:global(html.color-explorer-flight-active),
+:global(html.color-explorer-flight-active body) {
+	overscroll-behavior: none;
 }
 
 .three-container {
@@ -9773,10 +10784,257 @@ onBeforeUnmount(() => {
 	display: block;
 }
 
+.creator-credit {
+	position: fixed;
+	right: max(10px, env(safe-area-inset-right));
+	bottom: max(8px, env(safe-area-inset-bottom));
+	z-index: 5;
+	color: rgb(129, 129, 129);
+	font: 10px/1.2 Roboto Mono, Source Code Pro, Menlo, Courier, monospace;
+	pointer-events: none;
+	user-select: none;
+	text-align: right;
+}
+
 .mobile-panel-toggle,
 .mobile-panel-backdrop,
 .mobile-selected-color {
 	display: none;
+}
+
+.flight-hud {
+	position: fixed;
+	inset: 0;
+	z-index: 20;
+	pointer-events: none;
+	font-family:
+		Roboto Mono,
+		Source Code Pro,
+		Menlo,
+		Courier,
+		monospace;
+}
+
+.flight-status-group {
+	position: absolute;
+	top: 10px;
+	left: 50%;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	transform: translateX(-50%);
+}
+
+.flight-status {
+	display: flex;
+	box-sizing: border-box;
+	height: 30px;
+	align-items: baseline;
+	gap: 6px;
+	padding: 6px 9px;
+	border: 1px solid rgb(255 255 255 / 14%);
+	border-radius: 6px;
+	background: hsl(230deg 7% 13% / 76%);
+	box-shadow: 0 2px 8px rgb(0 0 0 / 28%);
+	color: hsl(230deg 7% 78%);
+	font-size: 10px;
+	backdrop-filter: blur(5px);
+}
+
+.flight-status strong {
+	color: white;
+	font-size: 13px;
+}
+
+.flight-status small {
+	color: hsl(230deg 7% 60%);
+	font-size: 8px;
+}
+
+.flight-roll-indicator {
+	display: block;
+	width: 90px;
+	height: 18px;
+	margin-top: 1px;
+	overflow: visible;
+	fill: none;
+	stroke: rgb(255 255 255 / 82%);
+	stroke-linecap: round;
+	stroke-linejoin: round;
+	stroke-width: 1;
+}
+
+.flight-exit-button {
+	position: absolute;
+	top: 10px;
+	left: calc(50% + 80px);
+	box-sizing: border-box;
+	height: 30px;
+	pointer-events: auto;
+	padding: 5px 9px;
+	border: 1px solid rgb(255 255 255 / 14%);
+	border-radius: 6px;
+	background: hsl(230deg 7% 17% / 86%);
+	color: white;
+	font: inherit;
+	font-size: 9px;
+	cursor: pointer;
+	backdrop-filter: blur(5px);
+}
+
+.flight-exit-button-ipad {
+	display: none;
+}
+
+.flight-keyboard-help {
+	position: absolute;
+	bottom: 12px;
+	left: 50%;
+	padding: 6px 9px;
+	border-radius: 5px;
+	background: hsl(230deg 7% 13% / 70%);
+	color: hsl(230deg 7% 80%);
+	font-size: 9px;
+	transform: translateX(-50%);
+	backdrop-filter: blur(5px);
+}
+
+.flight-joystick,
+.flight-boost-button {
+	display: none;
+}
+
+@media (pointer: coarse) {
+	.flight-keyboard-help {
+		display: none;
+	}
+
+	.flight-joystick {
+		position: absolute;
+		bottom: calc(20px + env(safe-area-inset-bottom));
+		left: max(18px, env(safe-area-inset-left));
+		display: grid;
+		width: 108px;
+		height: 108px;
+		place-items: center;
+		border: 1px solid rgb(255 255 255 / 20%);
+		border-radius: 50%;
+		background: hsl(230deg 7% 12% / 36%);
+		box-shadow: inset 0 0 18px rgb(0 0 0 / 24%);
+		pointer-events: auto;
+		touch-action: none;
+		-webkit-tap-highlight-color: transparent;
+	}
+
+	.flight-joystick::before,
+	.flight-joystick::after {
+		position: absolute;
+		background: rgb(255 255 255 / 12%);
+		content: '';
+		pointer-events: none;
+	}
+
+	.flight-joystick::before {
+		width: 1px;
+		height: 72%;
+	}
+
+	.flight-joystick::after {
+		width: 72%;
+		height: 1px;
+	}
+
+	.flight-joystick-knob {
+		position: absolute;
+		width: 38px;
+		height: 38px;
+		border: 1px solid rgb(255 255 255 / 28%);
+		border-radius: 50%;
+		background: hsl(211deg 55% 50% / 78%);
+		box-shadow: 0 3px 8px rgb(0 0 0 / 34%);
+		pointer-events: none;
+		transform: translate(-50%, -50%);
+		will-change: left, top;
+	}
+
+	.flight-boost-button {
+		position: absolute;
+		right: max(22px, env(safe-area-inset-right));
+		bottom: calc(34px + env(safe-area-inset-bottom));
+		display: block;
+		width: 74px;
+		height: 74px;
+		border: 1px solid rgb(255 255 255 / 24%);
+		border-radius: 50%;
+		background: hsl(24deg 76% 48% / 78%);
+		box-shadow: 0 3px 10px rgb(0 0 0 / 34%);
+		color: white;
+		font: inherit;
+		font-size: 11px;
+		font-weight: 700;
+		appearance: none;
+		-webkit-appearance: none;
+		pointer-events: auto;
+		touch-action: none;
+		-webkit-tap-highlight-color: transparent;
+	}
+
+	.flight-boost-button:active {
+		background: hsl(30deg 90% 58% / 92%);
+		transform: scale(0.95);
+	}
+}
+
+@media (max-width: 700px),
+	(max-height: 500px) and (pointer: coarse) {
+	.flight-status-group,
+	.flight-exit-button {
+		top: calc(8px + env(safe-area-inset-top));
+	}
+
+	.flight-exit-button {
+		left: auto;
+		right: max(8px, env(safe-area-inset-right));
+	}
+}
+
+@media (min-width: 700px) and (min-height: 600px) and (pointer: coarse) {
+	.flight-exit-button {
+		display: none;
+	}
+
+	.flight-exit-button-ipad {
+		display: block;
+		box-sizing: border-box;
+		width: 100%;
+		height: 30px;
+		margin-top: 8px;
+		padding: 6px 9px;
+		border: 1px solid rgb(255 255 255 / 14%);
+		border-radius: 6px;
+		background: hsl(230deg 7% 17% / 86%);
+		color: white;
+		font: 10px/1.2 Roboto Mono, Source Code Pro, Menlo, monospace;
+		cursor: pointer;
+		-webkit-tap-highlight-color: transparent;
+	}
+
+	.flight-joystick {
+		width: 216px;
+		height: 216px;
+	}
+
+	.flight-joystick-knob {
+		width: 76px;
+		height: 76px;
+		border-width: 2px;
+	}
+
+	.flight-boost-button {
+		width: 148px;
+		height: 148px;
+		font-size: 16px;
+	}
 }
 
 .pane-container {
@@ -9790,7 +11048,7 @@ onBeforeUnmount(() => {
 	overflow-x: hidden;
 	overflow-y: auto;
 	overscroll-behavior: contain;
-	scrollbar-width: thin;
+	scrollbar-width: none;
 	-webkit-overflow-scrolling: touch;
 	touch-action: pan-y;
 }
@@ -9806,9 +11064,24 @@ onBeforeUnmount(() => {
 	overflow-x: hidden;
 	overflow-y: auto;
 	overscroll-behavior: contain;
-	scrollbar-width: thin;
+	scrollbar-width: none;
 	-webkit-overflow-scrolling: touch;
 	touch-action: pan-y;
+}
+
+.pane-container::-webkit-scrollbar,
+.utility-container::-webkit-scrollbar {
+	display: none;
+	width: 0;
+	height: 0;
+}
+
+.pane-container::after,
+.utility-container::after {
+	display: block;
+	height: 64px;
+	content: '';
+	pointer-events: none;
 }
 
 :deep(.preset-export-row) {
