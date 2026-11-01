@@ -1,0 +1,3 @@
+# Proposed complete /etc/sudoers.d/vsff-deploy. Validate with visudo -cf first.
+vsff ALL=(root) NOPASSWD: /usr/bin/systemctl restart vsff-api
+vsff ALL=(root) NOPASSWD: /usr/bin/systemctl restart vsff-review

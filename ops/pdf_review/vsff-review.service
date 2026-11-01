@@ -1,0 +1,27 @@
+[Unit]
+Description=VSFF PDF Review (independent Flask-SocketIO service)
+After=network.target
+
+[Service]
+Type=simple
+User=vsff
+Group=vsff
+WorkingDirectory=/srv/vsff_website/pdf_review
+EnvironmentFile=/etc/vsff-review.env
+Environment=PYTHONDONTWRITEBYTECODE=1
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/srv/vsff_website/pdf_review/.venv/bin/gunicorn --config gunicorn.conf.py wsgi:app
+Restart=on-failure
+RestartSec=3
+TimeoutStopSec=45
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/var/lib/vsff-review
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

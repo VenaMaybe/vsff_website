@@ -26,6 +26,15 @@ host-only `pdf_review_session` cookies remain independent of VSFF sessions.
 This slice prepares source only: deployment, reverse proxy, DNS, TLS, service
 management, Google production callback changes, and server backups are deferred.
 
+The B2A operational bundle in `ops/pdf_review/` is source for later manual
+installation. Production migrations still run in the single worker's application
+factory, once per missing numbered migration. Pre-upgrade backups must use the
+standalone SQLite backup helper without importing the new application factory;
+ordinary Flask CLI initialization would apply migrations before its command.
+`GET/HEAD /healthz` is an explicit public liveness exception to default deny:
+constant text, no identity/database/blob reads, no session creation, and the
+existing host validation and private/no-store headers. It authorizes no content.
+
 ## Immutable artifacts and versions
 
 1. Imported PDF bytes are immutable. PDF Review never annotates, replaces, or rewrites them.

@@ -62,6 +62,11 @@ def create_app(test_config: dict | None = None) -> Flask:
     app.register_blueprint(migration_bp)
     init_realtime(app)
 
+    @app.get("/healthz", provide_automatic_options=False)
+    def healthz():
+        """Process liveness only; disclose no private state and perform no I/O."""
+        return "OK\n", 200, {"Content-Type": "text/plain; charset=utf-8"}
+
     @app.errorhandler(404)
     def not_found(_error):
         return render_template(

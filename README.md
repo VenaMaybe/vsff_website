@@ -16,6 +16,9 @@ data belongs outside the checkout, for example `/var/lib/vsff-review`.
 Service units, proxy/DNS/TLS, protected environments, Google callbacks, backups,
 and deployment-script permissions require a later dedicated deployment task.
 
+The proposed [PDF Review deployment bundle and root operator runbook](ops/pdf_review/README.md)
+prepare that manual installation without changing the live service or workflow.
+
 # To run PDF Reviewer locally on windows laptop
 ```powershell
 cd "C:\vena\Obsidian\writing\Code\vsff_website\pdf_review"

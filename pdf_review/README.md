@@ -4,6 +4,11 @@ This directory is an independent service in the VSFF repository. It needs neithe
 the Vue frontend nor the VSFF backend. See [BETA_B1_REPORT.md](BETA_B1_REPORT.md)
 for the packaging audit. No VPS deployment is included in this slice.
 
+The [B2A deployment bundle and operator runbook](../ops/pdf_review/README.md)
+contain proposed systemd, Apache, environment and deployment-script artifacts.
+They have not been installed on the VPS. See [BETA_B2A_REPORT.md](BETA_B2A_REPORT.md)
+for local validation and limits.
+
 ## Packaged runtime and production configuration
 
 `PDF_REVIEW_DATA_DIR` selects a private runtime directory. When unset, development
@@ -82,7 +87,8 @@ Environment expected for the future Linux service (examples, never credentials):
 | `PDF_REVIEW_HOST` / `PDF_REVIEW_PORT` | Optional loopback bind; default `127.0.0.1:8002` |
 
 A later service may load `/etc/vsff-review.env` through its supervisor. No such
-file or systemd service is created here. The proposed origin
+live file or service is created by these source tasks. Templates are in `ops/pdf_review/`.
+The proposed origin
 `https://review.venasff.com` is a future environment setting, not a code constant.
 OAuth callbacks continue using the configured canonical host and HTTPS scheme.
 ProxyFix trusts no headers by default; enabling one hop trusts forwarded scheme

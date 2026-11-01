@@ -55,6 +55,18 @@ pdf_review/**/*.pem
 pdf_review/**/*.key
 pdf_review/**/*.dump
 
+# Deployment bundle templates are public; filled environments/backups are private.
+ops/pdf_review/*.env*
+!ops/pdf_review/*.env.example
+ops/pdf_review/private/
+ops/pdf_review/backups/
+ops/pdf_review/**/*.sqlite*
+ops/pdf_review/**/*.pdf
+ops/pdf_review/**/*.pem
+ops/pdf_review/**/*.key
+ops/pdf_review/**/*.log
+ops/pdf_review/**/client_secret*.json
+
 
 # Should auto deploy it!!!
 #

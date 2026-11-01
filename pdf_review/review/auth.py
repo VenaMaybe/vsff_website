@@ -236,6 +236,8 @@ def init_auth(app):
     def authorize_http():
         if request.routing_exception is not None:
             raise request.routing_exception
+        if request.endpoint == "healthz":
+            return
         if request.endpoint == "static":
             if request.path.casefold().endswith(".pdf"):
                 abort(404)
