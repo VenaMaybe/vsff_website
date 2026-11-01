@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block title %}{{ title }} · PDF Review{% endblock %}
+{% block content %}
+<section class="error-state">
+  <h1>{{ title }}</h1>
+  <p>{{ message }}</p>
+  <a class="button primary" href="{{ url_for('core.dashboard') }}">Return to documents</a>
+</section>
+{% endblock %}

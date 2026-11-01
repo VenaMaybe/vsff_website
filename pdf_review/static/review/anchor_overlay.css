@@ -1,0 +1,43 @@
+.pdf-review-anchor-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  z-index: 4;
+  forced-color-adjust: none;
+}
+
+.pdf-review-anchor-highlight {
+  position: absolute;
+  pointer-events: none;
+  background: rgb(255 205 47 / 0.42);
+  box-shadow: inset 0 0 0 1px rgb(176 121 0 / 0.3);
+  border-radius: 2px;
+  mix-blend-mode: multiply;
+}
+
+.pdf-review-thread-highlight {
+  pointer-events: auto;
+  cursor: pointer;
+  transition: background-color 120ms ease, box-shadow 120ms ease;
+}
+
+.pdf-review-thread-highlight:hover {
+  background: rgb(255 191 28 / 0.54);
+  box-shadow: inset 0 0 0 1px rgb(145 96 0 / 0.46);
+}
+
+.pdf-review-thread-highlight.is-active {
+  background: rgb(255 181 0 / 0.62);
+  box-shadow: inset 0 0 0 2px rgb(129 82 0 / 0.62);
+}
+
+.pdf-review-thread-highlight.is-resolved {
+  background: rgb(139 155 146 / 0.25);
+  box-shadow: inset 0 0 0 1px rgb(77 94 84 / 0.25);
+}
+
+.pdf-review-thread-highlight.is-resolved.is-active {
+  background: rgb(117 143 128 / 0.42);
+  box-shadow: inset 0 0 0 2px rgb(56 82 67 / 0.46);
+}

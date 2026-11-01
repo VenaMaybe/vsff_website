@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block title %}{{ document.title }} · PDF Review{% endblock %}
+{% block content %}
+<nav class="breadcrumbs"><a href="{{ url_for('core.dashboard') }}">Documents</a> / {{ document.title }}</nav>
+<div class="page-heading">
+  <div>
+    <h1>{{ document.title }}</h1>
+    <p class="mono subtle">Document ID: {{ document.document_id }}</p>
+  </div>
+</div>
+
+{% if document_role == "owner" %}
+<section class="panel">
+  <h2>Import an immutable PDF version</h2>
+  <p>The source is copied into app-managed storage. It is never moved or modified.</p>
+  <form class="import-form" method="post" enctype="multipart/form-data"
+        action="{{ url_for('core.new_version', document_id=document.document_id) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label>
+      <span>PDF file</span>
+      <input type="file" name="pdf" accept="application/pdf,.pdf" required>
+    </label>
+    <label>
+      <span>Version label <em>optional</em></span>
+      <input name="version_label" maxlength="300" placeholder="Draft 3">
+    </label>
+    <button type="submit">Import version</button>
+  </form>
+</section>
+{% endif %}
+
+<section class="versions">
+  <p><a class="button" href="{{ url_for('carry.migration_page', document_id=document.document_id) }}">Carry feedback forward / migration history</a></p>
+  <h2>Versions</h2>
+  {% for version in versions %}
+    <article class="version-card">
+      <div class="version-main">
+        <div class="version-title-row">
+          <h3>{{ version.version_label or 'Unlabeled version' }}</h3>
+          <a class="button primary" href="{{ url_for('core.view_version', version_id=version.version_id) }}">Open PDF</a>
+        </div>
+        <dl class="metadata">
+          <div><dt>Original file</dt><dd>{{ version.original_filename }}</dd></div>
+          <div><dt>Imported</dt><dd>{{ version.imported_at|replace('T', ' ')|replace('Z', ' UTC') }}</dd></div>
+          <div><dt>Size</dt><dd>{{ "%.1f"|format(version.file_size / 1024) }} KB ({{ "{:,}".format(version.file_size) }} bytes)</dd></div>
+          <div><dt>Version ID</dt><dd class="mono">{{ version.version_id }}</dd></div>
+          {% if version.external_source_type %}
+          <div><dt>External source</dt><dd>{{ version.external_source_type }} · {{ version.external_version_id or 'No external ID' }}</dd></div>
+          {% endif %}
+        </dl>
+        <details class="hash-details">
+          <summary>SHA-256 <code>{{ version.sha256[:12] }}…</code></summary>
+          <code class="full-hash">{{ version.sha256 }}</code>
+        </details>
+      </div>
+      {% if document_role == "owner" %}
+      <form method="post" action="{{ url_for('core.verify_version', version_id=version.version_id) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="button quiet" type="submit">Verify integrity</button>
+      </form>
+      {% endif %}
+    </article>
+  {% else %}
+    <div class="empty-state">
+      <p>No versions have been imported.</p>
+    </div>
+  {% endfor %}
+</section>
+{% endblock %}

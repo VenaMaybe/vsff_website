@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}Documents · PDF Review{% endblock %}
+{% block content %}
+<div class="page-heading">
+  <div>
+    <h1>Documents</h1>
+    <p class="lede">Logical works and their immutable PDF versions.</p>
+  </div>
+</div>
+
+<section class="panel compact-panel">
+  <h2>Create a document</h2>
+  <form class="row-form" method="post" action="{{ url_for('core.new_document') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label>
+      <span>Title</span>
+      <input name="title" maxlength="300" required placeholder="Document title">
+    </label>
+    <button type="submit">Create document</button>
+  </form>
+</section>
+
+<section class="document-grid" aria-label="Documents">
+  {% for document in documents %}
+    <a class="document-card" href="{{ url_for('core.document_detail', document_id=document.document_id) }}">
+      <h2>{{ document.title }}</h2>
+      <p>{{ document.version_count }} version{{ '' if document.version_count == 1 else 's' }}</p>
+      <small>Created {{ document.created_at|replace('T', ' ')|replace('Z', ' UTC') }}</small>
+    </a>
+  {% else %}
+    <div class="empty-state">
+      <h2>No documents yet</h2>
+      <p>Create a logical document above, then import its first PDF version.</p>
+    </div>
+  {% endfor %}
+</section>
+{% endblock %}

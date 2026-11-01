@@ -36,6 +36,25 @@ testPDFs/
 storage/uploads/*
 !storage/uploads/.gitkeep
 
+# PDF Review private runtime state (independent service)
+pdf_review/data/
+pdf_review/instance/
+pdf_review/**/blobs/
+pdf_review/**/backups/
+pdf_review/**/*.sqlite*
+pdf_review/**/*.db
+pdf_review/**/*.db-*
+pdf_review/**/*.pdf
+pdf_review/**/*.log
+pdf_review/**/.incoming-*
+pdf_review/**/browser-profile*/
+pdf_review/**/chrome/
+pdf_review/**/client_secret*.json
+pdf_review/**/credentials*.json
+pdf_review/**/*.pem
+pdf_review/**/*.key
+pdf_review/**/*.dump
+
 
 # Should auto deploy it!!!
 #

@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}Carry feedback forward · {{ document.title }}{% endblock %}
+{% block content %}
+<nav class="breadcrumbs"><a href="{{ url_for('core.document_detail', document_id=document.document_id) }}">{{ document.title }}</a> / Carry feedback forward</nav>
+<h1>Carry feedback forward</h1>
+<section class="panel">
+  <p>Choose the source and destination explicitly. Select destination text in the existing PDF viewer to carry each discussion.</p>
+  <form id="migration-start-form">
+    <label>Source version
+      <select id="migration-source" required>
+        <option value="">Choose source</option>
+        {% for version in versions %}<option value="{{ version.version_id }}">{{ version.version_label or version.original_filename }} ({{ version.version_id[:8] }})</option>{% endfor %}
+      </select>
+    </label>
+    <label>Target version
+      <select id="migration-target" required>
+        <option value="">Choose target</option>
+        {% for version in versions %}<option value="{{ version.version_id }}">{{ version.version_label or version.original_filename }} ({{ version.version_id[:8] }})</option>{% endfor %}
+      </select>
+    </label>
+    <button type="submit">Start carry-forward run</button>
+  </form>
+  <p id="migration-start-status" role="status"></p>
+</section>
+<section class="panel">
+  <h2>Migration history</h2>
+  {% for run in migrations %}
+    <article class="migration-run">
+      <h3>{{ run.source_label }} → {{ run.target_label }} · {{ run.status }}</h3>
+      <p>Created by {{ run.created_by.display_name }} · {{ run.created_at }}</p>
+      <p>{{ run.counts.pending }} pending · {{ run.counts.carried }} carried · {{ run.counts.skipped }} skipped</p>
+      {% if run.completed_by %}<p>Completed by {{ run.completed_by.display_name }} · {{ run.completed_at }}</p>{% endif %}
+      <a href="{{ url_for('core.view_version', version_id=run.target_version_id, migration=run.migration_id) }}">{{ 'Continue' if run.status == 'open' else 'Inspect' }} run</a>
+    </article>
+  {% else %}<p>No carry-forward runs yet.</p>{% endfor %}
+</section>
+<script id="migration-start-config" type="application/json">{{ {'migrationsUrl': url_for('carry.document_migrations', document_id=document.document_id), 'isOwner': document_role == 'owner'}|tojson }}</script>
+<script type="module" src="{{ url_for('static', filename='review/migration_start.js') }}"></script>
+{% endblock %}

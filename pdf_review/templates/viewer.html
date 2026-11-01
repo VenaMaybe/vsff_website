@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="csrf-token" content="{{ csrf_token() }}">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ version.version_label or version.original_filename }} | PDF Review</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
+</head>
+<body class="viewer-page">
+  <header class="viewer-shell-bar">
+    <a href="{{ url_for('core.document_detail', document_id=version.document_id) }}" aria-label="Back to document">&larr;</a>
+    <div class="viewer-title">
+      <strong>{{ version.document_title }}</strong>
+      <span>{{ version.version_label or version.original_filename }}</span>
+    </div>
+    <button id="comment-selection-button" class="comment-selection-button" type="button" disabled>Comment</button>
+    <span>{{ auth_user.display_name }} &middot; {{ auth_user.email }}</span>
+    <form method="post" action="{{ url_for('auth.logout') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button type="submit">Log out</button></form>
+    <code class="viewer-hash" title="{{ version.sha256 }}">{{ version.sha256[:12] }}...</code>
+  </header>
+  <main class="viewer-workspace">
+    <section class="viewer-frame-wrap">
+      <iframe id="pdf-viewer-frame" class="viewer-frame" src="{{ viewer_url }}" title="PDF.js viewer for {{ version.original_filename }}"></iframe>
+    </section>
+    <aside class="review-panel" aria-label="Review comments">
+      <div class="review-panel-header">
+        <div>
+          <h1>Comments</h1>
+          <p id="review-status" class="review-status" aria-live="polite">Loading review...</p>
+        </div>
+        <label class="thread-filter-label">
+          <span>Show</span>
+          <select id="thread-filter">
+            <option value="open">Open</option>
+            <option value="all">All</option>
+          </select>
+        </label>
+      </div>
+      <div class="review-collaboration">
+        <p id="realtime-status" role="status">Connecting…</p>
+        <p><strong>Viewing now</strong><br><span id="review-presence">Connecting…</span></p>
+      </div>
+      {% if migration %}
+      <section id="migration-panel" class="migration-panel" aria-label="Carry feedback forward">
+        <h2>Carry feedback forward</h2>
+        <p>{{ migration.source_label }} → {{ migration.target_label }}</p>
+        <p><a href="{{ url_for('core.view_version', version_id=version.version_id) }}">Leave migration mode</a> · <a href="{{ url_for('carry.migration_page', document_id=version.document_id) }}">Run history</a></p>
+        <p id="migration-status" role="status">Loading migration…</p>
+        <button id="migration-refresh" type="button">Refresh source discussions</button>
+        <label>Source discussions <select id="migration-filter"><option value="open">Open</option><option value="all">All</option></select></label>
+        <div id="migration-counts"></div>
+        <div id="migration-items"></div>
+        <div id="migration-preview"></div>
+        <p id="migration-selection">Select a source thread, then select corresponding text in this PDF.</p>
+        <button id="migration-carry" type="button" disabled>Carry thread here</button>
+        <button id="migration-accept" type="button" hidden>Keep existing target</button>
+        <button id="migration-skip" type="button" disabled>Don't carry to this version</button>
+        <button id="migration-complete" type="button" disabled>Complete run</button>
+      </section>
+      {% endif %}
+      <section id="selection-comment-composer" class="selection-comment-composer" hidden>
+        <p class="composer-label">Comment on selection</p>
+        <blockquote id="selection-comment-quote"></blockquote>
+        <form id="selection-comment-form">
+          <textarea id="selection-comment-body" maxlength="10000" rows="4" placeholder="Add a comment..." required></textarea>
+          <div class="composer-actions">
+            <button id="cancel-selection-comment" class="quiet-control" type="button">Cancel</button>
+            <button type="submit">Comment</button>
+          </div>
+        </form>
+      </section>
+      <div id="thread-list" class="thread-list"></div>
+      <details class="anchor-debug-section">
+        <summary>Anchor diagnostics</summary>
+        <p class="anchor-debug-note">Development tools for testing anchors independently of comments.</p>
+        <button id="save-anchor-button" class="save-anchor-button" type="button" disabled>Save test anchor</button>
+        <p id="anchor-status" class="anchor-status" aria-live="polite">Loading anchor tools...</p>
+        <div id="anchor-inspector" class="anchor-inspector"></div>
+      </details>
+    </aside>
+  </main>
+  <script id="anchor-config" type="application/json">{{ anchor_config|tojson }}</script>
+  <script src="{{ url_for('static', filename='vendor/socket.io/socket.io.min.js') }}"></script>
+  <script type="module" src="{{ url_for('static', filename='review/anchors.js') }}"></script>
+</body>
+</html>
