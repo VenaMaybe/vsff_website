@@ -15,6 +15,7 @@ worker_class = "gthread"
 threads = 100
 accesslog = None
 errorlog = "-"
+control_socket_disable = True
 
 
 def on_starting(server):
