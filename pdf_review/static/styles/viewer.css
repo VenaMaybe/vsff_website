@@ -14,7 +14,8 @@
 .viewer-page .thread-comments { margin-top: 6px; }
 #review-page-number { width: 42px; min-height: 28px; padding: 2px; border: 1px solid var(--line); border-radius: 2px; font-size: 12px; text-align: center; }
 #review-page-count { white-space: nowrap; font-size: var(--ui-font-size-small); }
-#review-scale { width: 88px; }
+#review-scale-menu > summary { gap: 5px; padding-inline: 6px; }
+#review-scale-menu > .toolbar-popover { min-width: 120px; }
 .collaboration-menu[data-connection="offline"] > summary { color: #8a501c; }
 .viewer-workspace { position: relative; height: calc(100dvh - var(--toolbar-height)); overflow: hidden; }
 .viewer-frame-wrap, .viewer-frame { width: 100%; height: 100%; border: 0; }
@@ -27,6 +28,11 @@
 .thread-card, .selection-comment-composer { position: absolute; width: var(--comment-width); pointer-events: auto; }
 .thread-card { overflow-wrap: anywhere; }
 .thread-card:not(.active) .thread-reply-form { display: none; }
+.thread-card:not(.active) .inline-edit-form { display: none; }
+.thread-card.active, .selection-comment-composer { max-height: calc(100dvh - var(--toolbar-height) - 16px); overflow-y: auto; overscroll-behavior: contain; }
+.floating-thread-card { z-index: 3; }
+.selection-comment-composer:not([hidden]) { animation: comment-open 130ms ease-out; }
+@keyframes comment-open { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
 /* Minimized threads use actual buttons, independent of the full cards. */
 .thread-marker { position: absolute; display: inline-flex; gap: 2px; width: 34px; height: 28px; min-height: 28px; padding: 3px; pointer-events: auto; background: transparent; border: 0; color: var(--accent); }
 .thread-marker:hover { background: var(--surface-hover); }
@@ -46,11 +52,17 @@
   .identity-menu summary { max-width: 80px; }
 }
 @media (max-width: 700px) {
-  .viewer-shell-bar { flex-wrap: wrap; }
-  .viewer-title { flex: 1 1 calc(100% - 230px); }
-  .document-controls { order: 2; flex: 1 0 100%; justify-content: center; border: 0; border-top: 1px solid var(--line); padding-top: 3px; }
-  .identity-menu summary { max-width: 72px; }
+  .viewer-shell-bar { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto auto minmax(24px, .6fr); gap: 2px; }
+  .viewer-shell-bar > a { padding-inline: 3px; }
+  .viewer-title { min-width: 0; overflow: hidden; }
+  .viewer-title strong, .viewer-title span { max-width: 100%; }
+  .viewer-shell-bar > .toolbar-menu { min-width: 0; }
+  .viewer-shell-bar > .toolbar-menu > summary { gap: 3px; padding-inline: 3px; font-size: 11px; }
+  .viewer-shell-bar > .identity-menu > summary { display: block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+  .viewer-shell-bar > .identity-menu > summary::after { margin-left: 3px; }
+  .document-controls { grid-column: 1 / -1; grid-row: 2; min-width: 0; justify-content: center; border: 0; border-top: 1px solid var(--line); padding-top: 3px; overflow-x: auto; }
+  .document-controls > * { flex-shrink: 0; }
   .viewer-page button, .viewer-page summary, .viewer-page select { min-height: 32px; }
   .viewer-page .text-action { min-height: 32px; }
 }
-@media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none; scroll-behavior: auto; } }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none; animation: none; scroll-behavior: auto; } }

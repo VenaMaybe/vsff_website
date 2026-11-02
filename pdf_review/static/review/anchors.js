@@ -187,13 +187,17 @@ function selectThread(threadId, navigate) {
     state.filter = "all";
     threadFilter.value = "all";
   }
+  rail?.freezePageWidth();
   state.selectedThreadId = threadId;
   refreshSidebar();
   refreshOverlay();
   rail?.showThread(threadId);
   if (navigate) {
     const anchor = threadAnchor(thread);
-    if (anchor) overlay?.navigateTo(anchor);
+    const geometry = anchor && anchorGeometry(viewerApplication, anchor);
+    // Clicking a visible highlight/card never moves the PDF. Explicit navigation
+    // to a different off-screen target can still reveal that document location.
+    if (anchor && (!geometry || geometry.bottom < 0 || geometry.top > rail.scroller.clientHeight)) overlay?.navigateTo(anchor);
   }
 }
 
@@ -308,7 +312,7 @@ const composer = new SelectionCommentComposer(
       state.replaceThread(thread);
       state.selectedThreadId = thread.thread_id;
       refreshAll();
-      selectThread(thread.thread_id, true);
+      selectThread(thread.thread_id, false);
       setReviewStatus("Comment added.", "success");
       threadRefresh.request();
     } catch (error) {
@@ -330,6 +334,8 @@ function openCommentComposer() {
     setReviewStatus(CAPTURE_ERROR, "error");
     return;
   }
+  rail?.freezePageWidth();
+  sidebarActions.deselect();
   composer.open(payload);
   commentButton.hidden = true;
   rail?.schedule();
@@ -394,12 +400,19 @@ async function initialize() {
       if (event.key === "Escape") {
         selectionDismissed = true;
         commentButton.hidden = true;
-        if (!composer.container.hidden && !composer.busy) { composer.close(); commentButton.focus(); }
+        if (!composer.container.hidden && !composer.busy) composer.close();
+        sidebarActions.deselect();
         pendingSelection = null;
         updateSelectionControls(false);
       }
-      if ((event.ctrlKey || event.metaKey) && event.altKey && event.key.toLowerCase() === "m" && config.canMutate && pendingSelection) {
-        event.preventDefault(); openCommentComposer();
+      const editing = event.target.closest?.("input, textarea, select, button, summary, a, [contenteditable=true]");
+      const shortcut = (event.ctrlKey || event.metaKey) && event.altKey && event.key.toLowerCase() === "m";
+      const enter = event.key === "Enter" && !event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey;
+      const selection = frame.contentWindow.getSelection();
+      if (!editing && config.canMutate && (shortcut || enter) && selection && !selection.isCollapsed && composer.container.hidden) {
+        event.preventDefault();
+        event.stopPropagation();
+        openCommentComposer();
       }
     });
   }

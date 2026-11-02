@@ -21,7 +21,7 @@ export class SelectionCommentComposer {
     this.quote.textContent = payload.selection_text;
     this.container.hidden = false;
     this.body.value = "";
-    this.body.focus();
+    this.body.focus({ preventScroll: true });
   }
 
   close() {

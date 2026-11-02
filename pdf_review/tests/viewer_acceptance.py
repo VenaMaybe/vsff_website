@@ -405,3 +405,134 @@ def shared_page_checks(cdp, a, b, fixture, base):
     cdp.wait(a, "document.body.innerText.includes('Sign in to PDF Review')")
     screenshot(cdp, a, 'refine-page-login-390')
     print('PASS shared shell and compact dashboard/document/account/access/admin/history screenshots at five viewport sizes', flush=True)
+
+
+def comment_interaction_checks(cdp, session):
+    viewport(cdp, session, 1440, 900)
+    change(cdp, session, '#comments-visibility', 'expanded')
+    change(cdp, session, '#review-scroll', 0)
+    change(cdp, session, '#review-spread', 0)
+    change(cdp, session, '#review-scale', '0.5')
+    cdp.evaluate(session, PDF + '.currentPageNumber=1;' + PDF + '.container.scrollTop=0;' + PDF + '.container.scrollLeft=0')
+    cdp.wait(session, f"{PDF}.getPageView(0).renderingState===3")
+    time.sleep(.2)
+    snapshot = """(() => {const p=document.querySelector('iframe').contentWindow.PDFViewerApplication.pdfViewer;const b=p.getPageView(0).div.getBoundingClientRect();return [p.container.scrollTop,p.container.scrollLeft,b.top,b.left,b.width];})()"""
+    before = cdp.evaluate(session, snapshot)
+    cdp.evaluate(session, """(() => {
+      const card=[...document.querySelectorAll('.thread-card')].find(c=>c.textContent.includes('Synthetic nearby review 5'));
+      window.focusTestThread=card.dataset.threadId;
+      const d=document.querySelector('iframe').contentDocument;
+      [...d.querySelectorAll('.pdf-review-thread-highlight')].find(h=>h.dataset.threadId===window.focusTestThread).click();
+    })()""")
+    cdp.wait(session, "document.querySelector('.thread-card.active')?.dataset.threadId===window.focusTestThread")
+    cdp.wait(session, """(() => {
+      const c=document.querySelector('.thread-card.active').getBoundingClientRect();
+      const f=document.querySelector('iframe').getBoundingClientRect();
+      const h=[...document.querySelector('iframe').contentDocument.querySelectorAll('.pdf-review-thread-highlight')].find(h=>h.dataset.threadId===window.focusTestThread).getBoundingClientRect();
+      return Math.abs((c.top+c.bottom)/2-f.top-(h.top+h.bottom)/2)<3;
+    })()""")
+    assert cdp.evaluate(session, snapshot) == before, 'Opening dense comment moved PDF'
+    assert cdp.evaluate(session, "getComputedStyle(document.querySelector('.thread-card.active')).boxShadow!=='none' && getComputedStyle(document.querySelector('.thread-card:not(.active)')).backgroundColor==='rgb(233, 236, 234)'")
+    screenshot(cdp, session, 'refine-dense-selected-stationary')
+    for target in ['document.body', "document.querySelector('iframe').contentDocument.body"]:
+        cdp.evaluate(session, target + ".dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}))")
+        cdp.wait(session, "!document.querySelector('.thread-card.active')")
+    # Enter and the alternate shortcut both open a selection composer; typing in
+    # that composer keeps normal Enter/newline behavior.
+    for event in ["{key:'Enter',bubbles:true}", "{key:'m',ctrlKey:true,altKey:true,bubbles:true}"]:
+        cdp.evaluate(session, SELECT)
+        cdp.wait(session, "!document.querySelector('#comment-selection-button').hidden")
+        before = cdp.evaluate(session, snapshot)
+        cdp.evaluate(session, "document.querySelector('iframe').contentDocument.dispatchEvent(new KeyboardEvent('keydown'," + event + "))")
+        cdp.wait(session, "!document.querySelector('#selection-comment-composer').hidden")
+        assert cdp.evaluate(session, snapshot) == before, 'Opening composer moved PDF'
+        cdp.evaluate(session, "document.querySelector('#selection-comment-body').dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true}))")
+        assert cdp.evaluate(session, "!document.querySelector('#selection-comment-composer').hidden")
+        key(cdp, session, 'Escape', 27)
+        cdp.wait(session, "document.querySelector('#selection-comment-composer').hidden")
+    cdp.evaluate(session, SELECT)
+    cdp.wait(session, "!document.querySelector('#comment-selection-button').hidden")
+    before = cdp.evaluate(session, snapshot)
+    count = cdp.evaluate(session, "document.querySelectorAll('.thread-card').length")
+    cdp.evaluate(session, "document.querySelector('iframe').contentDocument.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true}));document.querySelector('#selection-comment-body').value='Stationary dense insertion';document.querySelector('#selection-comment-form').requestSubmit()")
+    cdp.wait(session, f"document.querySelectorAll('.thread-card').length==={count+1} && document.querySelector('#selection-comment-composer').hidden")
+    time.sleep(.2)
+    assert cdp.evaluate(session, snapshot) == before, 'Inserting dense comment moved PDF'
+    change(cdp, session, '#comments-visibility', 'minimized')
+    cdp.evaluate(session, "document.querySelector('.thread-marker').click()")
+    cdp.wait(session, """(() => {const c=document.querySelector('.thread-card.active'); const m=[...document.querySelectorAll('.thread-marker')].find(m=>m.dataset.threadId===c?.dataset.threadId);return c&&!c.hidden&&!m.hidden&&c.getBoundingClientRect().left>=m.getBoundingClientRect().right+5;})()""")
+    screenshot(cdp, session, 'refine-minimized-expand-right')
+    viewport(cdp, session, 390, 844)
+    cdp.wait(session, "document.querySelector('#comments-visibility').value==='mobile'")
+    cdp.evaluate(session, PDF + '.container.scrollLeft=0;' + PDF + '.container.scrollTop=0')
+    before = cdp.evaluate(session, snapshot)
+    cdp.evaluate(session, """(() => {const d=document.querySelector('iframe').contentDocument;[...d.querySelectorAll('.pdf-review-thread-highlight')].find(h=>h.dataset.threadId===window.focusTestThread).click();})()""")
+    cdp.wait(session, """(() => {const c=document.querySelector('.thread-card.active')?.getBoundingClientRect();const f=document.querySelector('iframe').getBoundingClientRect();const h=[...document.querySelector('iframe').contentDocument.querySelectorAll('.pdf-review-thread-highlight')].find(h=>h.dataset.threadId===window.focusTestThread).getBoundingClientRect();return c&&c.left>=8&&c.right<=innerWidth-8&&Math.abs(c.top-f.top-h.bottom-8)<3;})()""")
+    assert cdp.evaluate(session, snapshot) == before, 'Mobile popup moved PDF'
+    screenshot(cdp, session, 'refine-mobile-highlight-popup')
+    key(cdp, session, 'Escape', 27)
+    cdp.wait(session, "!document.querySelector('.thread-card.active') && [...document.querySelectorAll('.thread-card')].every(c=>c.hidden)")
+    viewport(cdp, session, 1440, 900)
+    cdp.wait(session, "document.querySelector('#comments-visibility').value==='minimized'")
+    print('PASS stationary dense selection/insertion, Enter/alternate shortcut, Escape, selected styling, right expansion and automatic Mobile popup', flush=True)
+
+
+def comment_ui_checks(cdp, session):
+    """Focused checks for comment animation, mobile anchoring and the header."""
+    viewport(cdp, session, 390, 844)
+    change(cdp, session, '#review-scale', '1')
+    cdp.wait(session, f"{PDF}.getPageView(0).renderingState===3 && !{PDF}.getPageView(0).textLayer.div.hidden")
+    cdp.evaluate(session, SELECT)
+    cdp.wait(session, "!document.querySelector('#comment-selection-button').hidden")
+    cdp.evaluate(session, "document.querySelector('iframe').contentDocument.body.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true}));document.querySelector('#selection-comment-body').value='Mobile popup visual fixture';document.querySelector('#selection-comment-form').requestSubmit()")
+    cdp.wait(session, "document.querySelector('.thread-card.active')!==null && document.querySelector('#selection-comment-composer').hidden")
+    viewport(cdp, session, 1440, 900)
+    change(cdp, session, '#comments-visibility', 'expanded')
+    cdp.evaluate(session, SELECT)
+    cdp.evaluate(session, """(async()=>{
+      const c=JSON.parse(document.querySelector('#anchor-config').textContent);
+      const w=document.querySelector('iframe').contentWindow;
+      const {captureTextSelection}=await import('/static/review/anchor_selection.js');
+      const {createThread}=await import('/static/review/thread_api.js');
+      const anchor=captureTextSelection(w,w.PDFViewerApplication);
+      for(let i=0;i<3;i++) await createThread(c.threadsUrl,anchor,'Sliding neighbor '+i);
+      w.getSelection().removeAllRanges();
+    })()""")
+    cdp.wait(session, "document.querySelectorAll('.thread-card').length===4")
+    time.sleep(.2)
+    assert cdp.evaluate(session, """(async()=>{
+      const pdf=document.querySelector('iframe').contentWindow.PDFViewerApplication.pdfViewer;
+      const before=pdf.container.scrollTop;
+      const target=[...document.querySelectorAll('.thread-card')].find(c=>c.textContent.includes('Sliding neighbor 2'));
+      [...document.querySelector('iframe').contentDocument.querySelectorAll('.pdf-review-thread-highlight')].find(h=>h.dataset.threadId===target.dataset.threadId).click();
+      await new Promise(done=>requestAnimationFrame(()=>requestAnimationFrame(done)));
+      return [...document.querySelectorAll('.thread-card:not(.active)')].some(c=>c.getAnimations().some(a=>a.playState==='running')) && pdf.container.scrollTop===before;
+    })()"""), 'Neighboring comments should animate without scrolling the PDF'
+    time.sleep(.2)
+    viewport(cdp, session, 390, 844)
+    cdp.wait(session, "document.querySelector('#comments-visibility').value==='mobile'")
+    assert cdp.evaluate(session, "document.querySelector('.thread-card.active').offsetWidth===280")
+    screenshot(cdp, session, 'refine-mobile-narrow-comment')
+    for offset in [0, 200, 500]:
+        cdp.evaluate(session, PDF + f'.container.scrollTop={offset}')
+        cdp.wait(session, """(() => {
+          const f=document.querySelector('iframe').getBoundingClientRect();
+          const h=document.querySelector('iframe').contentDocument.querySelector('.pdf-review-thread-highlight').getBoundingClientRect();
+          const c=document.querySelector('.thread-card.active').getBoundingClientRect();
+          return Math.abs(c.top-f.top-h.bottom-8)<2;
+        })()""")
+    cdp.wait(session, "document.querySelector('.thread-card.active').getBoundingClientRect().top<document.querySelector('iframe').getBoundingClientRect().top")
+    screenshot(cdp, session, 'refine-mobile-comment-scrolls-offscreen')
+    for width in [280, 320, 390, 480, 700]:
+        viewport(cdp, session, width, 844)
+        assert cdp.evaluate(session, """(() => {
+          const nodes=[document.querySelector('.viewer-shell-bar > a'),document.querySelector('.viewer-title'),document.querySelector('#review-view-menu'),document.querySelector('#comments-menu'),document.querySelector('.collaboration-menu'),document.querySelector('.viewer-shell-bar .identity-menu')];
+          const boxes=nodes.map(n=>n.getBoundingClientRect());
+          const center=boxes[0].top+boxes[0].height/2;
+          return boxes.every(b=>Math.abs(b.top+b.height/2-center)<2&&b.left>=0&&b.right<=innerWidth) && document.querySelector('.document-controls').getBoundingClientRect().top>=Math.max(...boxes.map(b=>b.bottom));
+        })()"""), f'Header wrapped at {width}px'
+        screenshot(cdp, session, f'refine-mobile-single-header-{width}')
+    cdp.call('Emulation.setEmulatedMedia', {'features':[{'name':'prefers-reduced-motion','value':'reduce'}]}, session)
+    assert cdp.evaluate(session, "getComputedStyle(document.querySelector('.thread-card.active')).animationName==='none'")
+    cdp.call('Emulation.setEmulatedMedia', {'features':[]}, session)
+    print('PASS fast comment rearrangement/reduced motion, narrower mobile popup, exact highlight anchoring offscreen and single header row at 280/320/390/480/700px', flush=True)

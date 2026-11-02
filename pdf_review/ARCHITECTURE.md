@@ -231,7 +231,11 @@ inside the document stage. Cards sit adjacent to the owning page/spread, includi
 at narrow widths and large zoom, using horizontal scrolling when needed. Every
 page and spread uses a right rail; no left-rail selection or width reservation exists. Minimized mode
 reserves only 48px and renders real marker buttons with one active full card
-overlaid into the stage. A trailing spacer makes
+opening to the right. Mobile mode (automatic at <=700px, also manually selectable)
+opens the active card below its highlight over the PDF. Focused expanded cards
+anchor at highlight Y while neighbors pack upward/downward. Selection and
+insertion preserve the PDF scroll position; Escape closes the active thread or
+composer, and Enter/Ctrl+Alt+M creates a comment from selected PDF text. A trailing spacer makes
 collision overflow reachable with the document scrollbar.
 
 Shared tokens/base/account CSS are imported by `app.css`; viewer chrome,

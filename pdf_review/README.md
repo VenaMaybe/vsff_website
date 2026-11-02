@@ -682,11 +682,16 @@ outside this slice.
 
 The document viewer uses a compact app-owned toolbar with PDF.js rendering,
 navigation, search and viewing commands underneath. Select PDF text to reveal
-the contextual comment button, or use **Ctrl+Alt+M** (**Command+Option+M** on Mac).
-Submit the selection composer with **Ctrl/Command+Enter**; **Escape** cancels.
+the contextual comment button, or press **Enter** or **Ctrl+Alt+M** (**Command+Option+M** on Mac).
+Submit the selection composer with **Ctrl/Command+Enter**; **Escape** closes
+the composer or active thread.
 Comments always use one right-hand rail, including both pages of a spread.
 Expanded shows compact cards; Minimized uses narrow markers and one active full
-card; Hidden reserves no width. Comments sit beside the page/spread inside the
+card opening to the right; Hidden reserves no width. Mobile uses markers with
+the active comment over the PDF below its highlight, and activates automatically
+at widths up to 700px. Clicking highlights or inserting a comment aligns the
+active card and moves neighboring comments while keeping the PDF still.
+Comments sit beside the page/spread inside the
 same native scrolling workspace. Small screens and large zoom use its horizontal
 scrollbar instead of a drawer. Empty/hidden comments reserve no document width.
 Account, admin and logout are in the identity menu.

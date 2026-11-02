@@ -48,6 +48,7 @@ pdf_review/**/*.pdf
 pdf_review/**/*.log
 pdf_review/**/.incoming-*
 pdf_review/**/browser-profile*/
+pdf_review/tests/visual-artifacts/
 pdf_review/**/chrome/
 pdf_review/**/client_secret*.json
 pdf_review/**/credentials*.json

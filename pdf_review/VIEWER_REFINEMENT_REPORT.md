@@ -18,11 +18,14 @@ were already unstaged at the beginning of this pass and have been retained.
    that same document. Horizontal document mode places comments after the page row.
    There are no left rails or connector lines.
 
-3. **`viewer_shell.js` simplified.** The existing page/visual-y/thread-ID sort and
-   minimal downward collision pass now have one bottom cursor. Full cards use a
-   6px gap; minimized items use 3px. All threads, including opposing spread-page
-   targets, participate in that same ordered pass. The existing document scrollbar,
-   overflow spacer, render events, geometry signature and frame coalescing remain.
+3. **Comment focus without PDF movement.** The page/visual-y/thread-ID order
+   remains deterministic. With no active item, cards pack down with a 6px gap
+   (3px for markers). Selecting a thread centers its card at its canonical
+   highlight Y; neighbors pack upward and downward around that fixed item.
+   The selection composer uses the same packing rule. Opening/inserting comments
+   does not scroll the document. Width is held while opening a comment/composer
+   so reserving room does not recenter the PDF. Explicit navigation to an off-screen
+   target still reveals its page. Scroll, zoom and rotation retain canonical geometry.
 
 4. **CSS architecture retained.** `app.css` still imports `tokens.css`, `base.css`
    and `account.css`; viewer-specific ownership remains in `viewer.css`,
@@ -78,14 +81,14 @@ were already unstaged at the beginning of this pass and have been retained.
     Canonical anchor Y and the same deterministic pass position the markers.
     The rail reserves **48px**, including while inspecting one active full card.
     Clicking a marker activates/navigates that thread without changing global
-    Minimized mode. Its full card overlays to the left of the right rail; Close
+    Minimized mode. Its full card opens to the right of its still-visible marker; Close
     returns it to a marker. Other markers remain reachable and do not overlap.
 
 12. **Expanded/Hidden.** Approved compact expanded cards are retained, now always
     on the right. Hidden renders neither cards nor markers and reserves zero width;
     the document recenters. Contextual commenting still works in Hidden mode.
     Empty reviews reserve zero width. The composer and atomic canonical payload
-    workflow are retained. Comments now provides Expanded/Minimized/Hidden and
+    workflow are retained. Comments now provides Expanded/Minimized/Hidden/Mobile and
     Open only/All checkmarked groups in the canonical menu. The separate filter
     dropdown was removed. Presence remains a compact count and named popover,
     and anchor diagnostics still require `?debug=anchors`.
@@ -118,12 +121,13 @@ were already unstaged at the beginning of this pass and have been retained.
     navigation, and logout. Logout remains a POST form with CSRF, never a GET.
     Document/admin actions and future overflow menus use the same canonical CSS.
 
-19. **Responsive behavior.** Comments remain beside the document at every
-    viewport and zoom, with no separate drawer. When pages plus comments exceed
-    the viewport, the native horizontal scrollbar reaches the whole workspace.
-    Selecting a thread reveals its card on both axes. Minimized retains its 48px
-    reservation and one active card overlays the document. Hidden reserves zero
-    width. Management forms wrap; menu surfaces flip/clamp to the viewport.
+19. **Responsive behavior.** Expanded and Minimized retain the adjacent document
+    rail, with no separate drawer. When pages plus comments exceed the viewport,
+    the native horizontal scrollbar reaches the whole workspace. Selecting a
+    visible highlight moves comments without scrolling the PDF. Minimized retains
+    its 48px reservation and opens the active card to the marker's right. Mobile
+    becomes active at widths up to 700px and puts the active card over the PDF.
+    Hidden reserves zero width. Management forms wrap; menus clamp to the viewport.
 
 20. **Performance.** Scroll translates cached review positions; full geometry is
     still coalesced through requestAnimationFrame and ResizeObserver. Removed
@@ -177,9 +181,11 @@ were already unstaged at the beginning of this pass and have been retained.
     No staging, commit, push, SSH, deployment, production, Google, Cloudflare or
     infrastructure action was performed.
 
-26. **Limits.** Many same-Y threads still require downward displacement; revealing
-    a displaced active card can scroll its anchor out of view. The narrow minimized
-    rail intentionally allows its one active full card to overlay part of the PDF.
+26. **Limits.** Dense neighbors may move outside the viewport while the active
+    card stays aligned with its highlight. Clicking another highlight brings that
+    comment into alignment. Very tall active cards scroll internally. Minimized
+    cards open rightward and may require horizontal scrolling on narrow viewports;
+    Mobile mode offers a popup over the document instead.
     Page-width zoom fits the PDF itself; the shared horizontal scrollbar reaches
     adjacent comments when the combined width exceeds the viewport.
     On very narrow screens a flipped submenu may overlap its parent while remaining
@@ -197,3 +203,27 @@ tokens and control/menu primitives rather than introducing one-off visual system
     use shared typography, borders and hover styling. Browser checks verify these
     controls, adjacent spread placement inside the scrollbar, native page spacing,
     minimized/expanded behavior, zoom/rotation, selection, and collaboration.
+
+28. **Keyboard, focused styling and Mobile mode.** Escape deselects the active
+    thread and closes a selection composer from either the parent or PDF iframe.
+    Enter or Ctrl+Alt+M (Command+Option+M) after selecting PDF text opens the
+    composer; editable fields retain normal typing. Ctrl/Command+Enter submits
+    the composer. Inactive cards use a background close to the workspace; active
+    cards keep #f7faf8 and gain a shadow. Mobile is a fourth explicit menu choice
+    and becomes active on entering a viewport at most 700px wide. On leaving that
+    breakpoint, the previous desktop mode returns. It retains marker buttons and
+    displays the active card/composer over the page just below the highlight,
+    kept directly below the highlight even as it scrolls beyond the viewport. The PDF does not scroll to
+    reveal the popup. Browser coverage includes stationary dense selection and
+    insertion, both creation shortcuts, Escape, rightward expansion and Mobile.
+
+29. **Motion and mobile refinement.** Switching comments animates their vertical
+    rearrangement over 160ms, including neighboring cards, while PDF coordinates
+    stay unchanged. Motion resumes across canonical sidebar rerenders and honors
+    reduced-motion preferences. The composer opens with a 130ms fade/slide.
+    Mobile popups are at most 280px wide, leave more space at narrow widths, and
+    remain 8px below the highlight without vertical viewport clamping. The mobile
+    header uses a fixed top grid row for back/document/View/Comments/live/account;
+    long document and account labels truncate. PDF controls occupy the next row.
+    Focused browser checks cover sliding neighbors, stationary PDF scrolling,
+    offscreen mobile anchoring, reduced motion and 280/320/390/480/700px headers.

@@ -26,11 +26,19 @@
       <span id="review-page-count" aria-label="Total pages">/ &hellip;</span>
       <button type="button" data-pdf-control="next" aria-label="Next page">&rsaquo;</button>
       <button type="button" data-pdf-control="zoomOutButton" aria-label="Zoom out">&minus;</button>
-      <select id="review-scale" aria-label="Zoom">
+      <select id="review-scale" aria-label="Zoom" hidden>
         <option value="auto">Auto</option><option value="page-fit">Fit page</option><option value="page-width">Fit width</option>
         <option value="0.5">50%</option><option value="1">100%</option><option value="1.5">150%</option><option value="2">200%</option>
         <option id="review-custom-scale" value="custom" hidden>Custom</option>
       </select>
+      <details class="toolbar-menu" id="review-scale-menu">
+        <summary aria-label="Zoom" title="Zoom"><span id="review-scale-label">100%</span></summary>
+        <div class="toolbar-popover" role="menu" aria-label="Zoom">
+          {% for value, label in [('auto', 'Auto'), ('page-fit', 'Fit page'), ('page-width', 'Fit width'), ('0.5', '50%'), ('1', '100%'), ('1.5', '150%'), ('2', '200%')] %}
+          <button type="button" role="menuitemradio" aria-checked="false" data-menu-input="review-scale" data-menu-value="{{ value }}">{{ label }}</button>
+          {% endfor %}
+        </div>
+      </details>
       <button type="button" data-pdf-control="zoomInButton" aria-label="Zoom in">+</button>
     </div>
     <details class="toolbar-menu" id="review-view-menu">
@@ -57,7 +65,7 @@
     <input type="hidden" id="comments-visibility" value="expanded">
     <input type="hidden" id="thread-filter" value="open">
     <details class="toolbar-menu comments-control" id="comments-menu"><summary>Comments</summary><div class="toolbar-popover" role="menu" aria-label="Comments">
-<button type="button" role="menuitemradio" aria-checked="false" data-menu-input="comments-visibility" data-menu-value="expanded">Expanded</button><button type="button" role="menuitemradio" aria-checked="false" data-menu-input="comments-visibility" data-menu-value="minimized">Minimized</button><button type="button" role="menuitemradio" aria-checked="false" data-menu-input="comments-visibility" data-menu-value="hidden">Hidden</button><hr><button type="button" role="menuitemradio" aria-checked="false" data-menu-input="thread-filter" data-menu-value="open">Open only</button><button type="button" role="menuitemradio" aria-checked="false" data-menu-input="thread-filter" data-menu-value="all">All</button></div></details>
+<button type="button" role="menuitemradio" aria-checked="false" data-menu-input="comments-visibility" data-menu-value="expanded">Expanded</button><button type="button" role="menuitemradio" aria-checked="false" data-menu-input="comments-visibility" data-menu-value="minimized">Minimized</button><button type="button" role="menuitemradio" aria-checked="false" data-menu-input="comments-visibility" data-menu-value="hidden">Hidden</button><button type="button" role="menuitemradio" aria-checked="false" data-menu-input="comments-visibility" data-menu-value="mobile">Mobile</button><hr><button type="button" role="menuitemradio" aria-checked="false" data-menu-input="thread-filter" data-menu-value="open">Open only</button><button type="button" role="menuitemradio" aria-checked="false" data-menu-input="thread-filter" data-menu-value="all">All</button></div></details>
     <details class="toolbar-menu collaboration-menu">
       <summary title="Collaboration status and participants">&#9679; <span id="presence-count">0</span></summary>
       <div class="toolbar-popover" role="menu"><p id="realtime-status" role="status">Connecting&hellip;</p><p id="review-presence">Connecting&hellip;</p></div>
@@ -112,7 +120,7 @@
       </details>
     </aside>
   </main>
-  <button id="comment-selection-button" class="comment-selection-button" type="button" aria-label="Comment on selection" title="Comment on selection (Ctrl+Alt+M)" aria-keyshortcuts="Control+Alt+M Meta+Alt+M" hidden disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h16v12H9l-5 4z"/><path d="M8 8h8M8 12h5"/></svg><span class="sr-only">Comment</span></button>
+  <button id="comment-selection-button" class="comment-selection-button" type="button" aria-label="Comment on selection" title="Comment on selection (Enter or Ctrl+Alt+M)" aria-keyshortcuts="Enter Control+Alt+M Meta+Alt+M" hidden disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h16v12H9l-5 4z"/><path d="M8 8h8M8 12h5"/></svg><span class="sr-only">Comment</span></button>
   <script id="anchor-config" type="application/json">{{ anchor_config|tojson }}</script>
   <script src="{{ url_for('static', filename='vendor/socket.io/socket.io.min.js') }}"></script>
   <script type="module" src="{{ url_for('static', filename='review/anchors.js') }}"></script>

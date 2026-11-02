@@ -200,7 +200,12 @@ def run():
                     cdp.call("Page.navigate", {"url": base + f"/versions/{fixture['versions'][0]}/view"}, session)
                     cdp.wait(session, "document.querySelector('#realtime-status')?.textContent === 'Live'")
                 a, b = sessions
-                from tests.viewer_acceptance import empty_checks, populated_checks, single_thread_checks, shared_page_checks, inspection_sheets
+                if "--comment-ui" in sys.argv:
+                    from tests.viewer_acceptance import comment_ui_checks
+                    comment_ui_checks(cdp, a)
+                    assert not cdp.exceptions, cdp.exceptions
+                    return
+                from tests.viewer_acceptance import empty_checks, populated_checks, single_thread_checks, shared_page_checks, inspection_sheets, comment_interaction_checks
                 empty_checks(cdp, a)
                 verify_websocket_transport(base, fixture)
                 for session in sessions:
@@ -258,17 +263,11 @@ def run():
                 cdp.evaluate(b, "document.querySelector('.resolve-control').click()")
                 cdp.wait(a, "!document.querySelector('.thread-card').classList.contains('resolved')")
                 cdp.wait(a, "document.querySelector('.thread-status-history').textContent.includes('Reopened by ReviewerBeta') && document.querySelector('.thread-status-history').textContent.includes('Resolved by ReviewerAlpha')")
-                # Centered navigation is still handled by the existing overlay.
-                cdp.evaluate(b, "document.querySelector('.thread-card').click()")
-                cdp.wait(b, "document.querySelector('iframe').contentWindow.PDFViewerApplication.pdfViewer.currentPageNumber === 1")
-                centered = cdp.evaluate(b, """(() => {
-                  const d=document.querySelector('iframe').contentDocument;
-                  const h=d.querySelector('.pdf-review-thread-highlight').getBoundingClientRect();
-                  const v=d.querySelector('#viewerContainer').getBoundingClientRect();
-                  return Math.abs((h.top+h.bottom)/2-(v.top+v.bottom)/2)<60;
-                })()""")
-                assert centered, "Highlight should be vertically centered"
-                print("PASS tombstone, resolve/reopen, remote resolved highlight and centered navigation", flush=True)
+                # A visible target stays still while its comment is opened.
+                cdp.evaluate(b, "window.beforeCommentOpen=document.querySelector('iframe').contentWindow.PDFViewerApplication.pdfViewer.container.scrollTop; document.querySelector('.thread-card').click()")
+                cdp.wait(b, "document.querySelector('.thread-card.active')!==null")
+                assert cdp.evaluate(b, "document.querySelector('iframe').contentWindow.PDFViewerApplication.pdfViewer.container.scrollTop===window.beforeCommentOpen")
+                print("PASS tombstone, resolve/reopen, remote resolved highlight and stationary comment selection", flush=True)
                 cdp.evaluate(b, """(async () => {
                   const config=JSON.parse(document.querySelector('#anchor-config').textContent);
                   const canonical=await (await fetch(config.threadsUrl)).json();
@@ -330,6 +329,7 @@ def run():
                 account_checks(cdp, a, b, fixture, base)
                 shared_page_checks(cdp, a, b, fixture, base)
                 populated_checks(cdp, a, fixture, base)
+                comment_interaction_checks(cdp, a)
                 inspection_sheets(cdp, a)
                 assert not cdp.exceptions, cdp.exceptions
                 print("PASS refresh coalescing, stale read suppression; no uncaught browser exceptions", flush=True)
