@@ -1,6 +1,6 @@
 /* Parent application chrome and document workspace. No PDF rendering rules here. */
 .viewer-page { height: 100dvh; overflow: hidden; font-size: var(--ui-font-size); }
-.viewer-shell-bar > a { padding: 4px 6px; text-decoration: none; font-size: 20px; }
+.viewer-shell-bar > a { display: inline-flex; align-items: center; justify-content: center; align-self: center; width: 32px; height: 32px; flex-shrink: 0; padding: 0; border-radius: 3px; text-decoration: none; font-size: 18px; line-height: 1; }
 .viewer-title { display: flex; align-items: baseline; gap: var(--space-2); flex: 1 1 160px; min-width: 50px; }
 .viewer-title strong, .viewer-title span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
 .viewer-title span { color: var(--muted); }
@@ -8,7 +8,7 @@
 .viewer-page select { border-radius: 3px; font-size: 12px; font-weight: 400; min-height: var(--control-height); padding: 4px 7px; }
 .viewer-shell-bar select { background: transparent; color: var(--ink); border: 1px solid transparent; }
 .viewer-shell-bar button:hover, .viewer-shell-bar summary:hover, .viewer-shell-bar a:hover { background: var(--surface-hover); }
-.document-controls > button { width: 30px; font-size: 18px; padding: 0; }
+.document-controls > button { width: var(--control-height); height: var(--control-height); flex-shrink: 0; font-size: 18px; padding: 0; }
 .viewer-page button:disabled { opacity: .45; cursor: default; }
 .viewer-page .text-action { min-height: 24px; padding: 0; font-size: var(--ui-font-size-small); }
 .viewer-page .thread-comments { margin-top: 6px; }
@@ -46,23 +46,24 @@
 .comment-selection-button { position: fixed; z-index: var(--layer-popup); width: 32px; height: 30px; background: white; color: var(--accent); border: 1px solid var(--line); box-shadow: 0 1px 3px #0002; }
 .comment-selection-button:hover { background: var(--surface-hover); }
 .viewer-page svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.5; }
+.back-arrow { display: inline-block; font: inherit; line-height: 1; transform: translateY(-1px); }
 .anchor-debug-section, .migration-panel { position: absolute; top: 40px; right: 8px; width: min(320px, calc(100% - 16px)); max-height: calc(100% - 48px); overflow: auto; background: var(--surface); pointer-events: auto; z-index: 3; }
 @media (max-width: 1050px) {
   .viewer-title { flex-direction: column; gap: 0; }
   .identity-menu summary { max-width: 80px; }
 }
-@media (max-width: 700px) {
-  .viewer-shell-bar { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto auto minmax(24px, .6fr); gap: 2px; }
-  .viewer-shell-bar > a { padding-inline: 3px; }
+@media (width < 750px) {
+  .viewer-shell-bar { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto auto fit-content(80px); }
   .viewer-title { min-width: 0; overflow: hidden; }
   .viewer-title strong, .viewer-title span { max-width: 100%; }
   .viewer-shell-bar > .toolbar-menu { min-width: 0; }
-  .viewer-shell-bar > .toolbar-menu > summary { gap: 3px; padding-inline: 3px; font-size: 11px; }
-  .viewer-shell-bar > .identity-menu > summary { display: block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
-  .viewer-shell-bar > .identity-menu > summary::after { margin-left: 3px; }
+  .viewer-shell-bar > .toolbar-menu > summary { min-height: var(--control-height); }
+  .viewer-shell-bar > .identity-menu { justify-self: end; max-width: 100%; }
+  .viewer-shell-bar > .identity-menu > summary { max-width: min(80px, 100%); }
   .document-controls { grid-column: 1 / -1; grid-row: 2; min-width: 0; justify-content: center; border: 0; border-top: 1px solid var(--line); padding-top: 3px; overflow-x: auto; }
   .document-controls > * { flex-shrink: 0; }
-  .viewer-page button, .viewer-page summary, .viewer-page select { min-height: 32px; }
-  .viewer-page .text-action { min-height: 32px; }
+}
+@media (max-width: 700px) {
+  .document-controls > button { width: 32px; height: 32px; }
 }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none; animation: none; scroll-behavior: auto; } }

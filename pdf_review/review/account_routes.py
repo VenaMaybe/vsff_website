@@ -36,9 +36,10 @@ def mutate(operation, destination, **arguments):
 
 @bp.get('/account')
 def account():
+    from .preferences import palette
     documents = access.account_documents(database(), actor())
     return render_template('account.html', owned=[d for d in documents if d['role'] == 'owner'],
-                           shared=[d for d in documents if d['role'] != 'owner'])
+                           shared=[d for d in documents if d['role'] != 'owner'], palette=palette(database()))
 
 
 @bp.post('/account/profile')

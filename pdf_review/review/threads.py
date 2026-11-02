@@ -140,11 +140,12 @@ def _target_rows(
 
 
 def _thread_row(connection: sqlite3.Connection, thread_id: str) -> sqlite3.Row:
+    color='creator.review_color' if any(r['name']=='review_color' for r in connection.execute('PRAGMA table_info(users)')) else "'#c66b54'"
     row = connection.execute(
-        """
+        f"""
         SELECT t.*,
                creator.user_id AS creator_user_id,
-               creator.display_name AS creator_display_name,
+               creator.display_name AS creator_display_name, {color} AS review_color,
                resolver.user_id AS resolver_user_id,
                resolver.display_name AS resolver_display_name
         FROM threads t
@@ -160,11 +161,15 @@ def _thread_row(connection: sqlite3.Connection, thread_id: str) -> sqlite3.Row:
 
 
 def get_thread(
-    database_path: Path | str, thread_id: str, version_id: str | None = None
+    database_path: Path | str, thread_id: str, version_id: str | None = None, *, user_id=None
 ) -> dict[str, Any]:
     connection = connect(database_path)
     try:
         connection.execute("BEGIN")
+        if user_id is not None:
+            from .review_policy import thread_permitted
+            if not thread_permitted(connection,thread_id,user_id):
+                raise ThreadNotFoundError('The review thread does not exist.')
         row = _thread_row(connection, thread_id)
         targets = _target_rows(connection, thread_id, version_id)
         comments = _comment_rows(connection, thread_id)
@@ -182,6 +187,7 @@ def get_thread(
         "status": row["status"],
         "created_at": row["created_at"],
         "created_by": _user_summary(row, "creator"),
+        "review_color": row['review_color'],
         "resolved_at": row["resolved_at"],
         "resolved_by": _user_summary(row, "resolver"),
         "targets": [
@@ -203,16 +209,20 @@ def get_thread(
     }
 
 
-def list_threads(database_path: Path | str, version_id: str) -> list[dict[str, Any]]:
+def list_threads(database_path: Path | str, version_id: str, user_id=None) -> list[dict[str, Any]]:
     connection = connect(database_path)
     try:
         version = connection.execute(
-            "SELECT 1 FROM document_versions WHERE version_id = ?", (version_id,)
+            "SELECT document_id FROM document_versions WHERE version_id = ?", (version_id,)
         ).fetchone()
         if version is None:
             raise AnchorVersionNotFoundError("The document version does not exist.")
+        predicate, args = '1=1', []
+        if user_id is not None:
+            from .review_policy import author_predicate
+            predicate, args = author_predicate(connection,version['document_id'],user_id,'t.created_by_user_id')
         rows = connection.execute(
-            """
+            f"""
             SELECT DISTINCT t.thread_id,
                    first_segment.page_number AS first_page,
                    json_extract(first_segment.rectangles_json, '$[0][3]') AS first_top
@@ -223,32 +233,21 @@ def list_threads(database_path: Path | str, version_id: str) -> list[dict[str, A
             JOIN anchor_segments first_segment
               ON first_segment.anchor_id = a.anchor_id
              AND first_segment.segment_index = 0
-            WHERE a.document_version_id = ?
+            WHERE a.document_version_id = ? AND {predicate}
             ORDER BY first_page ASC, first_top DESC, t.created_at ASC, t.thread_id ASC
             """,
-            (version_id,),
+            [version_id, *args],
         ).fetchall()
     finally:
         connection.close()
-    return [get_thread(database_path, row["thread_id"], version_id) for row in rows]
-
-
-def _insert_revision(
-    connection: sqlite3.Connection,
-    comment_id: str,
-    revision_number: int,
-    body: str,
-    editor_id: str,
-    timestamp: str,
-) -> None:
-    connection.execute(
-        """
-        INSERT INTO comment_revisions(
-            revision_id, comment_id, revision_number, body, created_at, editor_id
-        ) VALUES (?, ?, ?, ?, ?, ?)
-        """,
-        (str(uuid.uuid4()), comment_id, revision_number, body, timestamp, editor_id),
-    )
+    result=[]
+    for row in rows:
+        try:
+            result.append(get_thread(database_path,row['thread_id'],version_id,user_id=user_id))
+        except ThreadNotFoundError:
+            # A policy may tighten between the ID query and the canonical read.
+            continue
+    return result
 
 
 def _insert_comment(
@@ -258,16 +257,8 @@ def _insert_comment(
     body: str,
     timestamp: str,
 ) -> str:
-    comment_id = str(uuid.uuid4())
-    connection.execute(
-        """
-        INSERT INTO comments(comment_id, thread_id, author_id, body, created_at)
-        VALUES (?, ?, ?, ?, ?)
-        """,
-        (comment_id, thread_id, author_id, body, timestamp),
-    )
-    _insert_revision(connection, comment_id, 1, body, author_id, timestamp)
-    return comment_id
+    from .comment_lifecycle import insert
+    return insert(connection, 'text', thread_id, author_id, body, timestamp)
 
 
 def create_thread(
@@ -276,6 +267,7 @@ def create_thread(
     author_id: str,
     anchor_payload: Any,
     body: Any,
+    *, enforce_access=False,
 ) -> dict[str, Any]:
     """Atomically create anchor, thread, origin target, root comment, and revision."""
     validated_anchor = validate_anchor_payload(anchor_payload)
@@ -291,6 +283,9 @@ def create_thread(
         ).fetchone()
         if version is None:
             raise AnchorVersionNotFoundError("The document version does not exist.")
+        if enforce_access:
+            from .review_policy import require_reader
+            require_reader(connection,version['document_id'],author_id,write=True)
         anchor_id = insert_validated_anchor(connection, version_id, validated_anchor)
         connection.execute(
             """
@@ -314,7 +309,7 @@ def create_thread(
 
 
 def add_comment(
-    database_path: Path | str, thread_id: str, author_id: str, body: Any
+    database_path: Path | str, thread_id: str, author_id: str, body: Any, *, enforce_access=False
 ) -> dict[str, Any]:
     validated_body = validate_comment_body(body)
     timestamp = now_utc()
@@ -324,76 +319,40 @@ def add_comment(
             "SELECT 1 FROM threads WHERE thread_id = ?", (thread_id,)
         ).fetchone() is None:
             raise ThreadNotFoundError("The review thread does not exist.")
+        if enforce_access:
+            _require_thread_access(connection,thread_id,author_id)
         _insert_comment(connection, thread_id, author_id, validated_body, timestamp)
     return get_thread(database_path, thread_id)
 
 
 def edit_comment(
     database_path: Path | str, comment_id: str, editor_id: str, body: Any,
-    expected_revision: Any = None,
+    expected_revision: Any = None, *, enforce_access=False,
 ) -> dict[str, Any]:
     validated_body = validate_comment_body(body)
     timestamp = now_utc()
     with transaction(database_path) as connection:
         require_active_user(connection, editor_id)
-        comment = connection.execute(
-            "SELECT * FROM comments WHERE comment_id = ?", (comment_id,)
-        ).fetchone()
-        if comment is None:
-            raise CommentNotFoundError("The comment does not exist.")
-        if comment["author_id"] != editor_id:
-            raise CommentPermissionError("You can only edit your own comments.")
-        if comment["deleted_at"] is not None:
-            raise ThreadValidationError("A deleted comment cannot be edited.")
-        if type(expected_revision) is not int or expected_revision < 1:
-            raise ThreadValidationError("expected_revision must be a positive integer.")
-        current_revision = connection.execute(
-            "SELECT MAX(revision_number) FROM comment_revisions WHERE comment_id = ?",
-            (comment_id,),
-        ).fetchone()[0]
-        if expected_revision != current_revision:
-            raise CommentConflictError(current_revision)
-        if comment["body"] != validated_body:
-            revision_number = current_revision + 1
-            _insert_revision(
-                connection,
-                comment_id,
-                revision_number,
-                validated_body,
-                editor_id,
-                timestamp,
-            )
-            connection.execute(
-                "UPDATE comments SET body = ?, edited_at = ? WHERE comment_id = ?",
-                (validated_body, timestamp, comment_id),
-            )
-        thread_id = comment["thread_id"]
+        if enforce_access:
+            _require_comment_access(connection,comment_id,editor_id)
+        from .comment_lifecycle import change
+        comment = change(connection, 'text', comment_id, editor_id, timestamp,
+                         body=validated_body, expected_revision=expected_revision)
+        thread_id = comment['thread_id']
     return get_thread(database_path, thread_id)
 
 
 def delete_comment(
-    database_path: Path | str, comment_id: str, deleted_by_user_id: str
+    database_path: Path | str, comment_id: str, deleted_by_user_id: str, *, enforce_access=False
 ) -> dict[str, Any]:
     timestamp = now_utc()
     with transaction(database_path) as connection:
         require_active_user(connection, deleted_by_user_id)
-        comment = connection.execute(
-            "SELECT * FROM comments WHERE comment_id = ?", (comment_id,)
-        ).fetchone()
-        if comment is None:
-            raise CommentNotFoundError("The comment does not exist.")
-        if comment["author_id"] != deleted_by_user_id:
-            raise CommentPermissionError("You can only delete your own comments.")
-        if comment["deleted_at"] is None:
-            connection.execute(
-                """
-                UPDATE comments
-                SET body = NULL, deleted_at = ?, deleted_by_user_id = ?
-                WHERE comment_id = ?
-                """,
-                (timestamp, deleted_by_user_id, comment_id),
-            )
-        thread_id = comment["thread_id"]
+        if enforce_access:
+            _require_comment_access(connection,comment_id,deleted_by_user_id)
+        from .comment_lifecycle import change
+        comment = change(connection, 'text', comment_id, deleted_by_user_id, timestamp, delete=True)
+        thread_id = comment['thread_id']
     return get_thread(database_path, thread_id)
 
 
@@ -401,7 +360,7 @@ def set_thread_resolved(
     database_path: Path | str,
     thread_id: str,
     user_id: str,
-    resolved: bool,
+    resolved: bool, *, enforce_access=False,
 ) -> dict[str, Any]:
     timestamp = now_utc()
     with transaction(database_path) as connection:
@@ -411,6 +370,8 @@ def set_thread_resolved(
         ).fetchone()
         if thread is None:
             raise ThreadNotFoundError("The review thread does not exist.")
+        if enforce_access:
+            _require_thread_access(connection,thread_id,user_id)
         desired_status = "resolved" if resolved else "open"
         if thread["status"] != desired_status:
             connection.execute(
@@ -440,3 +401,21 @@ def set_thread_resolved(
                 (thread_id,),
             )
     return get_thread(database_path, thread_id)
+
+
+def _require_thread_access(connection,thread_id,user_id):
+    from .review_policy import require_reader,thread_permitted
+    row=connection.execute('SELECT document_id FROM threads WHERE thread_id=?',(thread_id,)).fetchone()
+    if row is None or not thread_permitted(connection,thread_id,user_id):
+        raise ThreadNotFoundError('The review thread does not exist.')
+    require_reader(connection,row[0],user_id,write=True)
+
+
+def _require_comment_access(connection,comment_id,user_id):
+    row=connection.execute('SELECT thread_id FROM comments WHERE comment_id=?',(comment_id,)).fetchone()
+    if row is None:
+        raise CommentNotFoundError('The comment does not exist.')
+    try:
+        _require_thread_access(connection,row[0],user_id)
+    except ThreadNotFoundError:
+        raise CommentNotFoundError('The comment does not exist.') from None

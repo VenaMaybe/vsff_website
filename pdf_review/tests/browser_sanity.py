@@ -17,7 +17,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 
 def pdf_bytes(marker):
-    objects = [b"<< /Type /Catalog /Pages 2 0 R >>",
+    objects = [b"<< /Type /Catalog /Pages 2 0 R /Outlines 8 0 R >>",
                b"<< /Type /Pages /Kids [3 0 R 5 0 R] /Count 2 >>",
                b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 7 0 R >> >> /Contents 4 0 R >>"]
     for page in [1, 2]:
@@ -26,6 +26,10 @@ def pdf_bytes(marker):
         if page == 1:
             objects.append(b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 7 0 R >> >> /Contents 6 0 R >>")
     objects.append(b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>")
+    objects.extend([b'<< /Type /Outlines /First 9 0 R /Last 10 0 R /Count 3 >>',
+        b'<< /Title (Synthetic chapter one) /Parent 8 0 R /Next 10 0 R /Dest [3 0 R /Fit] /First 11 0 R /Last 11 0 R /Count 1 >>',
+        b'<< /Title (Synthetic chapter two) /Parent 8 0 R /Prev 9 0 R /Dest [5 0 R /Fit] >>',
+        b'<< /Title (Nested unwanted heading) /Parent 9 0 R /Dest [3 0 R /Fit] >>'])
     result = b"%PDF-1.4\n"
     offsets = [0]
     for index, body in enumerate(objects, 1):
@@ -121,7 +125,7 @@ class DevTools:
             if self.evaluate(session, expression):
                 return
             time.sleep(0.1)
-        raise AssertionError(f"Browser condition timed out: {expression}; state=" + str(self.evaluate(session, "document.body.innerText")))
+        raise AssertionError(f"Browser condition timed out: {expression}; state=" + str(self.evaluate(session, "document.body.innerText")) + str(self.evaluate(session, "(() => { const f=document.querySelector('iframe'); if(!f)return null; const d=f.contentDocument;return {mode:document.querySelector('#comments-visibility')?.value,frame:f.getBoundingClientRect().toJSON(),cards:[...document.querySelectorAll('.thread-card')].map(c=>({id:c.dataset.threadId,active:c.classList.contains('active'),box:c.getBoundingClientRect().toJSON(),top:c.style.top})),highlights:[...d.querySelectorAll('.pdf-review-thread-highlight')].map(h=>({id:h.dataset.threadId,box:h.getBoundingClientRect().toJSON()}))};})()")))
 
 
 def verify_websocket_transport(base, fixture):
@@ -200,6 +204,11 @@ def run():
                     cdp.call("Page.navigate", {"url": base + f"/versions/{fixture['versions'][0]}/view"}, session)
                     cdp.wait(session, "document.querySelector('#realtime-status')?.textContent === 'Live'")
                 a, b = sessions
+                if '--beta-c2' in sys.argv:
+                    from tests.beta_c2_acceptance import run_c2
+                    run_c2(cdp,a,b,fixture,base)
+                    assert not cdp.exceptions,cdp.exceptions
+                    return
                 if "--comment-ui" in sys.argv:
                     from tests.viewer_acceptance import comment_ui_checks
                     comment_ui_checks(cdp, a)

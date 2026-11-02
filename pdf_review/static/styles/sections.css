@@ -1,0 +1,10 @@
+.section-structure-marker { position:absolute; z-index:7; color:#626963; font:9px system-ui; pointer-events:auto; background:#f4f5f3; }
+.section-edge-tick { left:0; width:8px; height:1px; border-top:1px solid #777e78; }
+.section-edge-tick::after { content:''; position:absolute; left:5px; top:-3px; border-left:4px solid #777e78; border-top:2px solid transparent; border-bottom:2px solid transparent; }
+.section-row-rail { left:0; right:0; height:10px; line-height:10px; text-align:center; border-top:1px solid #a8ada8; white-space:nowrap; overflow:hidden; }
+.section-structure-marker:focus-visible { outline:2px solid #355a91; outline-offset:1px; }
+.section-editing .page { cursor:crosshair; }
+.section-editing .textLayer { pointer-events:none; }
+.section-draft-marker { left:0; right:0; height:0; border-top:1px dashed #606862; font:9px system-ui; background:transparent; }
+.review-page-presence { position:absolute; inset:var(--presence-inset,1px); pointer-events:none; z-index:6; border:1px solid color-mix(in srgb,var(--presence-color) 22%,transparent); }
+.review-presence-avatar { position:absolute; bottom:3px; right:var(--avatar-right,4px); height:17px; min-width:17px; border-radius:50%; padding:1px; background:var(--presence-color); color:#fff; font:9px/17px system-ui; text-align:center; }

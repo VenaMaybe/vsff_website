@@ -58,6 +58,7 @@ export class ReviewRealtime {
           typeof event.thread_id === "string" && typeof event.kind === "string") this.refresh.request();
     });
     this.socket.on("review.presence", (event) => this.presence.render(event));
+    this.socket.on('review.invalidated',event=>{if(event?.schema_version===1 && event.version_id===versionId)this.refresh.request();});
     this.socket.on("migration.changed", (event) => {
       if (event?.schema_version === 1 && event.version_id === versionId) onMigrationChanged(event);
     });

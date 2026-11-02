@@ -1,5 +1,7 @@
 const editForms = new Map();
 const replyForms = new Map();
+const openReplies = new Set();
+const expandedThreads = new Set();
 
 function element(tag, className, text) {
   const node = document.createElement(tag);
@@ -20,6 +22,7 @@ function shortDate(value) {
 }
 
 function pageLabel(thread) {
+  if (thread.section) return `${thread.section.name} · Overall thoughts`;
   const segments = thread.targets[0]?.anchor?.segments ?? [];
   if (!segments.length) return "Target unavailable";
   const first = segments[0].page_number;
@@ -55,6 +58,7 @@ function inlineEdit(comment, actions) {
   });
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
+    if (save.disabled) return;
     save.disabled = true;
     try {
       const result = await actions.edit(comment, input.value);
@@ -134,6 +138,8 @@ function threadCard(thread, selectedThreadId, actions) {
     }`
   );
   card.dataset.threadId = thread.thread_id;
+  if (thread.review_color) card.style.setProperty('--review-color',thread.review_color);
+  if (thread.section) card.classList.add('section-feedback-card');
   card.tabIndex = 0;
   const header = element("div", "thread-card-header");
   header.append(element("span", "thread-card-location", pageLabel(thread)));
@@ -164,30 +170,75 @@ function threadCard(thread, selectedThreadId, actions) {
     }
   }
   const comments = element("div", "thread-comments");
-  thread.comments.forEach((comment) => comments.append(commentNode(comment, actions)));
-  const replyForm = element("form", "thread-reply-form");
-  const reply = element("textarea");
-  reply.rows = 2;
-  reply.maxLength = 10000;
-  reply.placeholder = "Reply...";
-  reply.setAttribute("aria-label", "Reply to thread");
-  reply.required = true;
-  const replyActions = element("div", "composer-actions");
-  const replyButton = element("button", "", "Reply");
-  replyButton.type = "submit";
-  replyActions.append(replyButton);
-  replyForm.append(reply, replyActions);
-  replyForm.addEventListener("click", stopCardClick);
-  replyForm.addEventListener("submit", async (event) => {
-    event.preventDefault();
-    replyButton.disabled = true;
-    try {
-      const result = await actions.reply(thread, reply.value);
-      if (result === true) reply.value = "";
-    } finally {
-      replyButton.disabled = false;
-    }
+  if (thread.section?.prompt) comments.append(element('p','section-prompt',thread.section.prompt));
+  if (thread.section && !thread.comments.length) comments.append(element('p','subtle','Leave section thoughts…'));
+  const expanded = expandedThreads.has(thread.thread_id);
+  thread.comments.forEach((comment, index) => {
+    const node = commentNode(comment, actions);
+    node.hidden = !expanded && index > 0 && index < thread.comments.length - 2;
+    comments.append(node);
   });
+  if (thread.comments.length > 3) {
+    const toggle = element("button", "text-action thread-expand-control");
+    toggle.type = "button";
+    const syncExpanded = () => {
+      const showAll = expandedThreads.has(thread.thread_id);
+      [...comments.querySelectorAll(".thread-comment")].forEach((node, index) => { node.hidden = !showAll && index > 0 && index < thread.comments.length - 2; });
+      toggle.textContent = showAll ? "Show less" : `Show all ${thread.comments.length} comments`;
+      toggle.setAttribute("aria-expanded", String(showAll));
+      if (showAll) comments.append(toggle);
+      else comments.querySelector(".thread-comment").after(toggle);
+    };
+    toggle.addEventListener("click", (event) => {
+      stopCardClick(event);
+      if (expandedThreads.has(thread.thread_id)) expandedThreads.delete(thread.thread_id);
+      else expandedThreads.add(thread.thread_id);
+      syncExpanded();
+    });
+    syncExpanded();
+  }
+  if (thread.thread_id !== selectedThreadId) openReplies.delete(thread.thread_id);
+  let replyForm = replyForms.get(thread.thread_id);
+  if (!replyForm) {
+    replyForm = element("form", "thread-reply-form");
+    replyForm.id = `thread-reply-${thread.thread_id}`;
+    const reply = element("textarea");
+    reply.rows = 2;
+    reply.maxLength = 10000;
+    reply.placeholder = "Reply...";
+    reply.setAttribute("aria-label", "Reply to thread");
+    reply.required = true;
+    replyForm.append(reply);
+    replyForm.addEventListener("click", stopCardClick);
+    replyForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      if (replyForm.dataset.busy === "true") return;
+      replyForm.dataset.busy = "true";
+      const submitter = replyForm.closest(".thread-card")?.querySelector(".reply-control");
+      if (submitter) submitter.disabled = true;
+      try {
+        const result = await actions.reply(thread, reply.value);
+        if (result === true) {
+          reply.value = "";
+          openReplies.delete(thread.thread_id);
+          replyForm.hidden = true;
+          const button = replyForm.closest(".thread-card")?.querySelector(".reply-control");
+          if (button) {
+            button.type = "button";
+            button.removeAttribute("form");
+            button.setAttribute("aria-expanded", "false");
+            button.textContent = "Reply";
+          }
+        }
+      } finally {
+        replyForm.dataset.busy = "false";
+        const button = replyForm.closest(".thread-card")?.querySelector(".reply-control");
+        if (button) button.disabled = false;
+      }
+    });
+    replyForms.set(thread.thread_id, replyForm);
+  }
+  replyForm.hidden = !openReplies.has(thread.thread_id);
   const controls = element("div", "thread-controls");
   const resolution = element(
     "button",
@@ -200,12 +251,35 @@ function threadCard(thread, selectedThreadId, actions) {
     await actions.resolution(thread);
   });
   controls.append(element("span", "thread-card-location", `${thread.comments.length} comment${thread.comments.length === 1 ? "" : "s"}`));
-  if (actions.canMutate) controls.append(resolution);
-  if (!replyForms.has(thread.thread_id)) replyForms.set(thread.thread_id, replyForm);
+  if (actions.canMutate) {
+    const replyButton = element("button", "quiet-control reply-control", replyForm.hidden ? "Reply" : "Post reply");
+    replyButton.type = replyForm.hidden ? "button" : "submit";
+    if (!replyForm.hidden) replyButton.setAttribute("form", replyForm.id);
+    replyButton.setAttribute("aria-expanded", String(!replyForm.hidden));
+    replyButton.setAttribute("aria-controls", replyForm.id);
+    replyButton.disabled = replyForm.dataset.busy === "true";
+    replyButton.addEventListener("click", (event) => {
+      stopCardClick(event);
+      if (openReplies.has(thread.thread_id)) return;
+      event.preventDefault();
+      actions.select(thread, false);
+      openReplies.add(thread.thread_id);
+      replyForm.hidden = false;
+      const button = replyForm.closest(".thread-card").querySelector(".reply-control");
+      button.type = "submit";
+      button.setAttribute("form", replyForm.id);
+      button.setAttribute("aria-expanded", "true");
+      button.textContent = "Post reply";
+      replyForm.querySelector("textarea").focus({ preventScroll: true });
+    });
+    if (!thread.section) controls.append(resolution);
+    if (thread.section && !thread.response_id && replyForm.hidden) replyButton.textContent='Add response';
+    controls.append(replyButton);
+  }
   statusHistory.addEventListener("click", stopCardClick);
   card.append(header, statusHistory, comments);
-  if (actions.canMutate) card.append(replyForms.get(thread.thread_id));
   card.append(controls);
+  if (actions.canMutate) card.append(replyForm);
   const select = () => actions.select(thread, true);
   card.addEventListener("click", select);
   card.addEventListener("keydown", (event) => {
@@ -228,6 +302,8 @@ export function renderThreadSidebar(container, threads, selectedThreadId, action
     marker.type = "button";
     marker.hidden = true;
     marker.dataset.threadId = thread.thread_id;
+    if (thread.review_color) marker.style.setProperty('--review-color',thread.review_color);
+    if (thread.section) marker.classList.add('section-feedback-marker');
     marker.setAttribute("aria-label", `Open thread on ${pageLabel(thread)}: ${thread.comments[0]?.author.display_name || "reviewer"}`);
     marker.title = `${pageLabel(thread)}: ${thread.comments[0]?.body || "Review thread"}`;
     const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");

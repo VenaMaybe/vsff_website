@@ -449,19 +449,27 @@ def get_anchor(database_path: Path | str, anchor_id: str) -> dict[str, Any]:
         connection.close()
 
 
-def list_anchors(database_path: Path | str, version_id: str, *, standalone_only: bool = False) -> list[dict[str, Any]]:
+def list_anchors(database_path: Path | str, version_id: str, *, standalone_only: bool = False, user_id=None) -> list[dict[str, Any]]:
     if get_version(database_path, version_id) is None:
         raise AnchorVersionNotFoundError("The document version does not exist.")
     connection = connect(database_path)
     try:
         standalone_clause = "AND NOT EXISTS (SELECT 1 FROM thread_targets tt WHERE tt.anchor_id = anchor_instances.anchor_id)" if standalone_only else ""
+        args = []
+        if user_id is not None:
+            from .review_policy import author_predicate
+            document_id = get_version(database_path,version_id)['document_id']
+            predicate,args = author_predicate(connection,document_id,user_id,'t.created_by_user_id',personal=False)
+            standalone_clause += f''' AND NOT EXISTS (SELECT 1 FROM thread_targets tt
+                JOIN threads t USING(thread_id) WHERE tt.anchor_id=anchor_instances.anchor_id
+                AND NOT ({predicate}))'''
         anchor_rows = connection.execute(
             f"""
             SELECT * FROM anchor_instances
             WHERE document_version_id = ? {standalone_clause}
             ORDER BY created_at ASC, anchor_id ASC
             """,
-            (version_id,),
+            [version_id,*args],
         ).fetchall()
         if not anchor_rows:
             return []

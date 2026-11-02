@@ -1,5 +1,55 @@
 # PDF Review
 
+## BETA C2 â€” review settings and document sections
+
+This local version adds owner-controlled **Shared / Isolated** review, personal
+**Everyone / Mine / People** filters, persistent document-specific viewer choices,
+a 24-color Account palette, page/spread presence, logical sections and exact-version
+section feedback. See [BETA_C2_REPORT.md](BETA_C2_REPORT.md) for the audit and checks.
+
+- Owners open **Review settings** from the document page to set privacy and
+  first-open spread/comment/scope defaults. Existing personal choices survive
+  later default changes. **Reset to document defaults** is in Comments.
+- Isolated non-owners receive only their own top-level conversations and replies
+  within them. Owners can inspect all review and apply convenience filters.
+  Personal filtering hides whole conversations by top-level author, preserving
+  replies. People lists content authors for this exact version, never beta emails.
+- **Account â†’ Review color** selects a fixed palette entry. Highlight and section
+  response accents follow the top-level author. Initials supply presence avatars;
+  the application makes no external avatar requests.
+- Owners use **Manage sections** to add, rename, reorder, prompt or archive sections.
+  Select a version and follow **Define boundaries / Import from PDF outline**.
+  In the viewer, **View â†’ Edit sections** opens the deliberate edit mode. Choose
+  Set start / Set end, click the PDF, inspect preview markers, then Save boundaries.
+  A click near a page edge chooses a page boundary; an interior click chooses a
+  precise canonical Y. Normal text commenting resumes after capture/Done.
+- Precise ends have neutral left-edge ticks; page/spread-row ends have compact
+  horizontal rails in the existing gap. Boundaries inside a spread retain that
+  spread. Feedback stays on the right and supports one response per reviewer,
+  section and exact version, with replies, author-only edits and tombstones.
+- New PDF versions leave section placements unmapped. Management shows previous
+  placement summaries; the owner confirms new placements. Outline import previews
+  names/start pages and a selectable flat subset; nothing is created until confirmed.
+
+Startup applies migration **8**. Back up real SQLite with the existing online
+backup helper before a later approved deployment. No runtime data is migrated
+by this development task. Existing immutable PDFs and migrations 1â€“7 are unchanged.
+
+Local synthetic verification:
+
+```powershell
+.\.venv\Scripts\python.exe -m unittest discover -s tests -q
+.\.venv\Scripts\python.exe tests/browser_sanity.py
+.\.venv\Scripts\python.exe tests/browser_sanity.py --beta-c2
+.\.venv\Scripts\python.exe tests/browser_sanity.py --comment-ui
+.\.venv\Scripts\python.exe -m pip check
+```
+
+C2 screenshot artifacts remain ignored under `tests/visual-artifacts/`. Real
+Google, production deployment and physical Safari/iPad testing are separate.
+Resilient pseudo-offline review remains deferred to a future dedicated slice;
+this version adds no outbox, IndexedDB, service worker or private PDF cache.
+
 This directory is an independent service in the VSFF repository. It needs neither
 the Vue frontend nor the VSFF backend. See [BETA_B1_REPORT.md](BETA_B1_REPORT.md)
 for the packaging audit. No VPS deployment is included in this slice.
@@ -205,7 +255,7 @@ Existing destination heads are represented as carried at run creation without ne
 - `migration_items`: one source-thread snapshot per run, source target, pending/carried/skipped decision, destination target if carried, actor/time, optional skip note, and optimistic revision number. Source snapshot identity is immutable.
 - `thread_target_provenance`: immutable source target, migration run, creator/time, method (`manual_selection`), and nullable future confidence/algorithm version. Manual operations leave automatic metadata null. `supersedes_thread_target_id` explicitly links corrections to the previous target, so a separate supersession table is unnecessary.
 
-Foreign keys, checks, unique indexes, and cross-table triggers enforce consistency, history immutability, valid source snapshots/destination targets, and completion policy. Service validation also checks expected heads and item revisions under `BEGIN IMMEDIATE`. Migrations 1–4 are unchanged. Migration 5 backfills every origin head and deterministically selects the most recent existing non-origin target on any legacy extra versions. It does not invent unknown provenance for pre-5 diagnostic targets. No existing domain rows are rewritten.
+Foreign keys, checks, unique indexes, and cross-table triggers enforce consistency, history immutability, valid source snapshots/destination targets, and completion policy. Service validation also checks expected heads and item revisions under `BEGIN IMMEDIATE`. Migrations 1â€“4 are unchanged. Migration 5 backfills every origin head and deterministically selects the most recent existing non-origin target on any legacy extra versions. It does not invent unknown provenance for pre-5 diagnostic targets. No existing domain rows are rewritten.
 
 ### Migration HTTP APIs
 
@@ -241,7 +291,7 @@ Threads move between `open` and `resolved`. Resolving records the timestamp and 
 
 Every actual resolve/reopen transition now also appends immutable `thread_status_changes` history in the same transaction. Canonical thread JSON includes `status_history` with action, actor identity/display name, and timestamp. The sidebar shows the latest action (for example, **Reopened by ReviewerBeta**) and a **Resolution history** disclosure for earlier actions; these update through normal realtime canonical refreshes.
 
-Migration 4 adds this domain history because the prior schema retained only the current resolution and cleared it on reopening. Migrations 1–3 are unchanged. Existing resolved threads retain their known resolver/time as an initial history entry. Earlier reopen actions and superseded resolutions cannot be reconstructed and are not invented. The migration is automatic on the next application start; restart the server to load the updated services and schema.
+Migration 4 adds this domain history because the prior schema retained only the current resolution and cleared it on reopening. Migrations 1â€“3 are unchanged. Existing resolved threads retain their known resolver/time as an initial history entry. Earlier reopen actions and superseded resolutions cannot be reconstructed and are not invented. The migration is automatic on the next application start; restart the server to load the updated services and schema.
 
 ## Atomic selection-to-comment creation
 
@@ -291,7 +341,7 @@ The small `review.changed` notification has `schema_version: 1`, ephemeral UUID 
 
 Clients use same-origin Socket.IO and refetch `GET /api/versions/<version_id>/threads`. One refresh runs at a time; events during it mark the state dirty for a subsequent read. Local HTTP responses update the current browser immediately, invalidate older in-flight reads, and schedule canonical reconciliation. Target anchors from canonical threads update the existing overlay, including new remote highlights. Failed refreshes retain the current UI and retry after five seconds.
 
-`Live`, `Reconnecting…`, `Offline`, and sync-error status explain connection state. Each connection/reconnection joins the validated exact-version room, obtains presence, and refetches threads. Events are never durably logged or replayed. HTTP reviewing continues if the socket or its browser library is unavailable. If the whole server is stopped, HTTP is naturally unavailable too; it resumes when the server restarts.
+`Live`, `Reconnectingâ€¦`, `Offline`, and sync-error status explain connection state. Each connection/reconnection joins the validated exact-version room, obtains presence, and refetches threads. Events are never durably logged or replayed. HTTP reviewing continues if the socket or its browser library is unavailable. If the whole server is stopped, HTTP is naturally unavailable too; it resumes when the server restarts.
 
 Socket handlers only support `review.join` (`{version_id}`), `review.leave`, and `review.page` (`{page}`), plus connection/disconnection. Join/page acknowledgements contain `ok` and an error message when rejected. A connection belongs to at most one viewer version room. Anonymous and globally unauthorized sockets are rejected. Joining requires a current document grant; viewers can receive notifications but cannot mutate through HTTP. Default same-origin checks remain enabled; there is no wildcard CORS.
 
@@ -381,7 +431,7 @@ Use two browsers, separate browser profiles, or a regular and an incognito windo
 10. Return through document migration history to the open run. Skip the other item with a note. Confirm its source thread stays open, the decision records the reviewer/time, and no destination anchor appears.
 11. Complete the run; verify zero pending items, carried/skipped counts, completion actor/time, and the completed run on the document's migration history page.
 12. Start another run between the same pair: existing destination mappings should already be carried. To reconsider a skip or correct a completed mapping, use this new open run.
-13. For a chain, import Draft 5 and start Draft 4 → Draft 5. Verify its source quote/page comes from Draft 4's effective manual target, then carry explicitly again.
+13. For a chain, import Draft 5 and start Draft 4 â†’ Draft 5. Verify its source quote/page comes from Draft 4's effective manual target, then carry explicitly again.
 14. Test two concurrent runs attempting the same destination: the stale attempt must conflict; refreshed UI can keep the existing target or deliberately re-anchor it. Try a backwards run to Draft 3 and confirm its origin target cannot be replaced.
 15. Repeat zoom (50/100/150/200%), rotation, centered navigation, reconnect, and standalone-anchor diagnostics checks below. Source/target PDFs must remain unchanged.
 
@@ -449,7 +499,7 @@ tests/
 
 ## Deferred work
 
-Email delivery, PostgreSQL, automatic projection/migration, fuzzy matching, Version Tracker coupling, manuscript snapshots, and PDF annotation writing/export remain deferred. Realtime runs in a single process with no broker, persistent event log, or presence history. Standalone diagnostic anchor operations remain non-realtime. Schema is now numbered migration 7. Vendored PDF.js remains unchanged.
+Email delivery, PostgreSQL, automatic projection/migration, fuzzy matching, Version Tracker coupling, manuscript snapshots, and PDF annotation writing/export remain deferred. Realtime runs in a single process with no broker, persistent event log, or presence history. Standalone diagnostic anchor operations remain non-realtime. Schema is now numbered migration 8. Vendored PDF.js remains unchanged.
 
 See `ARCHITECTURE.md` for invariants future slices must preserve.
 
@@ -518,7 +568,7 @@ Forwarded headers are ignored by default. Set `PDF_REVIEW_PROXY_HOPS=1` only whe
 
 Responses include nosniff, `Referrer-Policy: same-origin`, and `X-Frame-Options: SAMEORIGIN`, preserving PDF.js same-origin embedding. Dynamic/auth/PDF responses use `Cache-Control: no-store, private`; static assets retain normal caching. Production adds one-year HSTS without includeSubDomains/preload. PDF.js CSP is unchanged.
 
-Socket.IO rejects unauthenticated/disabled/disallowed connections. Its explicit same-origin check uses the configured public origin (or direct WSGI origin for unconfigured loopback development), ignoring forwarded host/protocol headers. Each version join rereads identity/allowlist and checks document ACL using the shared authorization functions. Presence uses database identity, ignoring supplied actor fields. Viewers receive events; sockets cannot mutate review data. Exact-version rooms and post-commit broadcasts remain intact. HTTP revocation takes effect on the next request; room revocation on the next join/reconnect. **Existing live idle sockets are not immediately evicted** and may receive notifications/presence until disconnect; page reports recheck access and remove revoked membership. Logout cannot erase bytes already downloaded while authorized.
+Socket.IO rejects unauthenticated/disabled/disallowed connections. Its explicit same-origin check uses the configured public origin (or direct WSGI origin for unconfigured loopback development), ignoring forwarded host/protocol headers. Each version join rereads identity/allowlist and checks document ACL using the shared authorization functions. Presence uses database identity, ignoring supplied actor fields. Viewers receive events; sockets cannot mutate review data. Exact-version rooms and post-commit broadcasts remain intact. HTTP revocation takes effect on the next request. C2 rechecks identity and ACL before every version broadcast and removes revoked idle recipients before new notifications/presence; page reports and joins also recheck access. No periodic background eviction task is used. Logout cannot erase bytes already downloaded while authorized.
 
 ### Manual acceptance with real Google accounts
 
@@ -529,7 +579,7 @@ Socket.IO rejects unauthenticated/disabled/disallowed connections. Its explicit 
 5. Log out; revisit the exact PDF URL (also HEAD/Range): no PDF bytes. Sign in with an unapproved Google account eligible for your Cloud audience: minimal denial, no application session or protected metadata.
 6. Allow another account and let it log in without document grants. Dashboard omits the document; known document/version/PDF/anchor/thread/migration URLs return 404. Grant viewer: reads work, mutations return 403. Grant reviewer: comments work, imports/migration mutations do not.
 7. If two Google accounts are available, use separate profiles with grants. Test Live/presence, replies, author-only edits, resolution history, cross-version changes and exact-version isolation. For edit conflicts, sign the same author into two profiles, open both edit drafts, save one then submit the stale draft: 409 with draft retained.
-8. Run `disallow-email EMAIL` during its session: next protected request and future socket connect fail. Re-enable with `allow-email EMAIL`; fresh login works. Run `revoke-access DOCUMENT_UUID USER_UUID`: next document/PDF request and socket room join fail. Existing idle sockets have the live-revocation limitation above.
+8. Run `disallow-email EMAIL` during its session: next protected request and future socket connect fail. Re-enable with `allow-email EMAIL`; fresh login works. Run `revoke-access DOCUMENT_UUID USER_UUID`: next document/PDF request and socket room join fail. C2 prunes revoked idle recipients before the next version broadcast.
 
 ### Verification
 
@@ -672,10 +722,9 @@ owner/invitation and admin/PDF separation, first-login identity creation, and
 layouts at 1024x768, 768x1024 and 390x844. Existing WebSocket/review acceptance
 remains in the same harness.
 
-Admin/account pages refresh normally. Existing idle Socket.IO rooms may still
-receive notifications until the next authorization check (page event,
-join/reconnect); no proactive eviction was added. Presence may retain an old
-display name until rejoin. Account deletion/deactivation UX, email delivery,
+Admin/account pages refresh normally. C2 checks idle Socket.IO recipients before
+version broadcasts and refreshes presentation identity while doing so. Page
+reports and join/reconnect also check authorization. Account deletion/deactivation UX, email delivery,
 audit browsing, global web ACL recovery and a larger searchable directory are
 outside this slice.
 ## Local viewer UI
@@ -683,13 +732,14 @@ outside this slice.
 The document viewer uses a compact app-owned toolbar with PDF.js rendering,
 navigation, search and viewing commands underneath. Select PDF text to reveal
 the contextual comment button, or press **Enter** or **Ctrl+Alt+M** (**Command+Option+M** on Mac).
-Submit the selection composer with **Ctrl/Command+Enter**; **Escape** closes
+Submit the selection composer with **Ctrl/Command+Enter**, or post any active
+comment/reply/edit with **Ctrl+Shift+Enter**; **Escape** closes
 the composer or active thread.
 Comments always use one right-hand rail, including both pages of a spread.
 Expanded shows compact cards; Minimized uses narrow markers and one active full
 card opening to the right; Hidden reserves no width. Mobile uses markers with
 the active comment over the PDF below its highlight, and activates automatically
-at widths up to 700px. Clicking highlights or inserting a comment aligns the
+at widths below 750px. Clicking highlights or inserting a comment aligns the
 active card and moves neighboring comments while keeping the PDF still.
 Comments sit beside the page/spread inside the
 same native scrolling workspace. Small screens and large zoom use its horizontal

@@ -2,6 +2,7 @@ export class ReviewState {
   constructor() {
     this.anchors = [];
     this.threads = [];
+    this.sectionThreads = [];
     this.currentReviewer = null;
     this.selectedThreadId = null;
     this.filter = "open";
@@ -15,7 +16,7 @@ export class ReviewState {
     }
     this.anchors = [...anchors.values()];
     this.threads = threads;
-    if (this.selectedThreadId && !threads.some((thread) => thread.thread_id === this.selectedThreadId)) {
+    if (this.selectedThreadId && ![...threads,...this.sectionThreads].some((thread) => thread.thread_id === this.selectedThreadId)) {
       this.selectedThreadId = null;
     }
   }
@@ -32,13 +33,14 @@ export class ReviewState {
   }
 
   thread(threadId) {
-    return this.threads.find((item) => item.thread_id === threadId) ?? null;
+    return [...this.threads,...this.sectionThreads].find((item) => item.thread_id === threadId) ?? null;
   }
 
   visibleThreads() {
-    return this.filter === "all"
+    const text = this.filter === "all"
       ? this.threads
       : this.threads.filter((thread) => thread.status === "open");
+    return [...text,...this.sectionThreads];
   }
 
   threadStates() {
@@ -47,6 +49,7 @@ export class ReviewState {
         anchorId: target.anchor.anchor_id,
         threadId: thread.thread_id,
         status: thread.status,
+        color: thread.review_color,
       }))
     );
   }

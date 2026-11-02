@@ -32,6 +32,7 @@ from .anchors import (
 )
 from .database import connect
 from .auth import current_user, document_role
+from .access import AccessDenied
 from .documents import (
     DocumentError,
     create_document,
@@ -225,6 +226,10 @@ def view_version(version_id: str):
         "reviewersUrl": url_for("core.reviewers"),
         "canMutate": g.document_role != "viewer",
         "isOwner": g.document_role == "owner",
+        "documentId": version['document_id'],
+        "currentUserId": g.auth_user['user_id'],
+        "contextUrl": url_for('review_options.context',version_id=version_id),
+        "preferencesUrl": url_for('review_options.viewer_preferences',document_id=version['document_id']),
     }
     migration_id = request.args.get("migration")
     migration = None
@@ -292,7 +297,7 @@ def verify_version(version_id: str):
 @bp.get("/api/versions/<version_id>/anchors")
 def version_anchors(version_id: str):
     try:
-        anchors = list_anchors(database_path(), version_id, standalone_only=request.args.get("standalone") == "1")
+        anchors = list_anchors(database_path(), version_id, standalone_only=request.args.get("standalone") == "1", user_id=current_reviewer_id())
     except AnchorVersionNotFoundError as error:
         return api_error("version_not_found", str(error), 404)
     return jsonify({"version_id": version_id, "anchors": anchors})
@@ -338,14 +343,14 @@ def create_version_anchor(version_id: str):
 @bp.get("/api/reviewers")
 def reviewers():
     user = current_user()
-    summary = {key: user[key] for key in ("user_id", "display_name", "email")}
+    summary = {key: user[key] for key in ("user_id", "display_name", "email", "review_color")}
     return jsonify({"reviewers": [summary], "current_reviewer": summary})
 
 
 @bp.get("/api/versions/<version_id>/threads")
 def version_threads(version_id: str):
     try:
-        threads = list_threads(database_path(), version_id)
+        threads = list_threads(database_path(), version_id, current_reviewer_id())
     except AnchorVersionNotFoundError as error:
         return api_error("version_not_found", str(error), 404)
     return jsonify({"version_id": version_id, "threads": threads})
@@ -358,7 +363,7 @@ def create_version_thread(version_id: str):
         exact_fields(payload, {"anchor", "body"})
         user_id = current_reviewer_id()
         thread = create_thread(
-            database_path(), version_id, user_id, payload["anchor"], payload["body"]
+            database_path(), version_id, user_id, payload["anchor"], payload["body"], enforce_access=True
         )
     except ApiPayloadError as error:
         return api_error(error.code, str(error), error.status)
@@ -370,6 +375,8 @@ def create_version_thread(version_id: str):
         return api_error("invalid_anchor", str(error), 422)
     except ThreadValidationError as error:
         return api_error("invalid_comment", str(error), 422)
+    except AccessDenied:
+        abort(403)
     except Exception:
         current_app.logger.exception("Atomic thread creation failed")
         return api_error(
@@ -387,7 +394,7 @@ def thread_comments(thread_id: str):
         payload = json_payload(16 * 1024)
         exact_fields(payload, {"body"})
         thread = add_comment(
-            database_path(), thread_id, current_reviewer_id(), payload["body"]
+            database_path(), thread_id, current_reviewer_id(), payload["body"], enforce_access=True
         )
     except ApiPayloadError as error:
         return api_error(error.code, str(error), error.status)
@@ -408,7 +415,7 @@ def comment_item_patch(comment_id: str):
         exact_fields(payload, {"body", "expected_revision"})
         thread = edit_comment(
             database_path(), comment_id, current_reviewer_id(), payload["body"],
-            payload["expected_revision"],
+            payload["expected_revision"], enforce_access=True,
         )
     except ApiPayloadError as error:
         return api_error(error.code, str(error), error.status)
@@ -430,7 +437,7 @@ def comment_item_patch(comment_id: str):
 @bp.delete("/api/comments/<comment_id>")
 def comment_item(comment_id: str):
     try:
-        thread = delete_comment(database_path(), comment_id, current_reviewer_id())
+        thread = delete_comment(database_path(), comment_id, current_reviewer_id(), enforce_access=True)
     except UserNotFoundError as error:
         return api_error("reviewer_required", str(error), 409)
     except CommentNotFoundError as error:
@@ -445,7 +452,7 @@ def comment_item(comment_id: str):
 def resolve_thread(thread_id: str):
     try:
         thread = set_thread_resolved(
-            database_path(), thread_id, current_reviewer_id(), True
+            database_path(), thread_id, current_reviewer_id(), True, enforce_access=True
         )
     except UserNotFoundError as error:
         return api_error("reviewer_required", str(error), 409)
@@ -459,7 +466,7 @@ def resolve_thread(thread_id: str):
 def reopen_thread(thread_id: str):
     try:
         thread = set_thread_resolved(
-            database_path(), thread_id, current_reviewer_id(), False
+            database_path(), thread_id, current_reviewer_id(), False, enforce_access=True
         )
     except UserNotFoundError as error:
         return api_error("reviewer_required", str(error), 409)

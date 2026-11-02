@@ -107,6 +107,7 @@ export class AnchorOverlay {
         anchor.anchor_id,
         segment.rectangles,
         this.threadStates.get(anchor.anchor_id)?.status ?? null,
+        this.threadStates.get(anchor.anchor_id)?.color ?? null,
         this.threadStates.get(anchor.anchor_id)?.threadId === this.selectedThreadId,
       ]),
     });
@@ -128,6 +129,7 @@ export class AnchorOverlay {
         highlight.dataset.anchorId = anchor.anchor_id;
         const threadState = this.threadStates.get(anchor.anchor_id);
         if (threadState) {
+          if (/^#[0-9a-f]{6}$/.test(threadState.color)) highlight.style.setProperty('--review-color',threadState.color);
           highlight.dataset.threadId = threadState.threadId;
           highlight.classList.add("pdf-review-thread-highlight");
           highlight.classList.toggle("is-active", threadState.threadId === this.selectedThreadId);

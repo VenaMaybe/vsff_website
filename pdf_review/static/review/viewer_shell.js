@@ -1,5 +1,6 @@
 import { bindMenuDismissal, syncMenuValues } from "./menus.js";
 import { pdfRectangleToCss } from "./anchor_geometry.js";
+import { sectionGeometry } from './section_viewer.js';
 
 function installSearch(frame, application) {
   const doc = frame.contentDocument;
@@ -71,7 +72,9 @@ export function installViewerControls(frame, application) {
   }
   syncScale();
   const header = document.querySelector(".viewer-shell-bar");
-  new ResizeObserver(() => document.documentElement.style.setProperty("--toolbar-height", `${header.offsetHeight}px`)).observe(header);
+  const editor=document.getElementById('section-editor');
+  const headerObserver=new ResizeObserver(() => document.documentElement.style.setProperty("--toolbar-height", `${header.offsetHeight+(editor?.offsetHeight??0)}px`));
+  headerObserver.observe(header);if(editor)headerObserver.observe(editor);
   syncMenuValues();
   installSearch(frame, application);
   bindMenuDismissal(native);
@@ -102,7 +105,7 @@ export class CommentRail {
     this.list = document.getElementById("thread-list");
     this.visibility = document.getElementById("comments-visibility");
     this.scroller = application.pdfViewer.container;
-    this.mobileQuery = matchMedia("(max-width: 700px)");
+    this.mobileQuery = matchMedia("(width < 750px)");
     this.desktopMode = "expanded";
     this.mode = this.mobileQuery.matches ? "mobile" : this.visibility.value;
     this.visibility.value = this.mode;
@@ -213,7 +216,7 @@ export class CommentRail {
     const markers = new Map([...this.list.querySelectorAll(".thread-marker")].map((item) => [item.dataset.threadId, item]));
     for (const card of cards) {
       const thread = this.state.thread(card.dataset.threadId);
-      const geometry = anchorGeometry(this.application, thread?.targets[0]?.anchor);
+      const geometry = thread?.section ? sectionGeometry(this.application,thread.section) : anchorGeometry(this.application, thread?.targets[0]?.anchor);
       const marker = markers.get(thread.thread_id);
       const active = thread.thread_id === this.state.selectedThreadId;
       marker.hidden = !minimized;
@@ -227,7 +230,7 @@ export class CommentRail {
       if (active && !this.observed.has(card)) { this.observer.observe(card); this.observed.add(card); }
       if (!geometry) { item.hidden = true; card.hidden = true; continue; }
       const railLeft = this.spreadRight(geometry.pageNumber) + 6;
-      const x = (mobile ? Math.min(railLeft, this.scroller.clientWidth - 42) : railLeft) + this.scroller.scrollLeft;
+      const x = (mobile && !thread.section ? Math.min(railLeft, this.scroller.clientWidth - 42) : railLeft) + this.scroller.scrollLeft;
       items.push({ card: item, page: geometry.pageNumber, y: geometry.top + this.scroller.scrollTop,
         center: (geometry.top + geometry.bottom) / 2 + this.scroller.scrollTop,
         active: active && !minimized, x, height: item.offsetHeight });
@@ -334,9 +337,9 @@ export class CommentRail {
     if (!this.floating) return;
     const { card } = this.floating;
     const thread = this.state.thread(card.dataset.threadId);
-    const geometry = anchorGeometry(this.application, thread?.targets[0]?.anchor);
+    const geometry = thread?.section ? sectionGeometry(this.application,thread.section) : anchorGeometry(this.application, thread?.targets[0]?.anchor);
     if (!geometry) return;
-    const mobile = this.mode === "mobile";
+    const mobile = this.mode === "mobile" && !thread.section;
     card.style.removeProperty("width");
     card.style.removeProperty("max-height");
     const position = mobile ? this.popupPosition(card, geometry) : {

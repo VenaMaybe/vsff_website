@@ -16,6 +16,7 @@ from .auth import init_auth
 from .auth_cli import init_auth_cli
 from .backup import init_backup_cli
 from .account_routes import bp as account_bp
+from .review_routes import bp as review_options_bp
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -62,6 +63,7 @@ def create_app(test_config: dict | None = None) -> Flask:
     app.register_blueprint(bp)
     app.register_blueprint(migration_bp)
     app.register_blueprint(account_bp)
+    app.register_blueprint(review_options_bp)
     init_realtime(app)
 
     @app.get("/healthz", provide_automatic_options=False)
@@ -74,6 +76,13 @@ def create_app(test_config: dict | None = None) -> Flask:
         return render_template(
             "error.html", title="Not found", message="That document or version does not exist."
         ), 404
+
+    from .access import AccessDenied
+
+    @app.errorhandler(AccessDenied)
+    def authority_changed(_error):
+        from werkzeug.exceptions import Forbidden
+        return app.handle_http_exception(Forbidden())
 
     @app.errorhandler(413)
     def upload_too_large(_error):

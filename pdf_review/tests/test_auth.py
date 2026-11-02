@@ -117,7 +117,7 @@ class AuthTests(unittest.TestCase):
 
     def test_all_application_routes_have_explicit_policy(self):
         endpoints = {rule.endpoint for rule in self.app.url_map.iter_rules()
-                     if rule.endpoint.startswith(("core.", "carry.", "accounts."))}
+                     if rule.endpoint.startswith(("core.", "carry.", "accounts.", "review_options."))}
         self.assertEqual(endpoints, PROTECTED_ENDPOINTS | ACCOUNT_ENDPOINTS | OWNER_ENDPOINTS | ADMIN_ENDPOINTS)
 
     def test_state_mismatch_and_unsolicited_callback_fail(self):

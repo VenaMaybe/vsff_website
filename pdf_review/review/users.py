@@ -48,6 +48,7 @@ def _serialize_user(row: sqlite3.Row) -> dict[str, Any]:
         "display_name": row["display_name"],
         "is_active": bool(row["is_active"]),
         "created_at": row["created_at"],
+        "review_color": row["review_color"] if 'review_color' in row.keys() else '#c66b54',
     }
 
 

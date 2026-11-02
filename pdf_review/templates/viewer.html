@@ -13,7 +13,7 @@
 </head>
 <body class="viewer-page">
   <header class="viewer-shell-bar app-toolbar">
-    <a href="{{ url_for('core.document_detail', document_id=version.document_id) }}" aria-label="Back to document">&larr;</a>
+    <a href="{{ url_for('core.document_detail', document_id=version.document_id) }}" aria-label="Back to document"><span class="back-arrow" aria-hidden="true">&larr;</span></a>
     <div class="viewer-title">
       <strong>{{ version.document_title }}</strong>
       <span>{{ version.version_label or version.original_filename }}</span>
@@ -64,6 +64,7 @@
     </details>
     <input type="hidden" id="comments-visibility" value="expanded">
     <input type="hidden" id="thread-filter" value="open">
+    <input type="hidden" id="review-scope" value="all">
     <details class="toolbar-menu comments-control" id="comments-menu"><summary>Comments</summary><div class="toolbar-popover" role="menu" aria-label="Comments">
 <button type="button" role="menuitemradio" aria-checked="false" data-menu-input="comments-visibility" data-menu-value="expanded">Expanded</button><button type="button" role="menuitemradio" aria-checked="false" data-menu-input="comments-visibility" data-menu-value="minimized">Minimized</button><button type="button" role="menuitemradio" aria-checked="false" data-menu-input="comments-visibility" data-menu-value="hidden">Hidden</button><button type="button" role="menuitemradio" aria-checked="false" data-menu-input="comments-visibility" data-menu-value="mobile">Mobile</button><hr><button type="button" role="menuitemradio" aria-checked="false" data-menu-input="thread-filter" data-menu-value="open">Open only</button><button type="button" role="menuitemradio" aria-checked="false" data-menu-input="thread-filter" data-menu-value="all">All</button></div></details>
     <details class="toolbar-menu collaboration-menu">
@@ -72,6 +73,14 @@
     </details>
     {% include "_account_menu.html" %}
   </header>
+  {% if document_role == 'owner' %}<section id="section-editor" class="section-editor" aria-label="Define section boundaries" hidden>
+    <a href="{{ url_for('review_options.sections_page',document_id=version.document_id,version=version.version_id) }}">Manage sections</a>
+    <label>Section <select id="section-choice"></select></label>
+    <button id="section-set-start" type="button">Set start</button><button id="section-set-end" type="button">Set end</button>
+    <span id="section-boundary-preview" role="status">Choose a section, then a boundary.</span>
+    <button id="section-save-placement" type="button">Save boundaries</button>
+    <button id="section-outline" type="button">Import PDF outline</button><button id="section-editor-close" type="button">Done</button>
+  </section>{% endif %}
   <main class="viewer-workspace">
     <section class="viewer-frame-wrap">
       <iframe id="pdf-viewer-frame" class="viewer-frame" src="{{ viewer_url }}" title="PDF.js viewer for {{ version.original_filename }}"></iframe>

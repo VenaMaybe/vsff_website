@@ -509,6 +509,47 @@ def comment_ui_checks(cdp, session):
       return [...document.querySelectorAll('.thread-card:not(.active)')].some(c=>c.getAnimations().some(a=>a.playState==='running')) && pdf.container.scrollTop===before;
     })()"""), 'Neighboring comments should animate without scrolling the PDF'
     time.sleep(.2)
+    # Reply controls, compact long threads and Ctrl+Shift+Enter posting.
+    assert cdp.evaluate(session, "document.querySelector('.thread-card.active .thread-reply-form').hidden")
+    cdp.evaluate(session, """(async()=>{
+      const config=JSON.parse(document.querySelector('#anchor-config').textContent);
+      const card=document.querySelector('.thread-card.active');
+      window.compactThread=card.dataset.threadId;
+      const {addReply}=await import('/static/review/thread_api.js');
+      for(let i=0;i<5;i++) await addReply(config.threadCommentsUrlTemplate.replace('__THREAD_ID__',window.compactThread),'Long thread reply '+i);
+    })()""")
+    cdp.wait(session, "document.querySelector('.thread-card.active .thread-controls').textContent.includes('6 comments')")
+    assert cdp.evaluate(session, "document.querySelectorAll('.thread-card.active .thread-comment:not([hidden])').length===3")
+    assert cdp.evaluate(session, "document.querySelector('.thread-card.active .thread-expand-control').previousElementSibling.matches('.thread-comment') && document.querySelector('.thread-card.active .thread-expand-control').nextElementSibling.matches('.thread-comment')")
+    cdp.evaluate(session, "document.querySelector('.thread-card.active .thread-expand-control').click()")
+    assert cdp.evaluate(session, "document.querySelectorAll('.thread-card.active .thread-comment:not([hidden])').length===6")
+    cdp.evaluate(session, "document.querySelector('.thread-card.active .thread-expand-control').click()")
+    cdp.evaluate(session, "document.querySelector('.thread-card.active .reply-control').click()")
+    cdp.wait(session, "!document.querySelector('.thread-card.active .thread-reply-form').hidden")
+    assert cdp.evaluate(session, """(() => {const nodes=[...document.querySelector('.thread-card.active .thread-controls').children];const centers=nodes.map(n=>{const b=n.getBoundingClientRect();return b.top+b.height/2});return Math.max(...centers)-Math.min(...centers)<2;})()""")
+    cdp.evaluate(session, "const input=document.querySelector('.thread-card.active .thread-reply-form textarea');input.value='Reply by Ctrl Shift Enter';input.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',ctrlKey:true,shiftKey:true,bubbles:true,cancelable:true}))")
+    cdp.wait(session, "document.querySelector('.thread-card.active .thread-controls').textContent.includes('7 comments') && document.querySelector('.thread-card.active .thread-reply-form').hidden")
+    assert cdp.evaluate(session, "[...document.querySelectorAll('.thread-card.active .thread-comment:not([hidden])')].some(c=>c.textContent.includes('Reply by Ctrl Shift Enter'))")
+    # Click-away closes selection; clicking its highlight restores it.
+    cdp.evaluate(session, "document.querySelector('iframe').contentDocument.querySelector('.page').click()")
+    cdp.wait(session, "!document.querySelector('.thread-card.active')")
+    cdp.evaluate(session, "[...document.querySelector('iframe').contentDocument.querySelectorAll('.pdf-review-thread-highlight')].find(h=>h.dataset.threadId===window.compactThread).click()")
+    cdp.wait(session, "document.querySelector('.thread-card.active')!==null")
+    cdp.evaluate(session, "document.querySelector('.viewer-title').click()")
+    cdp.wait(session, "!document.querySelector('.thread-card.active')")
+    cdp.evaluate(session, SELECT)
+    cdp.wait(session, "!document.querySelector('#comment-selection-button').hidden")
+    cdp.evaluate(session, "document.querySelector('iframe').contentDocument.body.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true})); const body=document.querySelector('#selection-comment-body');body.value='New comment by Ctrl Shift Enter';body.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',ctrlKey:true,shiftKey:true,bubbles:true,cancelable:true}))")
+    cdp.wait(session, "document.querySelector('#selection-comment-composer').hidden && document.querySelector('.thread-card.active')?.textContent.includes('New comment by Ctrl Shift Enter')")
+    cdp.evaluate(session, "document.querySelector('.thread-card.active .thread-comment .comment-actions button').click();const edit=document.querySelector('.thread-card.active .inline-edit-form textarea');edit.value='Edited by Ctrl Shift Enter';edit.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',ctrlKey:true,shiftKey:true,bubbles:true,cancelable:true}))")
+    cdp.wait(session, "document.querySelector('.thread-card.active')?.textContent.includes('Edited by Ctrl Shift Enter') && !document.querySelector('.inline-edit-form')")
+    # Compare header metrics directly across the layout breakpoint.
+    metrics = """(() => Object.fromEntries(['.viewer-shell-bar > a','#review-view-menu > summary','#comments-menu > summary','.collaboration-menu > summary','.viewer-shell-bar .identity-menu > summary'].map(selector=>{const s=getComputedStyle(document.querySelector(selector));return [selector,[s.fontSize,s.paddingTop,s.paddingRight,s.paddingBottom,s.paddingLeft,s.gap,s.display,s.alignItems,s.minHeight]];})))()"""
+    viewport(cdp, session, 750, 919)
+    desktop = cdp.evaluate(session, metrics)
+    viewport(cdp, session, 749, 899)
+    assert cdp.evaluate(session, metrics) == desktop, 'Header control styles changed below 750px'
+    screenshot(cdp, session, 'refine-header-desktop-styling-695')
     viewport(cdp, session, 390, 844)
     cdp.wait(session, "document.querySelector('#comments-visibility').value==='mobile'")
     assert cdp.evaluate(session, "document.querySelector('.thread-card.active').offsetWidth===280")
@@ -523,7 +564,7 @@ def comment_ui_checks(cdp, session):
         })()""")
     cdp.wait(session, "document.querySelector('.thread-card.active').getBoundingClientRect().top<document.querySelector('iframe').getBoundingClientRect().top")
     screenshot(cdp, session, 'refine-mobile-comment-scrolls-offscreen')
-    for width in [280, 320, 390, 480, 700]:
+    for width in [280, 320, 390, 480, 749]:
         viewport(cdp, session, width, 844)
         assert cdp.evaluate(session, """(() => {
           const nodes=[document.querySelector('.viewer-shell-bar > a'),document.querySelector('.viewer-title'),document.querySelector('#review-view-menu'),document.querySelector('#comments-menu'),document.querySelector('.collaboration-menu'),document.querySelector('.viewer-shell-bar .identity-menu')];
@@ -531,8 +572,9 @@ def comment_ui_checks(cdp, session):
           const center=boxes[0].top+boxes[0].height/2;
           return boxes.every(b=>Math.abs(b.top+b.height/2-center)<2&&b.left>=0&&b.right<=innerWidth) && document.querySelector('.document-controls').getBoundingClientRect().top>=Math.max(...boxes.map(b=>b.bottom));
         })()"""), f'Header wrapped at {width}px'
+        assert cdp.evaluate(session, "Math.abs(document.querySelector('.viewer-shell-bar .identity-menu').getBoundingClientRect().right-(innerWidth-8))<2"), f'Menus not right aligned at {width}px'
         screenshot(cdp, session, f'refine-mobile-single-header-{width}')
     cdp.call('Emulation.setEmulatedMedia', {'features':[{'name':'prefers-reduced-motion','value':'reduce'}]}, session)
     assert cdp.evaluate(session, "getComputedStyle(document.querySelector('.thread-card.active')).animationName==='none'")
     cdp.call('Emulation.setEmulatedMedia', {'features':[]}, session)
-    print('PASS fast comment rearrangement/reduced motion, narrower mobile popup, exact highlight anchoring offscreen and single header row at 280/320/390/480/700px', flush=True)
+    print('PASS header style parity, on-demand replies, three-comment expansion, click-away, Ctrl+Shift+Enter creation/reply/edit, sliding comments and mobile anchoring', flush=True)

@@ -231,7 +231,7 @@ inside the document stage. Cards sit adjacent to the owning page/spread, includi
 at narrow widths and large zoom, using horizontal scrolling when needed. Every
 page and spread uses a right rail; no left-rail selection or width reservation exists. Minimized mode
 reserves only 48px and renders real marker buttons with one active full card
-opening to the right. Mobile mode (automatic at <=700px, also manually selectable)
+opening to the right. Mobile mode (automatic at <750px, also manually selectable)
 opens the active card below its highlight over the PDF. Focused expanded cards
 anchor at highlight Y while neighbors pack upward/downward. Selection and
 insertion preserve the PDF scroll position; Escape closes the active thread or
@@ -253,3 +253,68 @@ Native find controls/listeners remain in the iframe and are arranged/restyled by
 the app-owned integration. Page borders and both row/spread gaps use the vendored
 PDF.js defaults; no app-owned page-spacing override remains.
 See `VIEWER_REFINEMENT_REPORT.md` for the current presentation contract.
+
+## BETA C2: review privacy, preferences, colors and semantic sections
+
+Migration 8 extends migration 7 without modifying historical migrations. It adds
+a fixed 24-color palette, user review colors, document review settings, durable
+personal viewer preferences/hidden authors, logical sections, exact-version
+section placements and semantic section-response conversations. Existing users
+receive deterministic palette colors; an insert trigger assigns a random valid
+palette color to new users. Color never conveys authorization.
+
+`review_policy.py` separates enforced shared/isolated confidentiality from
+personal scope/hidden-author filters. A conversation belongs to its immutable
+top-level author; replies remain coherent. SQL selects permitted conversations
+before content serialization. HTTP policy also protects direct thread/comment,
+anchor and target-history access. Isolated migration history is owner-only,
+including the viewer's migration entry point. Site admin remains independent.
+HTTP thread writes and section writes recheck authority inside their transaction.
+
+Isolated review emits only `review.invalidated {schema_version, version_id}` to
+the exact version room. New section/settings/color changes use that same generic
+invalidation and authorized canonical refetch. No private actor/content/target
+IDs accompany it. Every version emission prunes ineligible/revoked recipients
+and refreshes presentation identity from SQLite. Already delivered bytes cannot
+be retracted; no durable socket replay or session activity history is introduced.
+
+GET preferences is read-only. The viewer's CSRF-protected initialization POST
+freezes document defaults only if preferences do not exist. Later default
+changes do not overwrite personal choices. Reset explicitly reapplies current
+defaults and clears hidden authors. Enforced isolation overrides saved Everyone
+and redacts saved hidden-person IDs from responses to isolated non-owners.
+
+Presence remains ephemeral and aggregates the most recent reported connection
+per stable user, with at most one page or two adjacent spread pages. Spread
+membership is read after PDF.js rebuilds its spread DOM. Initials avoid external
+image requests; multiple users get thin faint outlines and compact avatar stacks.
+
+Sections are flat, ordered document objects with stable identity and an optional
+author prompt. Deletion archives them, preserving prior placements and feedback.
+Placements use canonical PDF page/Y values and view boxes from the owner viewer,
+following the existing owner-supplied geometry boundary. They never persist CSS
+pixels. Finite coordinates, page bounds, range ordering, non-overlap and expected
+placement revision are checked under BEGIN IMMEDIATE. Adjacent ranges/gaps are
+valid. New versions remain unmapped; previous placements are informative only.
+
+Precise boundaries render absolute neutral ticks on the page's left edge.
+Exact page ends use the existing inter-row gap; inside a spread they use only
+a page-edge tick. Neither changes page dimensions or splits a spread. Structural
+markers and accessible author prompts survive Hidden review mode. Section
+feedback uses the existing collision-managed right rail, including on narrow
+screens. No section conversation is persisted as an artificial text anchor.
+
+`section_responses` uniquely targets (section, exact version, top-level author).
+Section comments and revisions retain explicit separate foreign keys while
+`comment_lifecycle.py` shares insertion, immutable revisions, optimistic editing,
+ownership and tombstone logic with ordinary text comments. This preserves the
+non-null immutable-origin constraints on existing text threads.
+
+Outline extraction uses the already-loaded PDF.js document. Owner confirmation
+selects/edits candidates before one atomic creation transaction; no outline is
+silently imported. Flat page-range suggestions are a convenience, with precise
+boundaries available through the visual editor. No font/text chapter detection,
+semantic version matching or section hierarchy is introduced.
+
+Resilient pseudo-offline review remains deferred to a future dedicated slice.
+There is no outbox, IndexedDB, service worker or persistent private PDF cache.

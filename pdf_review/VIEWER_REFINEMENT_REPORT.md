@@ -126,7 +126,7 @@ were already unstaged at the beginning of this pass and have been retained.
     the native horizontal scrollbar reaches the whole workspace. Selecting a
     visible highlight moves comments without scrolling the PDF. Minimized retains
     its 48px reservation and opens the active card to the marker's right. Mobile
-    becomes active at widths up to 700px and puts the active card over the PDF.
+    becomes active at widths below 750px and puts the active card over the PDF.
     Hidden reserves zero width. Management forms wrap; menus clamp to the viewport.
 
 20. **Performance.** Scroll translates cached review positions; full geometry is
@@ -210,7 +210,7 @@ tokens and control/menu primitives rather than introducing one-off visual system
     composer; editable fields retain normal typing. Ctrl/Command+Enter submits
     the composer. Inactive cards use a background close to the workspace; active
     cards keep #f7faf8 and gain a shadow. Mobile is a fourth explicit menu choice
-    and becomes active on entering a viewport at most 700px wide. On leaving that
+    and becomes active on entering a viewport below 750px wide. On leaving that
     breakpoint, the previous desktop mode returns. It retains marker buttons and
     displays the active card/composer over the page just below the highlight,
     kept directly below the highlight even as it scrolls beyond the viewport. The PDF does not scroll to
@@ -226,4 +226,25 @@ tokens and control/menu primitives rather than introducing one-off visual system
     header uses a fixed top grid row for back/document/View/Comments/live/account;
     long document and account labels truncate. PDF controls occupy the next row.
     Focused browser checks cover sliding neighbors, stationary PDF scrolling,
-    offscreen mobile anchoring, reduced motion and 280/320/390/480/700px headers.
+    offscreen mobile anchoring, reduced motion and 280/320/390/480/749px headers.
+
+30. **Compact threads and consistent header controls.** Narrow headers retain
+    the desktop menu font, padding, gap, alignment and control height. The first
+    row stays together; only available label width changes, and PDF controls
+    remain on the second row. Reply opens its textarea on demand. Comment count,
+    Resolve/Reopen and Reply/Post reply share one footer row. Long threads show
+    their root and two latest comments until Show all is chosen; Show less restores
+    that preview. Click-away in either the parent UI or PDF deselects a thread,
+    while clicks on thread controls/highlights preserve it. Ctrl+Shift+Enter posts
+    the active new-comment, reply or edit form. Hidden reply drafts survive closing.
+    Focused browser checks compare header styles at 750px and 749px, exercise
+    expansion/collapse, footer alignment, click-away in both documents, keyboard
+    submission for all three form types, and existing motion/mobile behavior.
+
+31. **750px breakpoint and inline expansion.** Two-row/mobile presentation now
+    applies strictly below 750px. View, Comments, live status and the account
+    control form a right-aligned group with their desktop styling. A collapsed
+    thread's Show all button sits immediately after its root comment, before the
+    two latest replies. Expanded threads retain Show less at the end. Focused
+    browser checks cover both sides of the breakpoint, right alignment down to
+    280px and the expansion button's placement.

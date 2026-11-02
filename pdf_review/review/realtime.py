@@ -15,6 +15,32 @@ def version_room(version_id):
     return f"version:{version_id}"
 
 
+def prune_version(version_id):
+    """Recheck idle recipients before sending new review or presence information."""
+    registry=current_app.extensions['review_presence']
+    socketio=current_app.extensions['socketio']
+    c=connect(current_app.config['DATABASE'])
+    try:
+        with registry.lock:
+            for sid,entry in list(registry.connections.items()):
+                if entry['version_id']!=version_id:
+                    continue
+                user=c.execute('''SELECT u.* FROM users u
+                    JOIN allowed_emails e ON e.normalized_email=u.normalized_email AND e.enabled=1
+                    JOIN document_access a ON a.user_id=u.user_id
+                    JOIN document_versions v ON v.document_id=a.document_id
+                    WHERE u.user_id=? AND u.is_active=1 AND u.email_verified=1
+                    AND u.google_subject IS NOT NULL AND v.version_id=?''',
+                    (entry['user']['user_id'],version_id)).fetchone()
+                if user is None:
+                    registry.connections.pop(sid,None)
+                    socketio.server.leave_room(sid,version_room(version_id),namespace='/')
+                else:
+                    entry['user']=dict(user)
+    finally:
+        c.close()
+
+
 class Presence:
     """One registry per application, serialized together with snapshot emission."""
 
@@ -32,10 +58,13 @@ class Presence:
             record = users.setdefault(user["user_id"], {
                 "user_id": user["user_id"], "display_name": user["display_name"],
                 "connection_count": 0, "page": None,
+                "pages": [], "review_color": user.get('review_color','#c66b54'),
             })
             record["connection_count"] += 1
             if entry["page"] is not None:
                 record["page"] = entry["page"]
+                record['pages'] = entry.get('pages',[entry['page']])
+                record['review_color'] = user.get('review_color','#c66b54')
         return {"schema_version": 1, "version_id": version_id,
                 "reviewers": sorted(users.values(), key=lambda user: (user["display_name"].casefold(), user["user_id"]))}
 
@@ -57,6 +86,7 @@ def init_realtime(app):
 
     def publish(version_id):
         try:
+            prune_version(version_id)
             socketio.emit("review.presence", presence.snapshot(version_id), to=version_room(version_id))
         except Exception:
             app.logger.exception("Ephemeral presence notification failed for version %s", version_id)
@@ -104,6 +134,11 @@ def init_realtime(app):
         number = payload.get("page") if isinstance(payload, dict) else None
         if type(number) is not int or not 1 <= number <= 1_000_000:
             return {"ok": False, "error": "Page must be a positive integer."}
+        pages=payload.get('pages',[number])
+        if (not isinstance(pages,list) or not 1<=len(pages)<=2 or number not in pages or
+            any(type(p) is not int or not 1<=p<=1_000_000 for p in pages) or
+            len(set(pages))!=len(pages) or (len(pages)==2 and abs(pages[0]-pages[1])!=1)):
+            return {'ok':False,'error':'Report one page or one adjacent two-page spread.'}
         with presence.lock:
             entry = presence.connections.get(request.sid)
             if entry is None:
@@ -111,9 +146,9 @@ def init_realtime(app):
             if current_user() is None or document_role(current_user(), resource_document({"version_id": entry["version_id"]})) is None:
                 remove(request.sid)
                 return {"ok": False, "error": "Review access denied."}
-            if entry["page"] != number:
+            if entry["page"] != number or entry.get('pages') != pages:
                 presence.sequence += 1
-                entry.update(page=number, sequence=presence.sequence)
+                entry.update(page=number, pages=pages, sequence=presence.sequence, user=current_user())
                 publish(entry["version_id"])
         return {"ok": True}
 
@@ -146,6 +181,16 @@ def notify_thread_changed(thread, kind, comment_id=None):
                  "thread_id": thread["thread_id"], "comment_id": comment_id}
         for version in versions:
             version_id = version["document_version_id"]
+            prune_version(version_id)
+            from .review_policy import settings
+            c=connect(current_app.config['DATABASE'])
+            try:
+                isolated=settings(c,thread['document_id'])['visibility_policy']=='isolated'
+            finally:
+                c.close()
+            if isolated:
+                notify_version_changed(version_id)
+                continue
             try:
                 current_app.extensions["socketio"].emit(
                     "review.changed", {**event, "version_id": version_id}, to=version_room(version_id)
@@ -160,8 +205,50 @@ def notify_migration_changed(run):
     """Notify migration UI state only after a committed HTTP service operation."""
     for version_id in {run["source_version_id"], run["target_version_id"]}:
         try:
+            prune_version(version_id)
+            from .review_policy import settings
+            c=connect(current_app.config['DATABASE'])
+            try:
+                isolated=settings(c,run['document_id'])['visibility_policy']=='isolated'
+            finally:
+                c.close()
+            if isolated:
+                notify_version_changed(version_id)
+                continue
             current_app.extensions["socketio"].emit("migration.changed", {
                 "schema_version": 1, "migration_id": run["migration_id"], "version_id": version_id,
             }, to=version_room(version_id))
         except Exception:
             current_app.logger.exception("Committed migration notification failed for version %s", version_id)
+
+
+def notify_version_changed(version_id):
+    """Content-free invalidation: no actor, comment, section or thread identifiers."""
+    try:
+        prune_version(version_id)
+        current_app.extensions['socketio'].emit('review.invalidated',
+            {'schema_version':1,'version_id':version_id},to=version_room(version_id))
+    except Exception:
+        current_app.logger.exception('Committed review invalidation failed')
+
+
+def notify_user_presentation_changed(user_id):
+    try:
+        registry=current_app.extensions['review_presence']
+        c=connect(current_app.config['DATABASE'])
+        try:
+            user=dict(c.execute('SELECT * FROM users WHERE user_id=?',(user_id,)).fetchone())
+            versions=[r[0] for r in c.execute('''SELECT DISTINCT v.version_id FROM document_versions v
+                JOIN document_access a USING(document_id) WHERE a.user_id=?''',(user_id,))]
+        finally:
+            c.close()
+        with registry.lock:
+            for entry in registry.connections.values():
+                if entry['user']['user_id']==user_id:
+                    entry['user']=user
+            for version_id in versions:
+                notify_version_changed(version_id)
+                prune_version(version_id)
+                current_app.extensions['socketio'].emit('review.presence',registry.snapshot(version_id),to=version_room(version_id))
+    except Exception:
+        current_app.logger.exception('Committed presentation invalidation failed')

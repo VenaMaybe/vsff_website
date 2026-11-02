@@ -324,14 +324,15 @@ class AccountTests(unittest.TestCase):
         doc = create_document(legacy, 'Legacy fixture', owner_id=user)
         c = connect(legacy)
         tables = [r[0] for r in c.execute("SELECT name FROM sqlite_master WHERE type = 'table' AND name != 'schema_migrations'")]
-        before = {table: [tuple(r) for r in c.execute(f'SELECT * FROM {table} ORDER BY 1')] for table in tables}
+        columns = {table: ','.join(r['name'] for r in c.execute(f'PRAGMA table_info({table})')) for table in tables}
+        before = {table: [tuple(r) for r in c.execute(f'SELECT {columns[table]} FROM {table} ORDER BY 1')] for table in tables}
         c.close()
         init_database(legacy)
         init_database(legacy)
         c = connect(legacy)
         try:
             for table in tables:
-                self.assertEqual([tuple(r) for r in c.execute(f'SELECT * FROM {table} ORDER BY 1')], before[table])
+                self.assertEqual([tuple(r) for r in c.execute(f'SELECT {columns[table]} FROM {table} ORDER BY 1')], before[table])
             self.assertEqual(c.execute('PRAGMA foreign_key_check').fetchall(), [])
             self.assertEqual(c.execute('SELECT count(*) FROM site_admins').fetchone()[0], 0)
             self.assertEqual(c.execute('SELECT count(*) FROM access_audit_log').fetchone()[0], 0)

@@ -26,9 +26,14 @@ PROTECTED_ENDPOINTS = {
     "carry.new_migration", "carry.migration_item", "carry.decide_item", "carry.finish_migration",
     "carry.thread_target_history",
 }
-ACCOUNT_ENDPOINTS = {'accounts.account', 'accounts.profile'}
+ACCOUNT_ENDPOINTS = {'accounts.account', 'accounts.profile', 'review_options.color'}
 OWNER_ENDPOINTS = {'accounts.access_page', 'accounts.access_mutation', 'accounts.shareable'}
 ADMIN_ENDPOINTS = {'accounts.admin', 'accounts.beta_email', 'accounts.site_admin'}
+REVIEW_OWNER_ENDPOINTS = {'review_options.settings_page','review_options.settings_save',
+    'review_options.sections_page','review_options.create_section','review_options.section_update',
+    'review_options.placement','review_options.outline'}
+PROTECTED_ENDPOINTS.update(REVIEW_OWNER_ENDPOINTS | {'review_options.viewer_preferences',
+    'review_options.context','review_options.response_create','review_options.response_reply','review_options.response_comment'})
 
 
 class IdentityDenied(ValueError):
@@ -92,6 +97,9 @@ def resource_document(arguments):
         "comment_id": "SELECT t.document_id FROM comments c JOIN threads t ON t.thread_id = c.thread_id WHERE c.comment_id = ?",
         "anchor_id": "SELECT v.document_id FROM anchor_instances a JOIN document_versions v ON v.version_id = a.document_version_id WHERE a.anchor_id = ?",
         "migration_id": "SELECT document_id FROM migration_runs WHERE migration_id = ?",
+        "section_id": "SELECT document_id FROM sections WHERE section_id = ?",
+        "response_id": "SELECT s.document_id FROM section_responses r JOIN sections s USING(section_id) WHERE response_id=?",
+        "section_comment_id": "SELECT s.document_id FROM section_comments c JOIN section_responses r USING(response_id) JOIN sections s USING(section_id) WHERE c.comment_id=?",
     }
     connection = connect(current_app.config["DATABASE"])
     try:
@@ -279,8 +287,34 @@ def init_auth(app):
             if role is None:
                 abort(404)
             g.document_role = role
+            if request.endpoint in REVIEW_OWNER_ENDPOINTS and role != 'owner':
+                abort(403)
+            from .review_policy import thread_permitted, settings
+            connection = connect(app.config['DATABASE'])
+            try:
+                if 'section_id' in arguments and 'version_id' in arguments:
+                    section_document=connection.execute('SELECT document_id FROM sections WHERE section_id=?',(arguments['section_id'],)).fetchone()
+                    if not section_document or section_document[0]!=document_id:
+                        abort(404)
+                if (request.endpoint=='core.view_version' and request.args.get('migration') and role!='owner'
+                        and settings(connection,document_id)['visibility_policy']=='isolated'):
+                    abort(404)
+                thread_id = arguments.get('thread_id')
+                if 'comment_id' in arguments:
+                    row = connection.execute('SELECT thread_id FROM comments WHERE comment_id=?', (arguments['comment_id'],)).fetchone()
+                    thread_id = row[0] if row else None
+                if 'anchor_id' in arguments:
+                    for row in connection.execute('SELECT thread_id FROM thread_targets WHERE anchor_id=?', (arguments['anchor_id'],)):
+                        if not thread_permitted(connection,row[0],g.auth_user['user_id']):
+                            abort(404)
+                if thread_id and not thread_permitted(connection,thread_id,g.auth_user['user_id']):
+                    abort(404)
+                if request.blueprint == 'carry' and role != 'owner' and settings(connection,document_id)['visibility_policy']=='isolated':
+                    abort(404)
+            finally:
+                connection.close()
             if request.method in UNSAFE:
-                if role == "viewer":
+                if role == "viewer" and request.endpoint != 'review_options.viewer_preferences':
                     abort(403)
                 if (request.blueprint == "carry" or request.endpoint in {"core.new_version", "core.verify_version"}) and role != "owner":
                     abort(403)

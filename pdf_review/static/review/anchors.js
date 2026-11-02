@@ -20,6 +20,9 @@ import {
   fetchThreads,
 } from "./thread_api.js";
 import { renderThreadSidebar } from "./thread_sidebar.js";
+import { jsonRequest } from './thread_api.js';
+import { SectionViewer } from './section_viewer.js';
+import { ViewerPreferences } from './viewer_preferences.js';
 
 const config = JSON.parse(document.getElementById("anchor-config").textContent);
 const frame = document.getElementById("pdf-viewer-frame");
@@ -39,11 +42,13 @@ let realtime = null;
 let migrationUI = null;
 let retryTimer = null;
 let rail = null;
+let sectionViewer = null;
+let viewerPreferences = null;
 let selectionDismissed = false;
-const presence = new ReviewPresence(config.versionId, document.getElementById("review-presence"));
+const presence = new ReviewPresence(config.versionId, document.getElementById("review-presence"),config.currentUserId);
 const threadRefresh = new RefreshCoordinator(
-  () => fetchThreads(config.threadsUrl),
-  (threads) => { state.setThreads(threads); refreshAll(); migrationUI?.refresh.request(); },
+  async () => {const [threads,context]=await Promise.all([fetchThreads(config.threadsUrl),jsonRequest(config.contextUrl)]);return {threads,context};},
+  ({threads,context}) => { state.setThreads(threads); sectionViewer?.update(context);viewerPreferences?.update(context);refreshAll(); migrationUI?.refresh.request(); },
   () => {
     realtime?.syncFailed();
     window.clearTimeout(retryTimer);
@@ -132,6 +137,7 @@ const sidebarActions = {
     refreshOverlay();
   },
   reply: async (thread, body) => {
+    if(thread.section)return sectionViewer.reply(thread,body);
     return await mutateThread(
       () => addReply(threadCommentsUrl(thread.thread_id), body),
       thread.thread_id,
@@ -139,14 +145,16 @@ const sidebarActions = {
     );
   },
   edit: async (comment, body) => {
+    if(comment.section)return sectionViewer.edit(comment,body);
     return await mutateThread(
       () => editComment(commentUrl(comment.comment_id), body, comment.current_revision),
       comment.thread_id,
       "Comment updated."
     );
   },
-  currentComment: (commentId) => state.threads.flatMap((thread) => thread.comments).find((comment) => comment.comment_id === commentId),
+  currentComment: (commentId) => [...state.threads,...state.sectionThreads].flatMap((thread) => thread.comments).find((comment) => comment.comment_id === commentId),
   remove: async (comment) => {
+    if(comment.section)return sectionViewer.remove(comment);
     await mutateThread(
       () => deleteComment(commentUrl(comment.comment_id)),
       comment.thread_id,
@@ -391,12 +399,29 @@ async function initialize() {
   state.currentReviewer = reviewerData.current_reviewer;
   overlay = new AnchorOverlay(frame.contentWindow, viewerApplication);
   installViewerControls(frame, application);
+  sectionViewer=new SectionViewer(frame,application,config,state,()=>threadRefresh.request(),setReviewStatus);
+  viewerPreferences=new ViewerPreferences(config,application,()=>threadRefresh.request(),setReviewStatus);
+  await viewerPreferences.initialize();
   rail = new CommentRail(frame, application, state, composer, positionSelectionButton);
+  await threadRefresh.request();
   new MutationObserver(() => rail.schedule()).observe(composer.container, { attributes: true, attributeFilter: ["hidden"] });
   new ResizeObserver(() => rail.schedule()).observe(composer.container);
   frame.contentDocument.addEventListener("selectionchange", rememberSelection);
   for (const doc of [document, frame.contentDocument]) {
+    doc.addEventListener("click", (event) => {
+      if (state.selectedThreadId && !event.target.closest?.(".pdf-review-thread-highlight, .thread-card, .thread-marker, #comment-selection-button, .selection-comment-composer")) {
+        sidebarActions.deselect();
+      }
+    });
     doc.addEventListener("keydown", (event) => {
+      if (event.ctrlKey && event.shiftKey && event.key === "Enter" && !event.defaultPrevented) {
+        const form = event.target.closest?.(".thread-reply-form, .inline-edit-form");
+        if (form && event.target.matches("textarea")) {
+          event.preventDefault();
+          if (form.dataset.busy !== "true" && !form.querySelector('button[type="submit"]:disabled')) form.requestSubmit();
+          return;
+        }
+      }
       if (event.key === "Escape") {
         selectionDismissed = true;
         commentButton.hidden = true;
@@ -427,8 +452,8 @@ async function initialize() {
   realtime = new ReviewRealtime(config.versionId, threadRefresh, presence, document.getElementById("realtime-status"), (event) => {
     if (event.migration_id === migrationUI?.run?.migration_id) migrationUI.refresh.request();
   });
-  presence.watch(viewerApplication, (page) => {
-    if (realtime.joined) realtime.socket.emit("review.page", { page });
+  presence.watch(viewerApplication, (page,pages) => {
+    if (realtime.joined) realtime.socket.emit("review.page", { page,pages });
   });
   setAnchorStatus("Select PDF text to create a test anchor.");
   setReviewStatus(
