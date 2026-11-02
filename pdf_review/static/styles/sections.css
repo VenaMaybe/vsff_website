@@ -6,5 +6,10 @@
 .section-editing .page { cursor:crosshair; }
 .section-editing .textLayer { pointer-events:none; }
 .section-draft-marker { left:0; right:0; height:0; border-top:1px dashed #606862; font:9px system-ui; background:transparent; }
+.section-management-line { height:0; border-top:1px dashed #6d8277; background:transparent; transform-origin:0 0; pointer-events:none; z-index:8; }
+.section-management-line[data-selected=true] { border-top:1px solid #315e47; z-index:9; }
+.section-management-label { position:absolute; left:6px; top:-13px; padding:0 3px; max-width:220px; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; font:10px/12px system-ui; background:#f1f5f1ed; color:#4b6254; }
+.section-management-line[data-selected=true] .section-management-label { color:#244c35; background:#e4eee7f5; }
+.section-management-line[data-kind=start] .section-management-label { top:2px; }
 .review-page-presence { position:absolute; inset:var(--presence-inset,1px); pointer-events:none; z-index:6; border:1px solid color-mix(in srgb,var(--presence-color) 22%,transparent); }
 .review-presence-avatar { position:absolute; bottom:3px; right:var(--avatar-right,4px); height:17px; min-width:17px; border-radius:50%; padding:1px; background:var(--presence-color); color:#fff; font:9px/17px system-ui; text-align:center; }

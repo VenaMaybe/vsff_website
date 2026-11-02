@@ -14,7 +14,8 @@
   <details class="subtle"><summary>Technical account ID</summary><code class="full-hash">{{ auth_user.user_id }}</code></details>
   <form method="post" action="{{ url_for('review_options.color') }}" class="review-palette">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <fieldset><legend>Review color</legend>{% for color in palette %}<label class="review-swatch" style="--review-color:{{ color }}"><input type="radio" name="review_color" value="{{ color }}" aria-label="Review color {{ loop.index }} ({{ color }})" {{ 'checked' if auth_user.review_color==color }} required><span aria-hidden="true"></span></label>{% endfor %}</fieldset>
+    {% set color_names = ['Blue','Orange','Red','Teal','Green','Yellow','Purple','Pink','Brown','Gray'] %}
+    <fieldset><legend>Review color</legend>{% for color in palette %}<label class="review-swatch" title="{{ color_names[loop.index0] }}" style="--review-color:{{ color }}"><input type="radio" name="review_color" value="{{ color }}" aria-label="{{ color_names[loop.index0] }} ({{ color }})" {{ 'checked' if auth_user.review_color==color }} required><span aria-hidden="true"></span></label>{% endfor %}</fieldset>
     <button type="submit">Save review color</button>
   </form>
 </section>

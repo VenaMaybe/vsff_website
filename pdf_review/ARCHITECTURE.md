@@ -318,3 +318,32 @@ semantic version matching or section hierarchy is introduced.
 
 Resilient pseudo-offline review remains deferred to a future dedicated slice.
 There is no outbox, IndexedDB, service worker or persistent private PDF cache.
+
+## Management interaction rule
+
+Short-lived configuration uses an application dialog. Sections uses a compact,
+non-modal inspector fixed to the left of the PDF, outside its scroll container.
+Desktop/tablet layouts reserve space for it; narrow layouts overlay the panel.
+Account, Admin, authentication, document lists and general document pages remain
+normal pages. `dialogs.js` supplies the native dialog/focus/busy/confirmation shell
+for Settings, outline import and confirmations.
+
+Review settings returns a shared form fragment and saves asynchronously through
+the existing owner service. Sections returns owner-scoped workspace data, edited
+through existing section APIs. `sections_panel.js` manages panel visibility and
+focus; opening it asks `section_viewer.js` to draw labeled start/end lines for all
+mapped sections, emphasizing the selected section. The overlays follow PDF page
+coordinates and disappear when the panel closes. Normal structure markers remain.
+Boundary mode keeps the panel open and returns to the same selected section.
+Document-page entry navigates to the current authorized PDF with the panel open.
+No standalone management-page UI is maintained. Schema and authorization remain
+unchanged.
+
+## Review palette refresh (migration 9)
+
+The selectable palette is now the ten published Tableau 10 categorical colors,
+in their original order: https://d3js.org/d3-scale-chromatic/categorical#schemeTableau10.
+Migration 9 inserts these entries, maps existing review colors to an approximate
+corresponding hue, then removes the old choices without breaking user foreign keys.
+Names/hover labels identify the swatches. Historical migrations are unchanged;
+new-user random assignment uses the new palette through the existing trigger.

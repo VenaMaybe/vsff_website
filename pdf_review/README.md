@@ -4,12 +4,17 @@
 
 This local version adds owner-controlled **Shared / Isolated** review, personal
 **Everyone / Mine / People** filters, persistent document-specific viewer choices,
-a 24-color Account palette, page/spread presence, logical sections and exact-version
+a ten-color Tableau 10 Account palette, page/spread presence, logical sections and exact-version
 section feedback. See [BETA_C2_REPORT.md](BETA_C2_REPORT.md) for the audit and checks.
 
 - Owners open **Review settings** from the document page to set privacy and
   first-open spread/comment/scope defaults. Existing personal choices survive
   later default changes. **Reset to document defaults** is in Comments.
+- Review Settings opens a dialog. Manage Sections opens a compact, non-modal
+  settings panel fixed to the left of the PDF, with its own scrolling controls.
+  Opening it shows all mapped section start/end lines; selection emphasizes a range.
+  Boundary editing keeps the panel available; Done saves pending placement and
+  Cancel discards unsaved previews. From the document page, Sections enters the PDF.
 - Isolated non-owners receive only their own top-level conversations and replies
   within them. Owners can inspect all review and apply convenience filters.
   Personal filtering hides whole conversations by top-level author, preserving
@@ -17,9 +22,12 @@ section feedback. See [BETA_C2_REPORT.md](BETA_C2_REPORT.md) for the audit and c
 - **Account â†’ Review color** selects a fixed palette entry. Highlight and section
   response accents follow the top-level author. Initials supply presence avatars;
   the application makes no external avatar requests.
+  Colors use [Tableau 10](https://d3js.org/d3-scale-chromatic/categorical#schemeTableau10),
+  replacing the original 24 similar muted shades. Migration 9 maps existing choices
+  to a corresponding hue when the app starts; historical review identities stay intact.
 - Owners use **Manage sections** to add, rename, reorder, prompt or archive sections.
-  Select a version and follow **Define boundaries / Import from PDF outline**.
-  In the viewer, **View â†’ Edit sections** opens the deliberate edit mode. Choose
+  Select a version and choose **Edit boundaries in document** or **Import outline**.
+  In the viewer, **View â†’ Manage sections** opens the workspace; Edit boundaries enters the PDF edit mode. Choose
   Set start / Set end, click the PDF, inspect preview markers, then Save boundaries.
   A click near a page edge chooses a page boundary; an interior click chooses a
   precise canonical Y. Normal text commenting resumes after capture/Done.
@@ -31,7 +39,7 @@ section feedback. See [BETA_C2_REPORT.md](BETA_C2_REPORT.md) for the audit and c
   placement summaries; the owner confirms new placements. Outline import previews
   names/start pages and a selectable flat subset; nothing is created until confirmed.
 
-Startup applies migration **8**. Back up real SQLite with the existing online
+Startup applies migration **9** (Tableau 10 palette refresh). Back up real SQLite with the existing online
 backup helper before a later approved deployment. No runtime data is migrated
 by this development task. Existing immutable PDFs and migrations 1â€“7 are unchanged.
 
@@ -42,6 +50,7 @@ Local synthetic verification:
 .\.venv\Scripts\python.exe tests/browser_sanity.py
 .\.venv\Scripts\python.exe tests/browser_sanity.py --beta-c2
 .\.venv\Scripts\python.exe tests/browser_sanity.py --comment-ui
+.\.venv\Scripts\python.exe tests/browser_sanity.py --management-ui
 .\.venv\Scripts\python.exe -m pip check
 ```
 
@@ -499,7 +508,7 @@ tests/
 
 ## Deferred work
 
-Email delivery, PostgreSQL, automatic projection/migration, fuzzy matching, Version Tracker coupling, manuscript snapshots, and PDF annotation writing/export remain deferred. Realtime runs in a single process with no broker, persistent event log, or presence history. Standalone diagnostic anchor operations remain non-realtime. Schema is now numbered migration 8. Vendored PDF.js remains unchanged.
+Email delivery, PostgreSQL, automatic projection/migration, fuzzy matching, Version Tracker coupling, manuscript snapshots, and PDF annotation writing/export remain deferred. Realtime runs in a single process with no broker, persistent event log, or presence history. Standalone diagnostic anchor operations remain non-realtime. Schema is now numbered migration 9. Vendored PDF.js remains unchanged.
 
 See `ARCHITECTURE.md` for invariants future slices must preserve.
 

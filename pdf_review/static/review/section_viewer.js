@@ -1,4 +1,5 @@
 import { jsonRequest } from './thread_api.js';
+import { AppDialog } from './dialogs.js';
 
 function node(tag,text,className='') { const e=document.createElement(tag); if(text!==undefined)e.textContent=text; e.className=className; return e; }
 
@@ -40,10 +41,24 @@ export class SectionViewer {
       const select=document.getElementById('section-choice'),current=select.value;
       select.replaceChildren(...data.sections.map(s=>{const o=node('option',s.name); o.value=s.section_id; return o;}));
       if(data.sections.some(s=>s.section_id===current)) select.value=current;
+      if (!this.managementStarted) {
+        const query=new URLSearchParams(location.search),mode=query.get('management');
+        if(mode || query.get('sections')==='edit') {
+          this.managementStarted=true;
+          const returned=sectionId=>{if(window.parent!==window)window.parent.postMessage({type:'pdf-review:management-return',sectionId},location.origin);};
+          if(mode==='outline') this.previewOutline().catch(error=>this.status(error.message,'error')).finally(returned);
+          else this.beginEditing(query.get('section')||select.value,returned);
+        }
+      }
     }
     this.schedule();
   }
   schedule() { if(this.scheduled)return; this.scheduled=true; requestAnimationFrame(()=>{this.scheduled=false;this.render();}); }
+  setManagementVisible(visible, selectedId = null) {
+    this.managementVisible = visible;
+    this.managementSectionId = selectedId;
+    this.schedule();
+  }
   render() {
     const doc=this.frame.contentDocument,pdf=this.application.pdfViewer;
     doc.querySelectorAll('.section-structure-marker').forEach(e=>e.remove());
@@ -66,6 +81,32 @@ export class SectionViewer {
       }
       view.div.append(marker);
     }
+    if (this.managementVisible) for (const section of this.sections.filter(s => s.placement)) {
+      for (const kind of ['start', 'end']) {
+        const placement = section.placement;
+        const view = pdf.getPageView(placement[`${kind}_page`] - 1);
+        if (!view?.viewport) continue;
+        const box = placement[`${kind}_view_box`];
+        const y = placement[`${kind}_y`] ?? (kind === 'start' ? box[3] : box[1]);
+        const [x1,y1] = view.viewport.convertToViewportPoint(box[0], y);
+        const [x2,y2] = view.viewport.convertToViewportPoint(box[2], y);
+        const scaleX = view.div.clientWidth / view.viewport.width;
+        const scaleY = view.div.clientHeight / view.viewport.height;
+        const dx = (x2-x1)*scaleX, dy = (y2-y1)*scaleY;
+        const line = doc.createElement('span');
+        line.className = 'section-structure-marker section-management-line';
+        line.dataset.sectionId = section.section_id;
+        line.dataset.kind = kind;
+        line.dataset.selected = String(section.section_id === this.managementSectionId);
+        line.style.left = `${x1*scaleX}px`; line.style.top = `${y1*scaleY}px`;
+        line.style.width = `${Math.hypot(dx,dy)}px`;
+        line.style.transform = `rotate(${Math.atan2(dy,dx)}rad)`;
+        const label = doc.createElement('span'); label.className = 'section-management-label';
+        label.textContent = `${kind === 'start' ? 'Start' : 'End'} · ${section.name}`;
+        line.title = label.textContent; line.setAttribute('aria-label', label.textContent);
+        line.append(label); view.div.append(line);
+      }
+    }
     if(this.draft && this.editor && !this.editor.hidden)for(const kind of ['start','end']) {
       const page=this.draft[`${kind}_page`],view=page && pdf.getPageView(page-1);if(!view?.viewport)continue;
       const box=this.draft[`${kind}_view_box`],y=this.draft[`${kind}_y`];
@@ -86,13 +127,21 @@ export class SectionViewer {
   edit(comment,body) { return this.action(()=>jsonRequest(`/api/section-comments/${comment.comment_id}`,{method:'PATCH',body:JSON.stringify({body,expected_revision:comment.current_revision})})); }
   remove(comment) { return this.action(()=>jsonRequest(`/api/section-comments/${comment.comment_id}`,{method:'DELETE'})); }
   installEditor() {
-    document.getElementById('section-editor-close').onclick=()=>{this.editor.hidden=true;this.target=null;this.draft=null;this.schedule();this.frame.contentDocument.documentElement.classList.remove('section-editing');};
+    document.getElementById('section-editor-close').onclick=async()=>{
+      if(this.saving)return;
+      if(this.draft && await this.savePlacement()!==true)return;
+      this.finishEditing();
+    };
+    document.getElementById('section-editor-cancel').onclick=()=>{if(!this.saving)this.finishEditing();};
+    for(const doc of [document,this.frame.contentDocument])doc.addEventListener('keydown',event=>{
+      if(event.key==='Escape'&&!this.editor.hidden&&!document.querySelector('dialog[open]')){event.preventDefault();this.finishEditing();}
+    });
     for(const kind of ['start','end']) document.getElementById(`section-set-${kind}`).onclick=()=>{
       this.target=kind; this.frame.contentDocument.documentElement.classList.add('section-editing');
       this.status(`Click the ${kind} location on a PDF page. Click near its edge for an exact page boundary.`);
       document.getElementById('section-boundary-preview').textContent=`Click PDF to set ${kind}`;
     };
-    document.getElementById('section-choice').onchange=()=>{this.draft=null; document.getElementById('section-boundary-preview').textContent='Choose Set start or Set end.';};
+    document.getElementById('section-choice').onchange=()=>{this.draft=null;this.target=null;this.frame.contentDocument.documentElement.classList.remove('section-editing');this.updateEditTitle();this.schedule();document.getElementById('section-boundary-preview').textContent='Choose Set start or Set end.';};
     this.frame.contentDocument.addEventListener('click',event=>{
       if(!this.target || this.editor.hidden)return;
       const page=event.target.closest('.page'); if(!page)return;
@@ -108,7 +157,29 @@ export class SectionViewer {
       this.target=null;this.frame.contentDocument.documentElement.classList.remove('section-editing');
       this.schedule();
     },true);
-    document.getElementById('section-save-placement').onclick=()=>this.action(async()=>{
+    document.getElementById('section-save-placement').onclick=()=>this.savePlacement();
+  }
+  beginEditing(sectionId,onReturn) {
+    this.onEditorReturn=onReturn;this.draft=null;this.target=null;
+    document.getElementById('section-choice').value=sectionId;
+    this.editor.hidden=false;this.updateEditTitle();
+    document.getElementById('section-boundary-preview').textContent='Choose Set start or Set end, then click the PDF.';
+    document.getElementById('section-set-start').focus();
+  }
+  updateEditTitle() {
+    const selected=this.sections.find(s=>s.section_id===document.getElementById('section-choice').value);
+    document.getElementById('section-edit-title').textContent=`Editing: ${selected?.name||'section'}`;
+  }
+  finishEditing() {
+    if(this.saving)return;
+    this.editor.hidden=true;this.target=null;this.draft=null;this.schedule();
+    this.frame.contentDocument.documentElement.classList.remove('section-editing');
+    const returned=this.onEditorReturn;this.onEditorReturn=null;returned?.(document.getElementById('section-choice').value);
+  }
+  async savePlacement() {
+    this.saving=true;
+    this.editor.querySelectorAll('button,select').forEach(e=>{e.disabled=true;});
+    const result=await this.action(async()=>{
       if(!this.draft?.start_page || !this.draft?.end_page)throw new Error('Set both start and end before saving.');
       const section=this.sections.find(s=>s.section_id===document.getElementById('section-choice').value);
       const {revision,...placement}=this.draft;
@@ -117,13 +188,14 @@ export class SectionViewer {
       await jsonRequest(`/api/versions/${this.config.versionId}/sections/${section.section_id}/placement`,{method:'POST',body:JSON.stringify(placement)});
       this.draft=null;document.getElementById('section-boundary-preview').textContent='Boundaries saved.';
     });
-    document.getElementById('section-outline').onclick=()=>this.previewOutline().catch(error=>this.status(error.message,'error'));
-    if(new URLSearchParams(location.search).get('sections')==='edit')this.editor.hidden=false;
+    this.saving=false;this.editor.querySelectorAll('button,select').forEach(e=>{e.disabled=false;});
+    return result;
   }
   async previewOutline() {
     const outline=await this.application.pdfDocument.getOutline();
     if(!outline?.length) {this.status('This PDF has no outline. Define sections manually.');return;}
-    const dialog=node('dialog',undefined,'outline-dialog'),form=node('form'),list=node('div');
+    const shell=new AppDialog('Import PDF outline',{size:'medium'}),dialog=shell.element,form=node('form'),list=node('div');
+    const closed=new Promise(resolve=>{shell.onClose=resolve;});
     const candidates=[];
     const walk=async(items,depth=0)=>{
       for(const item of items) {
@@ -131,6 +203,7 @@ export class SectionViewer {
         if(dest?.length) {
           const page=Number.isInteger(dest[0])?dest[0]+1:await this.application.pdfDocument.getPageIndex(dest[0])+1;
           const row=node('label',undefined,'outline-candidate'),check=node('input'),name=node('input'),position=node('input');
+          row.style.paddingLeft=`${Math.min(depth,6)*12}px`;
           check.type='checkbox';check.checked=depth===0;check.setAttribute('aria-label',`Include ${item.title}`);
           name.value=item.title;name.maxLength=200;name.setAttribute('aria-label','Section name');
           position.type='number';position.min=1;position.max=this.application.pdfDocument.numPages;position.value=page;position.setAttribute('aria-label','Start page');
@@ -142,11 +215,10 @@ export class SectionViewer {
     await walk(outline);
     const message=node('p','Choose outline items and edit their names/start pages. Selected starts define adjacent ranges; the final section ends at the PDF end. Nothing is created until confirmation.');
     const error=node('p',''),submit=node('button','Create selected sections'),cancel=node('button','Cancel');
-    submit.type='submit';cancel.type='button';cancel.onclick=()=>dialog.close();
-    form.append(node('h2','Import PDF outline'),message,list,error,submit,cancel);dialog.append(form);document.body.append(dialog);
-    dialog.addEventListener('close',()=>dialog.remove());dialog.showModal();
+    submit.type='submit';cancel.type='button';cancel.onclick=()=>shell.close();
+    form.append(message,list,error,submit,cancel);shell.body.append(form);shell.open();
     form.onsubmit=async event=>{
-      event.preventDefault();submit.disabled=true;
+      event.preventDefault();shell.setBusy(true);
       try {
         const selected=candidates.filter(c=>c.check.checked).sort((a,b)=>Number(a.position.value)-Number(b.position.value));
         const payload=[];
@@ -157,8 +229,9 @@ export class SectionViewer {
             start_view_box:startPage.view,end_view_box:endPage.view,page_count:this.application.pdfDocument.numPages,expected_revision:0}});
         }
         await jsonRequest(`/api/versions/${this.config.versionId}/sections/outline`,{method:'POST',body:JSON.stringify({candidates:payload})});
-        await this.refresh();dialog.close();
-      } catch(e){error.textContent=e.message;} finally {submit.disabled=false;}
+        await this.refresh();shell.setBusy(false);shell.close();
+      } catch(e){error.textContent=e.message;} finally {shell.setBusy(false);}
     };
+    return closed;
   }
 }

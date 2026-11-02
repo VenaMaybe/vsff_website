@@ -204,6 +204,23 @@ def run():
                     cdp.call("Page.navigate", {"url": base + f"/versions/{fixture['versions'][0]}/view"}, session)
                     cdp.wait(session, "document.querySelector('#realtime-status')?.textContent === 'Live'")
                 a, b = sessions
+                if '--palette-ui' in sys.argv:
+                    from tests.viewer_acceptance import viewport,screenshot
+                    viewport(cdp,a,1440,900)
+                    cdp.call('Page.navigate',{'url':base+'/account'},a)
+                    cdp.wait(a,"document.querySelectorAll('.review-swatch').length===10")
+                    assert cdp.evaluate(a,"document.querySelectorAll('[name=review_color]:checked').length===1")
+                    screenshot(cdp,a,'palette-tableau10-account')
+                    cdp.evaluate(a,"document.querySelector('[name=review_color][value=\"#e15759\"]').checked=true;document.querySelector('.review-palette').requestSubmit()")
+                    cdp.wait(a,"document.readyState==='complete' && document.querySelector('[name=review_color]:checked')?.value==='#e15759'")
+                    assert not cdp.exceptions,cdp.exceptions
+                    print('PASS Tableau 10 account palette, selected state and color save',flush=True)
+                    return
+                if '--management-ui' in sys.argv:
+                    from tests.management_acceptance import run_management
+                    run_management(cdp,a,fixture,base)
+                    assert not cdp.exceptions,cdp.exceptions
+                    return
                 if '--beta-c2' in sys.argv:
                     from tests.beta_c2_acceptance import run_c2
                     run_c2(cdp,a,b,fixture,base)

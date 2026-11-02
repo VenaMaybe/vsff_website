@@ -60,7 +60,7 @@ def settings_save(document_id):
     preferences.save_defaults(database_path(),document_id,actor(),values)
     for v in list_versions(database_path(),document_id):
         notify_version_changed(v['version_id'])
-    return redirect(url_for('review_options.settings_page',document_id=document_id),303)
+    return jsonify(ok=True,settings=preferences.read_preferences(database_path(),document_id,actor())['defaults'])
 
 
 @bp.route('/api/documents/<document_id>/viewer-preferences',methods=['GET','POST','DELETE'])
@@ -103,8 +103,8 @@ def sections_page(document_id):
     version_id=request.args.get('version') or (versions[0]['version_id'] if versions else None)
     if version_id and not any(v['version_id']==version_id for v in versions):
         abort(404)
-    return render_template('sections.html',document=get_document(database_path(),document_id),versions=versions,
-        version_id=version_id,sections=sections.list_sections(database_path(),document_id,version_id))
+    return jsonify(document_id=document_id, versions=[{k:v[k] for k in ('version_id','version_label','original_filename')} for v in versions],
+        version_id=version_id, sections=sections.list_sections(database_path(),document_id,version_id))
 
 
 @bp.post('/api/documents/<document_id>/sections')

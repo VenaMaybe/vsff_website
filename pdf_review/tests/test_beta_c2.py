@@ -125,7 +125,7 @@ class BetaC2Tests(unittest.TestCase):
         self.assertEqual([u['user_id'] for u in self.context(1)['people']],[self.users[1]])
 
     def test_color_valid_stable_duplicate_allowed_and_invalid_rejected(self):
-        palette=preferences.palette(self.db);self.assertEqual(len(palette),24)
+        palette=preferences.palette(self.db);self.assertEqual(len(palette),10)
         for user in self.users:
             from review.users import get_user
             self.assertIn(get_user(self.db,user)['review_color'],palette)
@@ -304,6 +304,35 @@ class BetaC2Tests(unittest.TestCase):
         data=self.context(1)
         self.assertEqual(data['preferences']['hidden_reviewers'],[])
         self.assertNotIn(self.users[2],json.dumps(data))
+
+    def test_tableau_palette_upgrade_preserves_users_and_replaces_all_old_choices(self):
+        legacy=self.root/'legacy8.sqlite3';c=connect(legacy)
+        c.execute('CREATE TABLE schema_migrations(version INTEGER PRIMARY KEY,name TEXT UNIQUE,applied_at TEXT)')
+        for version,name,sql in MIGRATIONS[:8]:
+            c.executescript(sql);c.execute('INSERT INTO schema_migrations VALUES(?,?,?)',(version,name,'fixture'));c.commit()
+        old_colors=[r[0] for r in c.execute('SELECT color FROM review_palette')];c.close()
+        for index,color in enumerate(old_colors):
+            user=create_user(legacy,f'Palette fixture {index}')['user_id']
+            with transaction(legacy) as c:c.execute('UPDATE users SET review_color=? WHERE user_id=?',(color,user))
+        c=connect(legacy)
+        columns=','.join(r['name'] for r in c.execute('PRAGMA table_info(users)') if r['name']!='review_color')
+        before=[tuple(r) for r in c.execute(f'SELECT {columns} FROM users ORDER BY user_id')];c.close()
+        init_database(legacy)
+        expected=['#4e79a7','#f28e2c','#e15759','#76b7b2','#59a14f','#edc949','#af7aa1','#ff9da7','#9c755f','#bab0ab']
+        self.assertEqual(preferences.palette(legacy),expected)
+        c=connect(legacy)
+        try:
+            self.assertEqual([tuple(r) for r in c.execute(f'SELECT {columns} FROM users ORDER BY user_id')],before)
+            after=[tuple(r) for r in c.execute('SELECT user_id,review_color FROM users ORDER BY user_id')]
+            self.assertTrue(all(color in expected for _,color in after))
+            self.assertEqual(c.execute('PRAGMA foreign_key_check').fetchall(),[])
+            self.assertEqual(c.execute('PRAGMA quick_check').fetchone()[0],'ok')
+            with self.assertRaises(sqlite3.IntegrityError):c.execute('UPDATE users SET review_color=?',(old_colors[0],))
+        finally:c.close()
+        init_database(legacy);c=connect(legacy)
+        try:self.assertEqual([tuple(r) for r in c.execute('SELECT user_id,review_color FROM users ORDER BY user_id')],after)
+        finally:c.close()
+        self.assertIn(create_user(legacy,'New palette user')['review_color'],expected)
 
     def test_mutation_rechecks_policy_inside_transaction(self):
         from unittest.mock import patch

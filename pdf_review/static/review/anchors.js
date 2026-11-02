@@ -23,6 +23,7 @@ import { renderThreadSidebar } from "./thread_sidebar.js";
 import { jsonRequest } from './thread_api.js';
 import { SectionViewer } from './section_viewer.js';
 import { ViewerPreferences } from './viewer_preferences.js';
+import { registerManagement } from './management.js';
 
 const config = JSON.parse(document.getElementById("anchor-config").textContent);
 const frame = document.getElementById("pdf-viewer-frame");
@@ -400,6 +401,7 @@ async function initialize() {
   overlay = new AnchorOverlay(frame.contentWindow, viewerApplication);
   installViewerControls(frame, application);
   sectionViewer=new SectionViewer(frame,application,config,state,()=>threadRefresh.request(),setReviewStatus);
+  registerManagement({config,sectionViewer,refresh:()=>threadRefresh.request()});
   viewerPreferences=new ViewerPreferences(config,application,()=>threadRefresh.request(),setReviewStatus);
   await viewerPreferences.initialize();
   rail = new CommentRail(frame, application, state, composer, positionSelectionButton);

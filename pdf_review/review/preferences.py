@@ -100,7 +100,7 @@ def people(database,document_id,user_id,version_id=None):
 def palette(database):
     c=connect(database)
     try:
-        return [r[0] for r in c.execute('SELECT color FROM review_palette ORDER BY color')]
+        return [r[0] for r in c.execute('SELECT color FROM review_palette ORDER BY rowid')]
     finally:
         c.close()
 

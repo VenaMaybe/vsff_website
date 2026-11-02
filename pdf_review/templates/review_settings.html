@@ -1,8 +1,4 @@
-{% extends "base.html" %}
-{% block title %}Review settings · PDF Review{% endblock %}
-{% block content %}
-<div class="page-heading"><h1>Review settings</h1><a href="{{ url_for('core.document_detail',document_id=document.document_id) }}">{{ document.title }}</a></div>
-<section class="panel compact-panel"><form method="post" class="settings-form">
+<form method="post" class="settings-form" action="{{ url_for('review_options.settings_save',document_id=document.document_id) }}">
 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 <h2>Review privacy</h2>
 <label>Policy <select name="visibility_policy">{% for value,label in [('shared','Shared'),('isolated','Isolated')] %}<option value="{{ value }}" {{ 'selected' if settings.visibility_policy==value }}>{{ label }}</option>{% endfor %}</select></label>
@@ -10,6 +6,5 @@
 <h2>First-open viewer defaults</h2><p class="subtle">Established personal preferences are retained when defaults change.</p>
 {% for name,label,choices in [('default_scope','Review scope',[('all','Everyone'),('mine','Mine')]),('default_spread','Spreads',[(0,'No spreads'),(1,'Odd spreads'),(2,'Even spreads')]),('default_display','Comments',[('expanded','Expanded'),('minimized','Minimized'),('hidden','Hidden')])] %}
 <label>{{ label }} <select name="{{ name }}">{% for value,title in choices %}<option value="{{ value }}" {{ 'selected' if settings[name]==value }}>{{ title }}</option>{% endfor %}</select></label>
-{% endfor %}<button type="submit">Save settings</button>
-</form></section>
-{% endblock %}
+{% endfor %}<p class="dialog-error" role="alert"></p><div class="dialog-actions"><button type="button" data-dialog-cancel>Cancel</button><button type="submit">Save</button></div>
+</form>

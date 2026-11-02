@@ -1,5 +1,8 @@
 # BETA C2 — local development
 
+Management interactions are refined in [C2_UI_REFINEMENT_REPORT.md](C2_UI_REFINEMENT_REPORT.md).
+That follow-up replaces standalone settings/sections UI with dialogs and viewer handoffs.
+
 ## Pre-edit architecture audit (November 2, 2026)
 
 The existing ARCHITECTURE.md, README.md and beta/viewer reports define the

@@ -17,9 +17,9 @@ export class ViewerPreferences {
     for(const [id,key] of [['review-scope','scope'],['review-spread','spread'],['comments-visibility','display']])document.getElementById(id).addEventListener('change',()=>{
       if(!this.applying){const value=document.getElementById(id).value;this.save({[key]:key==='spread'?Number(value):value});}
     });
-    if(config.isOwner){const view=document.querySelector('#review-view-menu > .toolbar-popover');const edit=element('button','Edit sections');edit.type='button';edit.onclick=()=>{document.getElementById('section-editor').hidden=false;};
-      const settings=element('a','Review settings');settings.href=`/documents/${config.documentId}/review-settings`;
-      const sections=element('a','Manage sections');sections.href=`/documents/${config.documentId}/sections?version=${config.versionId}`;view.append(element('hr'),edit,settings,sections);}
+    if(config.isOwner){const view=document.querySelector('#review-view-menu > .toolbar-popover');
+      const settings=element('button','Review settings');settings.type='button';settings.dataset.reviewSettings=config.documentId;
+      const sections=element('button','Manage sections');sections.type='button';sections.dataset.sections=config.documentId;view.append(element('hr'),settings,sections);}
   }
   async initialize(){const {preferences}=await jsonRequest(this.config.preferencesUrl,{method:'POST',body:'{}'});this.apply(preferences);}
   apply(preferences){this.applying=true;for(const [id,key] of [['review-scope','effective_scope'],['review-spread','spread'],['comments-visibility','display']]){const input=document.getElementById(id);input.value=preferences[key];input.dispatchEvent(new Event('change'));}this.application.pdfViewer.spreadMode=preferences.spread;this.applying=false;syncMenuValues();}

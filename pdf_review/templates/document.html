@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}{{ document.title }} · PDF Review{% endblock %}
 {% block content %}
-{% if document_role == 'owner' %}<nav class="page-actions"><a href="{{ url_for('review_options.settings_page',document_id=document.document_id) }}">Review settings</a> · <a href="{{ url_for('review_options.sections_page',document_id=document.document_id) }}">Manage sections</a></nav>{% endif %}
+{% if document_role == 'owner' %}<nav class="page-actions"><button type="button" data-review-settings="{{ document.document_id }}">Review settings</button> <button type="button" data-sections="{{ document.document_id }}">Manage sections</button></nav>{% endif %}
 <nav class="breadcrumbs"><a href="{{ url_for('core.dashboard') }}">Documents</a> / {{ document.title }}</nav>
 <div class="page-heading">
   <div>

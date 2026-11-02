@@ -10,6 +10,7 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='styles/comments.css') }}">
   <script src="{{ url_for('static', filename='review/viewer_bootstrap.js') }}"></script>
   <script type="module" src="{{ url_for('static', filename='review/menus.js') }}"></script>
+  <link rel="stylesheet" href="{{ url_for('static',filename='styles/dialogs.css') }}">
 </head>
 <body class="viewer-page">
   <header class="viewer-shell-bar app-toolbar">
@@ -74,12 +75,12 @@
     {% include "_account_menu.html" %}
   </header>
   {% if document_role == 'owner' %}<section id="section-editor" class="section-editor" aria-label="Define section boundaries" hidden>
-    <a href="{{ url_for('review_options.sections_page',document_id=version.document_id,version=version.version_id) }}">Manage sections</a>
+    <strong id="section-edit-title">Editing section</strong>
     <label>Section <select id="section-choice"></select></label>
     <button id="section-set-start" type="button">Set start</button><button id="section-set-end" type="button">Set end</button>
     <span id="section-boundary-preview" role="status">Choose a section, then a boundary.</span>
     <button id="section-save-placement" type="button">Save boundaries</button>
-    <button id="section-outline" type="button">Import PDF outline</button><button id="section-editor-close" type="button">Done</button>
+    <button id="section-editor-cancel" type="button">Cancel</button><button id="section-editor-close" type="button">Done</button>
   </section>{% endif %}
   <main class="viewer-workspace">
     <section class="viewer-frame-wrap">

@@ -32,12 +32,12 @@ def run_c2(cdp,a,b,fixture,base):
     assert cdp.evaluate(b,"document.querySelector('#review-spread').value==='1' && document.querySelector('#comments-visibility').value==='minimized'")
     change(cdp,b,'#review-spread',0);change(cdp,b,'#comments-visibility','expanded')
     cdp.evaluate(b,PDF+'.currentScale=.75')
-    # Owner management UI creates stable logical sections before any placement.
-    navigate(cdp,a,base+f'/documents/{doc}/sections')
-    cdp.wait(a,"document.querySelector('#section-add')!==null")
-    cdp.evaluate(a,"document.querySelector('#section-add [name=name]').value='Precise section';document.querySelector('#section-add [name=prompt]').value='Did this decision feel believable?';document.querySelector('#section-add').requestSubmit()")
-    cdp.wait(a,"document.querySelector('.section-edit [name=name]')?.value==='Precise section'")
+    # CRUD/workspace interaction is covered by --management-ui; seed geometry here.
+    request(cdp,a,f'/api/documents/{doc}/sections','POST',{'name':'Precise section','prompt':'Did this decision feel believable?'})
+    cdp.evaluate(a,"document.querySelector('[data-sections]').click()")
+    cdp.wait(a,"document.querySelector('.sections-workspace')!==null")
     screenshot(cdp,a,'c2-sections-management')
+    cdp.evaluate(a,"document.querySelector('.sections-panel .dialog-header button').click()")
     context=request(cdp,b,f'/api/versions/{version}/review-context')['data'];sid=context['sections'][0]['section_id']
     assert context['sections'][0]['placement'] is None
     navigate(cdp,a,base+f'/versions/{version}/view?sections=edit',True)
@@ -143,7 +143,9 @@ def run_c2(cdp,a,b,fixture,base):
     # A second tab for the same person still paints one aggregate spread.
     assert cdp.evaluate(a,"[...document.querySelector('iframe').contentDocument.querySelectorAll('.review-page-presence')].every(e=>e.textContent.trim().length>0)")
     # Owner policy change while both browsers are connected removes forbidden content.
-    navigate(cdp,a,base+f'/documents/{doc}/review-settings')
+    navigate(cdp,a,base+f'/documents/{doc}')
+    cdp.wait(a,"document.querySelector('[data-review-settings]')!==null")
+    cdp.evaluate(a,"document.querySelector('[data-review-settings]').click()")
     cdp.wait(a,"document.querySelector('[name=visibility_policy]')!==null")
     screenshot(cdp,a,'c2-owner-settings')
     cdp.evaluate(a,"document.querySelector('[name=visibility_policy]').value='isolated';document.querySelector('.settings-form').requestSubmit()")
@@ -151,28 +153,35 @@ def run_c2(cdp,a,b,fixture,base):
     assert request(cdp,b,f'/api/versions/{version}/threads')['data']['threads']==[]
     screenshot(cdp,b,'c2-isolated-review')
     # Palette UI and immediate presentation refresh.
-    navigate(cdp,a,base+'/account');cdp.wait(a,"document.querySelectorAll('.review-swatch').length===24")
+    navigate(cdp,a,base+'/account');cdp.wait(a,"document.querySelectorAll('.review-swatch').length===10")
     screenshot(cdp,a,'c2-review-palette')
     cdp.evaluate(a,"document.querySelectorAll('[name=review_color]')[5].checked=true;document.querySelector('.review-palette').requestSubmit()")
-    cdp.wait(a,"document.querySelectorAll('.review-swatch').length===24")
+    cdp.wait(a,"document.querySelectorAll('.review-swatch').length===10")
     # New version starts unmapped; outline preview makes no silent writes.
     navigate(cdp,a,base+f'/versions/{other}/view?sections=edit',True)
     assert all(s['placement'] is None for s in request(cdp,a,f'/api/versions/{other}/review-context')['data']['sections'])
-    cdp.evaluate(a,"document.querySelector('#section-outline').click()")
+    cdp.evaluate(a,"document.querySelector('#section-editor-cancel').click();document.querySelector('[data-sections]').click()")
+    cdp.wait(a,"document.querySelector('.sections-workspace')!==null")
+    cdp.evaluate(a,"[...document.querySelectorAll('.sections-panel button, dialog button')].find(b=>b.textContent==='Import outline?').click()")
     cdp.wait(a,"document.querySelectorAll('.outline-candidate').length===3")
     assert cdp.evaluate(a,"[...document.querySelectorAll('.outline-candidate input[type=checkbox]')].filter(i=>i.checked).length===2")
     screenshot(cdp,a,'c2-outline-preview')
-    cdp.evaluate(a,"const rows=document.querySelectorAll('.outline-candidate');rows[0].querySelectorAll('input')[1].value='Edited outline section';document.querySelector('.outline-dialog form').requestSubmit()")
-    cdp.wait(a,"document.querySelector('.outline-dialog')===null")
+    cdp.evaluate(a,"const rows=document.querySelectorAll('.outline-candidate');rows[0].querySelectorAll('input')[1].value='Edited outline section';document.querySelector('dialog[open] form').requestSubmit()")
+    cdp.wait(a,"document.querySelector('.sections-workspace')!==null")
+    cdp.evaluate(a,"document.querySelector('.sections-panel .dialog-header button').click()")
     assert len([s for s in request(cdp,a,f'/api/versions/{other}/review-context')['data']['sections'] if s['placement']])==2
     # Responsive review and structure at every requested viewport.
     for width,height in [(1440,900),(1280,800),(1024,768),(768,1024),(390,844)]:
         viewport(cdp,a,width,height);time.sleep(.25);screenshot(cdp,a,f'c2-responsive-{width}')
         for mode in ['expanded','minimized','hidden']:
             change(cdp,a,'#comments-visibility',mode);time.sleep(.2);screenshot(cdp,a,f'c2-{mode}-{width}')
-        for route,name,selector in [(f'/documents/{doc}/review-settings','settings','[name=visibility_policy]'),
-                (f'/documents/{doc}/sections','sections','#section-manager'),('/account','palette','.review-palette')]:
-            navigate(cdp,a,base+route);cdp.wait(a,f'document.querySelector({json.dumps(selector)})!==null')
+        for control,name,selector in [('data-review-settings','settings','[name=visibility_policy]'),
+                ('data-sections','sections','.sections-workspace'),(None,'palette','.review-palette')]:
+            navigate(cdp,a,base+(f'/documents/{doc}' if control else '/account'))
+            if control:
+                cdp.wait(a,f'document.querySelector("[{control}]")!==null')
+                cdp.evaluate(a,f'document.querySelector("[{control}]").click()')
+            cdp.wait(a,f'document.querySelector({json.dumps(selector)})!==null')
             assert cdp.evaluate(a,'document.documentElement.scrollWidth<=innerWidth+1'),f'{name} overflow at {width}'
             screenshot(cdp,a,f'c2-{name}-{width}')
         navigate(cdp,a,base+f'/versions/{other}/view?sections=edit',True)
