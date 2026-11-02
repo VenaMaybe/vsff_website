@@ -377,6 +377,7 @@ MIGRATIONS = [
 
 MIGRATIONS.append((5, "manual_carry_forward", Path(__file__).with_name("migration5.sql").read_text(encoding="utf-8")))
 MIGRATIONS.append((6, "google_identity_and_document_access", Path(__file__).with_name("migration6.sql").read_text(encoding="utf-8")))
+MIGRATIONS.append((7, "accounts_sharing_and_site_admins", Path(__file__).with_name("migration7.sql").read_text(encoding="utf-8")))
 
 
 def connect(database_path: Path | str) -> sqlite3.Connection:

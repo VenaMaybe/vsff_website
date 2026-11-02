@@ -6,18 +6,63 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{{ version.version_label or version.original_filename }} | PDF Review</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles/viewer.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles/comments.css') }}">
+  <script src="{{ url_for('static', filename='review/viewer_bootstrap.js') }}"></script>
+  <script type="module" src="{{ url_for('static', filename='review/menus.js') }}"></script>
 </head>
 <body class="viewer-page">
-  <header class="viewer-shell-bar">
+  <header class="viewer-shell-bar app-toolbar">
     <a href="{{ url_for('core.document_detail', document_id=version.document_id) }}" aria-label="Back to document">&larr;</a>
     <div class="viewer-title">
       <strong>{{ version.document_title }}</strong>
       <span>{{ version.version_label or version.original_filename }}</span>
     </div>
-    <button id="comment-selection-button" class="comment-selection-button" type="button" disabled>Comment</button>
-    <span>{{ auth_user.display_name }} &middot; {{ auth_user.email }}</span>
-    <form method="post" action="{{ url_for('auth.logout') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button type="submit">Log out</button></form>
-    <code class="viewer-hash" title="{{ version.sha256 }}">{{ version.sha256[:12] }}...</code>
+    <div class="document-controls" role="group" aria-label="PDF viewing controls">
+      <button type="button" data-pdf-control="viewsManagerToggleButton" title="Pages and outline" aria-label="Pages and outline">&#9636;</button>
+      <button type="button" data-pdf-control="viewFindButton" title="Find in PDF (Ctrl+F)" aria-label="Find in PDF"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10" cy="10" r="6"/><path d="m15 15 5 5"/></svg></button>
+      <button type="button" data-pdf-control="previous" aria-label="Previous page">&lsaquo;</button>
+      <input id="review-page-number" type="number" min="1" value="1" aria-label="Page number">
+      <span id="review-page-count" aria-label="Total pages">/ &hellip;</span>
+      <button type="button" data-pdf-control="next" aria-label="Next page">&rsaquo;</button>
+      <button type="button" data-pdf-control="zoomOutButton" aria-label="Zoom out">&minus;</button>
+      <select id="review-scale" aria-label="Zoom">
+        <option value="auto">Auto</option><option value="page-fit">Fit page</option><option value="page-width">Fit width</option>
+        <option value="0.5">50%</option><option value="1">100%</option><option value="1.5">150%</option><option value="2">200%</option>
+        <option id="review-custom-scale" value="custom" hidden>Custom</option>
+      </select>
+      <button type="button" data-pdf-control="zoomInButton" aria-label="Zoom in">+</button>
+    </div>
+    <details class="toolbar-menu" id="review-view-menu">
+      <summary>View</summary>
+      <div class="toolbar-popover" role="menu">
+        <button type="button" data-pdf-control="pageRotateCw">Rotate clockwise</button>
+        <button type="button" data-pdf-control="pageRotateCcw">Rotate counterclockwise</button>
+<hr>
+<input type="hidden" id="review-scroll" value="0">
+<details class="toolbar-menu submenu" id="review-scroll-menu"><summary>Scrolling</summary><div class="toolbar-popover" role="menu" aria-label="Scrolling"><button type="button" role="menuitemradio" aria-checked="false" data-menu-input="review-scroll" data-menu-value="3">Page scrolling</button><button type="button" role="menuitemradio" aria-checked="false" data-menu-input="review-scroll" data-menu-value="0">Vertical scrolling</button><button type="button" role="menuitemradio" aria-checked="false" data-menu-input="review-scroll" data-menu-value="1">Horizontal scrolling</button><button type="button" role="menuitemradio" aria-checked="false" data-menu-input="review-scroll" data-menu-value="2">Wrapped scrolling</button></div></details>
+<input type="hidden" id="review-spread" value="0">
+<details class="toolbar-menu submenu" id="review-spread-menu"><summary>Spreads</summary><div class="toolbar-popover" role="menu" aria-label="Spreads"><button type="button" role="menuitemradio" aria-checked="false" data-menu-input="review-spread" data-menu-value="0">No spreads</button><button type="button" role="menuitemradio" aria-checked="false" data-menu-input="review-spread" data-menu-value="1">Odd spreads</button><button type="button" role="menuitemradio" aria-checked="false" data-menu-input="review-spread" data-menu-value="2">Even spreads</button></div></details>
+<hr>
+        <button type="button" data-pdf-control="cursorSelectTool">Text selection tool</button>
+        <button type="button" data-pdf-control="cursorHandTool">Hand tool</button>
+        <button type="button" data-pdf-control="firstPage">First page</button>
+        <button type="button" data-pdf-control="lastPage">Last page</button>
+        <button type="button" data-pdf-control="presentationMode">Presentation</button>
+        <button type="button" data-pdf-control="printButton">Print</button>
+        <button type="button" data-pdf-control="downloadButton">Download</button>
+        <button type="button" data-pdf-control="documentProperties">Document properties</button>
+      </div>
+    </details>
+    <input type="hidden" id="comments-visibility" value="expanded">
+    <input type="hidden" id="thread-filter" value="open">
+    <details class="toolbar-menu comments-control" id="comments-menu"><summary>Comments</summary><div class="toolbar-popover" role="menu" aria-label="Comments">
+<button type="button" role="menuitemradio" aria-checked="false" data-menu-input="comments-visibility" data-menu-value="expanded">Expanded</button><button type="button" role="menuitemradio" aria-checked="false" data-menu-input="comments-visibility" data-menu-value="minimized">Minimized</button><button type="button" role="menuitemradio" aria-checked="false" data-menu-input="comments-visibility" data-menu-value="hidden">Hidden</button><hr><button type="button" role="menuitemradio" aria-checked="false" data-menu-input="thread-filter" data-menu-value="open">Open only</button><button type="button" role="menuitemradio" aria-checked="false" data-menu-input="thread-filter" data-menu-value="all">All</button></div></details>
+    <details class="toolbar-menu collaboration-menu">
+      <summary title="Collaboration status and participants">&#9679; <span id="presence-count">0</span></summary>
+      <div class="toolbar-popover" role="menu"><p id="realtime-status" role="status">Connecting&hellip;</p><p id="review-presence">Connecting&hellip;</p></div>
+    </details>
+    {% include "_account_menu.html" %}
   </header>
   <main class="viewer-workspace">
     <section class="viewer-frame-wrap">
@@ -25,28 +70,15 @@
     </section>
     <aside class="review-panel" aria-label="Review comments">
       <div class="review-panel-header">
-        <div>
-          <h1>Comments</h1>
-          <p id="review-status" class="review-status" aria-live="polite">Loading review...</p>
-        </div>
-        <label class="thread-filter-label">
-          <span>Show</span>
-          <select id="thread-filter">
-            <option value="open">Open</option>
-            <option value="all">All</option>
-          </select>
-        </label>
-      </div>
-      <div class="review-collaboration">
-        <p id="realtime-status" role="status">Connecting…</p>
-        <p><strong>Viewing now</strong><br><span id="review-presence">Connecting…</span></p>
+        <p id="review-status" class="review-status" role="status" aria-live="polite">Loading review...</p>
+
       </div>
       {% if migration %}
       <section id="migration-panel" class="migration-panel" aria-label="Carry feedback forward">
         <h2>Carry feedback forward</h2>
-        <p>{{ migration.source_label }} → {{ migration.target_label }}</p>
-        <p><a href="{{ url_for('core.view_version', version_id=version.version_id) }}">Leave migration mode</a> · <a href="{{ url_for('carry.migration_page', document_id=version.document_id) }}">Run history</a></p>
-        <p id="migration-status" role="status">Loading migration…</p>
+        <p>{{ migration.source_label }} &rarr; {{ migration.target_label }}</p>
+        <p><a href="{{ url_for('core.view_version', version_id=version.version_id) }}">Leave migration mode</a> &middot; <a href="{{ url_for('carry.migration_page', document_id=version.document_id) }}">Run history</a></p>
+        <p id="migration-status" role="status">Loading migration&hellip;</p>
         <button id="migration-refresh" type="button">Refresh source discussions</button>
         <label>Source discussions <select id="migration-filter"><option value="open">Open</option><option value="all">All</option></select></label>
         <div id="migration-counts"></div>
@@ -63,7 +95,7 @@
         <p class="composer-label">Comment on selection</p>
         <blockquote id="selection-comment-quote"></blockquote>
         <form id="selection-comment-form">
-          <textarea id="selection-comment-body" maxlength="10000" rows="4" placeholder="Add a comment..." required></textarea>
+          <textarea id="selection-comment-body" maxlength="10000" aria-label="Write a comment" rows="3" placeholder="Add a comment..." required></textarea>
           <div class="composer-actions">
             <button id="cancel-selection-comment" class="quiet-control" type="button">Cancel</button>
             <button type="submit">Comment</button>
@@ -71,7 +103,7 @@
         </form>
       </section>
       <div id="thread-list" class="thread-list"></div>
-      <details class="anchor-debug-section">
+      <details class="anchor-debug-section" hidden>
         <summary>Anchor diagnostics</summary>
         <p class="anchor-debug-note">Development tools for testing anchors independently of comments.</p>
         <button id="save-anchor-button" class="save-anchor-button" type="button" disabled>Save test anchor</button>
@@ -80,6 +112,7 @@
       </details>
     </aside>
   </main>
+  <button id="comment-selection-button" class="comment-selection-button" type="button" aria-label="Comment on selection" title="Comment on selection (Ctrl+Alt+M)" aria-keyshortcuts="Control+Alt+M Meta+Alt+M" hidden disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h16v12H9l-5 4z"/><path d="M8 8h8M8 12h5"/></svg><span class="sr-only">Comment</span></button>
   <script id="anchor-config" type="application/json">{{ anchor_config|tojson }}</script>
   <script src="{{ url_for('static', filename='vendor/socket.io/socket.io.min.js') }}"></script>
   <script type="module" src="{{ url_for('static', filename='review/anchors.js') }}"></script>

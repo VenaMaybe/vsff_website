@@ -77,7 +77,14 @@ export class ReviewRealtime {
     });
     this.socket.connect();
   }
-  setStatus(message) { this.status.textContent = message; }
+  setStatus(message) {
+    this.status.textContent = message;
+    const menu = document.querySelector(".collaboration-menu");
+    if (menu) {
+      menu.dataset.connection = message === "Live" ? "live" : "offline";
+      menu.querySelector("summary").title = message;
+    }
+  }
   synced() { if (this.joined) this.setStatus("Live"); }
   syncFailed() { this.setStatus("Sync problem — visible comments retained; retrying"); }
 }

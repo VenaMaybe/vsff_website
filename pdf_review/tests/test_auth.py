@@ -11,7 +11,7 @@ from joserfc import jwt
 from joserfc.jwk import RSAKey
 
 from review import create_app
-from review.auth import PROTECTED_ENDPOINTS, SESSION_KEY, normalize_email, safe_next
+from review.auth import PROTECTED_ENDPOINTS, ACCOUNT_ENDPOINTS, OWNER_ENDPOINTS, ADMIN_ENDPOINTS, SESSION_KEY, normalize_email, safe_next
 from review.database import MIGRATIONS, init_database, transaction
 from review.documents import create_document, import_version
 from review.migrations import carry_item, create_migration
@@ -117,8 +117,8 @@ class AuthTests(unittest.TestCase):
 
     def test_all_application_routes_have_explicit_policy(self):
         endpoints = {rule.endpoint for rule in self.app.url_map.iter_rules()
-                     if rule.endpoint.startswith(("core.", "carry."))}
-        self.assertEqual(endpoints, PROTECTED_ENDPOINTS)
+                     if rule.endpoint.startswith(("core.", "carry.", "accounts."))}
+        self.assertEqual(endpoints, PROTECTED_ENDPOINTS | ACCOUNT_ENDPOINTS | OWNER_ENDPOINTS | ADMIN_ENDPOINTS)
 
     def test_state_mismatch_and_unsolicited_callback_fail(self):
         self.allow()
@@ -173,7 +173,7 @@ class AuthTests(unittest.TestCase):
         row = self.sql("SELECT * FROM users WHERE google_subject = 'google-reader-123'")[0]
         self.assertEqual(row["user_id"], original_id)
         self.assertEqual(row["normalized_email"], "new@example.test")
-        self.assertEqual(row["display_name"], "Updated")
+        self.assertEqual(row["display_name"], "Reader")
         self.assertTrue(row["last_login_at"])
         self.assertEqual(len(self.sql("SELECT * FROM users")), 3)
 
@@ -345,11 +345,12 @@ class AuthTests(unittest.TestCase):
         for args in [["allow-email", " Reader@Example.test "], ["link-google-email", "reader@example.test", self.alpha["user_id"]],
                      ["grant-access", self.document_id, self.alpha["user_id"], "--role", "owner"],
                      ["list-document-access", self.document_id], ["list-allowed-emails"], ["list-identities"],
+                     ["grant-access", self.document_id, self.beta["user_id"], "--role", "owner"],
                      ["disallow-email", "reader@example.test"], ["revoke-access", self.document_id, self.alpha["user_id"]]]:
             result = runner.invoke(args=args)
             self.assertEqual(result.exit_code, 0, result.output)
         self.assertEqual(self.sql("SELECT enabled FROM allowed_emails")[0][0], 0)
-        self.assertEqual(self.sql("SELECT * FROM document_access"), [])
+        self.assertEqual([row['user_id'] for row in self.sql("SELECT * FROM document_access")], [self.beta['user_id']])
 
     def test_configuration_failures_headers_and_public_static_pdf_denial(self):
         for config in [{"SECRET_KEY": None}, {"SESSION_COOKIE_SECURE": False}, {"GOOGLE_CLIENT_ID": None}, {"PREFERRED_URL_SCHEME": "http"}, {"SERVER_NAME": None}]:

@@ -1,0 +1,22 @@
+/* C1 profile, sharing and administration inspectors; shared controls live in base.css. */
+.admin-nav { display: flex; gap: 16px; margin: 12px 0; }
+.access-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.access-person { display: flex; flex: 1 1 200px; min-width: 0; flex-direction: column; gap: 3px; overflow-wrap: anywhere; }
+.access-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: end; min-width: 0; }
+.access-actions label { min-width: 0; }
+.access-actions select { width: 100%; max-width: 100%; }
+.role-badge { align-self: start; background: #edf2ef; border: 1px solid var(--line); border-radius: 2px; color: var(--accent-dark); padding: 2px 5px; font-size: 11px; }
+.admin-entry-actions { flex: 0 1 auto; min-width: 0; }
+.admin-entry-actions details { margin-top: 6px; }
+.confirmation { display: flex; align-items: start; gap: 6px; margin-bottom: 8px; }
+.confirmation input { flex: 0 0 16px; }
+.button.danger { color: var(--danger); }
+@media (max-width: 600px) {
+ .access-actions { width: 100%; }
+ .access-actions label { flex: 1 1 100%; }
+ .access-actions button { flex: 1 1 auto; min-height: 32px; }
+}
+
+.menu-confirmation { width: min(300px, calc(100vw - 16px)); white-space: normal; }
+.menu-confirmation p { margin: 6px; }
+.menu-confirmation .confirmation { padding: 6px; font-size: 12px; }

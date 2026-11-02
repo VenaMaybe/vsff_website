@@ -7,6 +7,10 @@
     <h1>{{ document.title }}</h1>
     <p class="mono subtle">Document ID: {{ document.document_id }}</p>
   </div>
+  <details class="toolbar-menu document-actions"><summary>Document actions</summary><div class="toolbar-popover" role="menu" aria-label="Document actions">
+    {% if document_role == "owner" %}<a role="menuitem" href="{{ url_for('accounts.access_page', document_id=document.document_id) }}">Manage access</a><hr>{% endif %}
+    <a role="menuitem" href="{{ url_for('carry.migration_page', document_id=document.document_id) }}">Carry feedback forward / migration history</a>
+  </div></details>
 </div>
 
 {% if document_role == "owner" %}
@@ -30,14 +34,12 @@
 {% endif %}
 
 <section class="versions">
-  <p><a class="button" href="{{ url_for('carry.migration_page', document_id=document.document_id) }}">Carry feedback forward / migration history</a></p>
   <h2>Versions</h2>
   {% for version in versions %}
     <article class="version-card">
       <div class="version-main">
         <div class="version-title-row">
           <h3>{{ version.version_label or 'Unlabeled version' }}</h3>
-          <a class="button primary" href="{{ url_for('core.view_version', version_id=version.version_id) }}">Open PDF</a>
         </div>
         <dl class="metadata">
           <div><dt>Original file</dt><dd>{{ version.original_filename }}</dd></div>
@@ -53,12 +55,15 @@
           <code class="full-hash">{{ version.sha256 }}</code>
         </details>
       </div>
-      {% if document_role == "owner" %}
-      <form method="post" action="{{ url_for('core.verify_version', version_id=version.version_id) }}">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <button class="button quiet" type="submit">Verify integrity</button>
-      </form>
-      {% endif %}
+      <div class="version-actions">
+        <a class="button primary" href="{{ url_for('core.view_version', version_id=version.version_id) }}">Open PDF</a>
+        {% if document_role == "owner" %}
+        <form method="post" action="{{ url_for('core.verify_version', version_id=version.version_id) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button class="button quiet" type="submit">Verify integrity</button>
+        </form>
+        {% endif %}
+      </div>
     </article>
   {% else %}
     <div class="empty-state">

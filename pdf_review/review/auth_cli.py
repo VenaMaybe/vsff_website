@@ -8,7 +8,7 @@ from flask import current_app
 
 from .auth import IdentityDenied, normalize_email
 from .database import connect, transaction
-from .documents import now_utc
+from . import access
 
 
 def init_auth_cli(app):
@@ -17,7 +17,7 @@ def init_auth_cli(app):
         def safe(*args, **kwargs):
             try:
                 return fn(*args, **kwargs)
-            except (IdentityDenied, sqlite3.IntegrityError) as error:
+            except (IdentityDenied, access.AccessError, sqlite3.IntegrityError) as error:
                 raise click.ClickException(str(error)) from error
         return app.cli.command()(safe)
 
@@ -27,18 +27,14 @@ def init_auth_cli(app):
     def allow_email(email, note):
         """Add or re-enable an exact normalized Google email."""
         email = normalize_email(email)
-        with transaction(current_app.config["DATABASE"]) as connection:
-            connection.execute("""INSERT INTO allowed_emails(normalized_email, created_at, note)
-                VALUES (?, ?, ?) ON CONFLICT(normalized_email) DO UPDATE SET enabled = 1, note = excluded.note""",
-                (email, now_utc(), note))
+        access.set_allowed_email(current_app.config['DATABASE'], email, 'allow', note=note)
         click.echo(f"Enabled {email}")
 
     @command
     @click.argument("email")
     def disallow_email(email):
         """Disable an email, including existing HTTP sessions."""
-        with transaction(current_app.config["DATABASE"]) as connection:
-            connection.execute("UPDATE allowed_emails SET enabled = 0 WHERE normalized_email = ?", (normalize_email(email),))
+        access.set_allowed_email(current_app.config['DATABASE'], email, 'disable')
         click.echo("Email disabled.")
 
     @command
@@ -72,10 +68,7 @@ def init_auth_cli(app):
     @click.option("--role", type=click.Choice(["owner", "reviewer", "viewer"]), required=True)
     def grant_access(document_id, user_id, role):
         """Explicitly grant a document role; also bootstraps the first owner."""
-        with transaction(current_app.config["DATABASE"]) as connection:
-            connection.execute("""INSERT INTO document_access(document_id, user_id, role, created_at)
-                VALUES (?, ?, ?, ?) ON CONFLICT(document_id, user_id) DO UPDATE SET role = excluded.role""",
-                (document_id, user_id, role, now_utc()))
+        access.set_document_access(current_app.config['DATABASE'], document_id, user_id, role)
         click.echo(f"Granted {role} on {document_id} to {user_id}")
 
     @command
@@ -83,8 +76,7 @@ def init_auth_cli(app):
     @click.argument("user_id")
     def revoke_access(document_id, user_id):
         """Revoke document access on the next HTTP request / socket join."""
-        with transaction(current_app.config["DATABASE"]) as connection:
-            connection.execute("DELETE FROM document_access WHERE document_id = ? AND user_id = ?", (document_id, user_id))
+        access.set_document_access(current_app.config['DATABASE'], document_id, user_id, None)
         click.echo("Access revoked.")
 
     @command
@@ -109,3 +101,31 @@ def init_auth_cli(app):
                 click.echo(f"Document {row['document_id']} {row['title']}")
         finally:
             connection.close()
+
+    @command
+    def list_site_admins():
+        """List explicit site administrators by stable local ID."""
+        for user in access.list_site_admins(current_app.config['DATABASE']):
+            click.echo(f"{user['user_id']} {user['display_name']} {user['email']}")
+
+    @command
+    @click.argument('user_id')
+    def grant_site_admin(user_id):
+        """Bootstrap/promote an existing active Google-linked beta user."""
+        access.set_site_admin(current_app.config['DATABASE'], user_id, True)
+        click.echo('Site administrator granted.')
+
+    @command
+    @click.argument('user_id')
+    def revoke_site_admin(user_id):
+        """Revoke site administration, retaining an active successor."""
+        access.set_site_admin(current_app.config['DATABASE'], user_id, False)
+        click.echo('Site administrator revoked.')
+
+    @command
+    @click.argument('email')
+    @click.option('--confirm-established', is_flag=True, help='Acknowledge loss of sign-in for an established account; identity and history are retained.')
+    def remove_email(email, confirm_established):
+        """Delete only an erroneous allowlist entry, never the stable user/history."""
+        access.set_allowed_email(current_app.config['DATABASE'], email, 'remove', confirmed=confirm_established)
+        click.echo('Allowlist entry removed; identity and history retained.')

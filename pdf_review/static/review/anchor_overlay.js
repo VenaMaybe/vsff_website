@@ -50,7 +50,12 @@ export class AnchorOverlay {
   }
 
   scheduleRenderAll() {
-    this.window.requestAnimationFrame(() => this.renderAll());
+    if (this.renderScheduled) return;
+    this.renderScheduled = true;
+    this.window.requestAnimationFrame(() => {
+      this.renderScheduled = false;
+      this.renderAll();
+    });
   }
 
   renderAll() {

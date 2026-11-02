@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}Admin · PDF Review{% endblock %}
+{% block content %}
+<div class="page-heading"><h1>Private beta administration</h1></div>
+<p class="lede">Site administrators control beta membership. Document owners control document sharing. Administration alone does not grant access to PDFs.</p>
+<nav class="admin-nav" aria-label="Administration sections"><a href="#beta-access">Beta access</a><a href="#users">Users</a><a href="#site-admins">Site admins</a></nav>
+<section class="panel" id="beta-access"><h2>Beta access</h2>
+<p>Allow an exact Google email, then ask that person to sign in. This does not send an email or grant any document access.</p>
+<form class="access-actions" method="post" action="{{ url_for('accounts.beta_email') }}">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="allow">
+  <label class="access-person"><span>Google email</span><input name="email" type="email" required maxlength="320"></label>
+  <label class="access-person"><span>Note (optional)</span><input name="note" maxlength="500"></label>
+  <button type="submit">Allow email</button>
+</form>
+{% for entry in emails %}
+<article class="access-row"><div class="access-person"><strong>{{ entry.normalized_email }}</strong><span>{{ 'Enabled' if entry.enabled else 'Disabled' }} · {{ 'Stable identity exists' if entry.has_identity else 'Not yet joined' }}</span><span class="subtle">{{ entry.note or '' }}</span></div>
+<div class="admin-entry-actions">
+<details class="toolbar-menu"><summary>Actions</summary><div class="toolbar-popover" role="menu" aria-label="Beta access actions">
+<form method="post" action="{{ url_for('accounts.beta_email') }}">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="email" value="{{ entry.normalized_email }}"><input type="hidden" name="note" value="{{ entry.note or '' }}">
+  <button class="button quiet" name="action" value="{{ 'disable' if entry.enabled else 'allow' }}">{{ 'Disable' if entry.enabled else 'Re-enable' }}</button>
+</form>
+<hr><details class="toolbar-menu submenu"><summary>Remove mistaken entry</summary><div class="toolbar-popover menu-confirmation" role="group" aria-label="Confirm allowlist removal">
+  <p>Deletes only the allowlist entry. Sign-in and existing sessions stop; stable identity, comments, history and document grants are retained.</p>
+  <form method="post" action="{{ url_for('accounts.beta_email') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="email" value="{{ entry.normalized_email }}">
+    {% if entry.has_account %}<label class="confirmation"><input type="checkbox" name="confirm_established" value="yes" required> I understand this established account will lose beta access; its history is retained.</label>{% endif %}
+    <button class="button quiet danger" name="action" value="remove">Remove allowlist entry</button>
+  </form>
+</div></details></div></details></div></article>
+{% else %}<p>No allowlist entries.</p>{% endfor %}
+</section>
+<section class="panel" id="users"><h2>Users</h2>
+{% for user in users %}
+<article class="access-row"><div class="access-person"><strong>{{ user.display_name }}</strong><span>{{ user.email or 'Legacy account; not linked' }}</span><span class="subtle">{{ 'Active' if user.is_active else 'Inactive' }} · {{ 'Allowed' if user.allowed else 'Not allowed' }} · {{ 'Verified' if user.email_verified else 'Unverified' }}{% if user.is_site_admin %} · Site admin{% endif %}</span><code class="subtle">{{ user.user_id }}</code></div></article>
+{% else %}<p>No users.</p>{% endfor %}
+</section>
+<section class="panel" id="site-admins"><h2>Site admins</h2>
+<p>Only existing active beta identities can become site admins. Keep an active administrator for recovery. Use the offline CLI to bootstrap the first admin.</p>
+{% for admin in admins %}
+<article class="access-row"><div class="access-person"><strong>{{ admin.display_name }}</strong><span>{{ admin.email }}</span></div>
+<form method="post" action="{{ url_for('accounts.site_admin') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="user_id" value="{{ admin.user_id }}"><button class="button quiet danger" name="action" value="revoke">Revoke site admin</button></form></article>
+{% endfor %}
+<form class="access-actions" method="post" action="{{ url_for('accounts.site_admin') }}">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="grant">
+<label class="access-person"><span>Existing active beta user</span><select name="user_id" required><option value="">Choose a person</option>{% for user in users %}{% if user.is_active and user.allowed and user.email_verified and user.has_identity and not user.is_site_admin %}<option value="{{ user.user_id }}">{{ user.display_name }} — {{ user.email }}</option>{% endif %}{% endfor %}</select></label>
+<button type="submit">Grant site admin</button>
+</form></section>
+{% endblock %}

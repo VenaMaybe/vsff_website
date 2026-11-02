@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import sqlite3
 import uuid
+import unicodedata
 from pathlib import Path
 from typing import Any
 
@@ -29,6 +30,8 @@ class UserNotFoundError(UserError):
 def normalize_display_name(value: Any) -> str:
     if not isinstance(value, str):
         raise UserValidationError("Display name must be text.")
+    if any(unicodedata.category(c).startswith('C') for c in value):
+        raise UserValidationError("Display name must not contain control or hidden formatting characters.")
     display_name = value.strip()
     if not display_name:
         raise UserValidationError("Display name is required.")

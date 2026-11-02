@@ -7,8 +7,11 @@ export class SelectionCommentComposer {
     this.payload = null;
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
-      if (!this.payload) return;
+      if (!this.payload || this.busy) return;
       await onSubmit(this.payload, body.value);
+    });
+    body.addEventListener("keydown", (event) => {
+      if ((event.ctrlKey || event.metaKey) && event.key === "Enter") { event.preventDefault(); form.requestSubmit(); }
     });
     cancelButton.addEventListener("click", () => this.close());
   }
@@ -22,12 +25,14 @@ export class SelectionCommentComposer {
   }
 
   close() {
+    if (this.busy) return;
     this.payload = null;
     this.body.value = "";
     this.container.hidden = true;
   }
 
   setBusy(busy) {
+    this.busy = busy;
     for (const control of this.form.elements) {
       control.disabled = busy;
     }

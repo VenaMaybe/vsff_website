@@ -15,6 +15,7 @@ from .realtime import init_realtime
 from .auth import init_auth
 from .auth_cli import init_auth_cli
 from .backup import init_backup_cli
+from .account_routes import bp as account_bp
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -60,6 +61,7 @@ def create_app(test_config: dict | None = None) -> Flask:
     app.extensions["blob_store"] = BlobStore(Path(app.config["STORAGE_ROOT"]))
     app.register_blueprint(bp)
     app.register_blueprint(migration_bp)
+    app.register_blueprint(account_bp)
     init_realtime(app)
 
     @app.get("/healthz", provide_automatic_options=False)

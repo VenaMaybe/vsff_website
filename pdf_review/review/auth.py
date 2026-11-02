@@ -26,6 +26,9 @@ PROTECTED_ENDPOINTS = {
     "carry.new_migration", "carry.migration_item", "carry.decide_item", "carry.finish_migration",
     "carry.thread_target_history",
 }
+ACCOUNT_ENDPOINTS = {'accounts.account', 'accounts.profile'}
+OWNER_ENDPOINTS = {'accounts.access_page', 'accounts.access_mutation', 'accounts.shareable'}
+ADMIN_ENDPOINTS = {'accounts.admin', 'accounts.beta_email', 'accounts.site_admin'}
 
 
 class IdentityDenied(ValueError):
@@ -136,12 +139,11 @@ def resolve_google_identity(claims):
         if user and not user["is_active"]:
             raise IdentityDenied("Inactive account")
         user_id = user["user_id"] if user else str(uuid4())
-        # Legacy names are unique. Do not merge identities by display name.
+        # Existing users retain their chosen presentation name across Google logins.
         name = claims.get("name")
         name = name.strip()[:100] if isinstance(name, str) and name.strip() else email[:100]
-        collision = connection.execute("SELECT user_id FROM users WHERE display_name = ? COLLATE NOCASE AND user_id != ?", (name, user_id)).fetchone()
-        if collision:
-            name = f"{name[:62]} ({user_id})"
+        if user:
+            name = user['display_name']
         if user is None:
             connection.execute("INSERT INTO users(user_id, display_name, created_at) VALUES (?, ?, ?)", (user_id, name, now_utc()))
         connection.execute("""UPDATE users SET google_subject = ?, email = ?, normalized_email = ?,
@@ -253,6 +255,20 @@ def init_auth(app):
         if request.endpoint == "auth.logout":
             check_csrf()
             return
+        if request.endpoint in ACCOUNT_ENDPOINTS | OWNER_ENDPOINTS | ADMIN_ENDPOINTS:
+            from .access import is_site_admin
+            if request.endpoint in ADMIN_ENDPOINTS and not is_site_admin(app.config['DATABASE'], g.auth_user['user_id']):
+                abort(403)
+            if request.endpoint in OWNER_ENDPOINTS:
+                role = document_role(g.auth_user, request.view_args['document_id'])
+                if role is None:
+                    abort(404)
+                if role != 'owner':
+                    abort(403)
+                g.document_role = role
+            if request.method in UNSAFE:
+                check_csrf()
+            return
         # Default deny: a future blueprint must explicitly enter the policy.
         if request.endpoint not in PROTECTED_ENDPOINTS:
             abort(404)
@@ -275,7 +291,10 @@ def init_auth(app):
 
     @app.context_processor
     def auth_context():
+        from .access import is_site_admin
+        user = getattr(g, 'auth_user', None)
         return {"auth_user": getattr(g, "auth_user", None), "csrf_token": csrf_token,
+                "is_site_admin": bool(user and is_site_admin(app.config['DATABASE'], user['user_id'])),
                 "document_role": getattr(g, "document_role", None)}
 
     @app.after_request

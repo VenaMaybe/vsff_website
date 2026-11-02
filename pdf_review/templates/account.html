@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Account · PDF Review{% endblock %}
+{% block content %}
+<div class="page-heading"><h1>Account</h1></div>
+<section class="panel compact-panel">
+  <h2>Your profile</h2>
+  <dl class="metadata"><div><dt>Verified Google email</dt><dd>{{ auth_user.email }}</dd></div><div><dt>Account status</dt><dd>Active private beta account</dd></div></dl>
+  <form class="row-form" method="post" action="{{ url_for('accounts.profile') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label><span>Display name</span><input name="display_name" value="{{ auth_user.display_name }}" maxlength="100" required autocomplete="nickname"></label>
+    <button type="submit">Save display name</button>
+  </form>
+  <p class="subtle">Your display name is for presentation. Your verified email and account identity remain the same.</p>
+  <details class="subtle"><summary>Technical account ID</summary><code class="full-hash">{{ auth_user.user_id }}</code></details>
+</section>
+{% for heading, documents in [('Owned by me', owned), ('Shared with me', shared)] %}
+<section class="panel"><h2>{{ heading }}</h2>
+  <div class="document-grid">
+  {% for document in documents %}
+    <article class="document-card"><h3><a href="{{ url_for('core.document_detail', document_id=document.document_id) }}">{{ document.title }}</a></h3>
+      <p><span class="role-badge">{{ document.role|title }}</span></p>
+      {% if document.role == 'owner' %}<a href="{{ url_for('accounts.access_page', document_id=document.document_id) }}">Manage access</a>{% endif %}
+    </article>
+  {% else %}<p class="subtle">No documents here yet.</p>{% endfor %}
+  </div>
+</section>
+{% endfor %}
+{% endblock %}

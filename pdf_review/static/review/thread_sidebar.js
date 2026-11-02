@@ -170,6 +170,7 @@ function threadCard(thread, selectedThreadId, actions) {
   reply.rows = 2;
   reply.maxLength = 10000;
   reply.placeholder = "Reply...";
+  reply.setAttribute("aria-label", "Reply to thread");
   reply.required = true;
   const replyActions = element("div", "composer-actions");
   const replyButton = element("button", "", "Reply");
@@ -222,22 +223,26 @@ export function renderThreadSidebar(container, threads, selectedThreadId, action
   const start = focused?.selectionStart;
   const end = focused?.selectionEnd;
   container.replaceChildren();
-  if (!threads.length) {
-    container.append(
-      element("p", "thread-list-empty", "No review comments match this view.")
-    );
-    return;
-  }
-  threads.forEach((thread) => container.append(threadCard(thread, selectedThreadId, actions)));
+  threads.forEach((thread) => {
+    const marker = element("button", "thread-marker");
+    marker.type = "button";
+    marker.hidden = true;
+    marker.dataset.threadId = thread.thread_id;
+    marker.setAttribute("aria-label", `Open thread on ${pageLabel(thread)}: ${thread.comments[0]?.author.display_name || "reviewer"}`);
+    marker.title = `${pageLabel(thread)}: ${thread.comments[0]?.body || "Review thread"}`;
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.setAttribute("viewBox", "0 0 24 24");
+    svg.setAttribute("aria-hidden", "true");
+    const path = document.createElementNS(svg.namespaceURI, "path");
+    path.setAttribute("d", "M4 4h16v12H9l-5 4z M8 8h8 M8 12h5");
+    svg.append(path);
+    marker.append(svg);
+    if (thread.comments.length > 1) marker.append(element("span", "", String(thread.comments.length)));
+    marker.addEventListener("click", () => actions.select(thread, true));
+    container.append(marker, threadCard(thread, selectedThreadId, actions));
+  });
   if (focused?.isConnected) {
     focused.focus({ preventScroll: true });
     if (typeof start === "number") focused.setSelectionRange(start, end);
   }
-}
-
-export function scrollThreadIntoView(container, threadId) {
-  const card = Array.from(container.querySelectorAll(".thread-card")).find(
-    (element) => element.dataset.threadId === threadId
-  );
-  card?.scrollIntoView({ block: "nearest" });
 }

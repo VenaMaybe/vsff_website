@@ -43,7 +43,8 @@ def serve(root):
     from review.users import create_user
     import socket
     app = create_app({"DATABASE": str(root / "test.sqlite3"), "STORAGE_ROOT": str(root),
-                      "TESTING": True, "SECRET_KEY": "browser-sanity-only"})
+                      "DATA_DIR": str(root), "TESTING": True, "SECRET_KEY": "browser-sanity-only",
+                      "GOOGLE_CLIENT_ID": "synthetic-browser-client", "GOOGLE_CLIENT_SECRET": "synthetic-browser-secret"})
     doc = create_document(app.config["DATABASE"], "Browser sanity")
     versions = [import_version(app.config["DATABASE"], app.extensions["blob_store"], doc,
                               io.BytesIO(pdf_bytes(str(index))), f"draft{index}.pdf").version_id for index in [3, 4]]
@@ -55,10 +56,28 @@ def serve(root):
         client = app.test_client()
         authenticate(client, user["user_id"])
         cookies.append(client.get_cookie(app.config["SESSION_COOKIE_NAME"]).value)
+    from review import access
+    from flask import redirect, url_for
+    admin = create_user(app.config['DATABASE'], 'BrowserAdmin')
+    client = app.test_client()
+    authenticate(client, admin['user_id'], grant_documents=False)
+    access.set_site_admin(app.config['DATABASE'], admin['user_id'], True)
+    admin_cookie = client.get_cookie(app.config['SESSION_COOKIE_NAME']).value
+    owned = create_document(app.config['DATABASE'], 'C1 owner fixture', owner_id=users[0]['user_id'])
+    shared = create_document(app.config['DATABASE'], 'C1 shared fixture', owner_id=users[1]['user_id'])
+    access.set_document_access(app.config['DATABASE'], shared, users[0]['user_id'], 'viewer')
+    # Offline identity-provider boundary ONLY in this disposable fixture process.
+    # Production has no test routes. Real Authlib validation is covered by test_auth.
+    provider = app.extensions['google_oidc']
+    provider.authorize_redirect = lambda *args, **kwargs: redirect(url_for('auth.google_callback'))
+    provider.authorize_access_token = lambda: {'id_token': 'synthetic-local-only', 'userinfo': {
+        'sub': 'synthetic-browser-newbeta', 'email': 'browser-newbeta@example.test',
+        'email_verified': True, 'name': 'BrowserNewBeta'}}
     with socket.socket() as reservation:
         reservation.bind(("127.0.0.1", 0))
         port = reservation.getsockname()[1]
-    (root / "fixture.json").write_text(json.dumps({"document_id": doc, "versions": versions, "users": users, "cookies": cookies, "port": port}))
+    (root / "fixture.json").write_text(json.dumps({"document_id": doc, "versions": versions, "users": users, "cookies": cookies, "port": port,
+        'admin_cookie': admin_cookie, 'owned': owned, 'shared': shared}))
     app.extensions["socketio"].run(app, host="127.0.0.1", port=port, allow_unsafe_werkzeug=True)
 
 
@@ -181,6 +200,8 @@ def run():
                     cdp.call("Page.navigate", {"url": base + f"/versions/{fixture['versions'][0]}/view"}, session)
                     cdp.wait(session, "document.querySelector('#realtime-status')?.textContent === 'Live'")
                 a, b = sessions
+                from tests.viewer_acceptance import empty_checks, populated_checks, single_thread_checks, shared_page_checks, inspection_sheets
+                empty_checks(cdp, a)
                 verify_websocket_transport(base, fixture)
                 for session in sessions:
                     cdp.wait(session, "document.querySelector('#review-presence').textContent.includes('ReviewerAlpha') && document.querySelector('#review-presence').textContent.includes('ReviewerBeta')")
@@ -199,6 +220,7 @@ def run():
                 })()""")
                 cdp.wait(b, "document.querySelector('.thread-comment-body')?.textContent === 'Browser root'")
                 cdp.wait(b, "document.querySelector('iframe').contentDocument.querySelector('.pdf-review-thread-highlight') !== null")
+                single_thread_checks(cdp, b)
                 cdp.evaluate(b, "document.querySelector('.thread-reply-form textarea').value='Browser reply'; document.querySelector('.thread-reply-form').requestSubmit()")
                 cdp.wait(a, "document.querySelector('#thread-list').textContent.includes('Browser reply')")
                 print("PASS selection creation, remote highlight and reply synchronization", flush=True)
@@ -305,6 +327,10 @@ def run():
                 })()""")
                 assert result
                 migration_checks(cdp, a, b, fixture, base)
+                account_checks(cdp, a, b, fixture, base)
+                shared_page_checks(cdp, a, b, fixture, base)
+                populated_checks(cdp, a, fixture, base)
+                inspection_sheets(cdp, a)
                 assert not cdp.exceptions, cdp.exceptions
                 print("PASS refresh coalescing, stale read suppression; no uncaught browser exceptions", flush=True)
             finally:
@@ -318,6 +344,112 @@ def run():
                 if server:
                     server.terminate()
                     server.wait(timeout=10)
+
+
+def account_checks(cdp, a, b, fixture, base):
+    """C1 actual form workflows; provider is stubbed in the isolated server only."""
+    owned = fixture['owned']
+    manage = f'/documents/{owned}/access'
+    alpha, beta = [user['user_id'] for user in fixture['users']]
+
+    def navigate(session, path, text):
+        cdp.call('Page.navigate', {'url': base + path}, session)
+        cdp.wait(session, f"location.pathname === {json.dumps(path)} && document.readyState === 'complete' && document.body.innerText.includes({json.dumps(text)})")
+
+    def submit(session, selector, fields, button=None):
+        cdp.evaluate(session, """(() => {
+          const f = document.querySelector(%s);
+          for (const [key, value] of Object.entries(%s)) f.querySelector('[name="'+key+'"]').value = value;
+          f.requestSubmit(%s);
+        })()""" % (json.dumps(selector), json.dumps(fields),
+                     'f.querySelector(' + json.dumps(button) + ')' if button else 'undefined'))
+
+    def changed(session):
+        cdp.wait(session, "document.querySelector('.message.success')?.textContent.includes('Change saved')")
+
+    def existing_form(uid):
+        return f'form:has(input[name="user_id"][value="{uid}"])'
+
+    navigate(a, '/account', 'Owned by me')
+    assert cdp.evaluate(a, "document.body.innerText.includes('C1 owner fixture') && document.body.innerText.includes('C1 shared fixture') && document.body.innerText.includes('Viewer')")
+    submit(a, 'form[action="/account/profile"]', {'display_name': 'ReviewerAlpha C1'})
+    changed(a)
+    assert cdp.evaluate(a, "document.querySelector('[name=display_name]').value === 'ReviewerAlpha C1'")
+    print('PASS C1 account, own display name and owned/shared dashboard', flush=True)
+
+    navigate(a, manage, 'Add existing beta user')
+    # Directory exposes joined accounts only; owners have no email-invitation form.
+    assert cdp.evaluate(a, "!document.querySelector('input[name=email]') && document.body.innerText.includes('Document owners cannot invite')")
+    invalid = cdp.evaluate(a, """(async () => {
+      const r = await fetch(location.pathname, {method:'POST', headers:{'X-CSRF-Token':document.querySelector('meta[name=csrf-token]').content},
+        body:new URLSearchParams({action:'grant', user_id:'unknown@example.test', role:'owner'})});
+      return r.status;
+    })()""")
+    assert invalid == 422
+    submit(a, 'form:has(select[name="user_id"])', {'user_id': beta, 'role': 'reviewer'})
+    changed(a)
+    navigate(b, f'/documents/{owned}', 'C1 owner fixture')
+    assert cdp.evaluate(b, "!document.body.innerText.includes('Manage access')")
+    navigate(a, manage, 'Add existing beta user')
+    submit(a, existing_form(beta), {'role': 'owner'}, 'button[value="grant"]')
+    changed(a)
+    navigate(b, manage, 'Add existing beta user')
+    # The promoted owner can revoke the original owner, then becomes the last owner.
+    submit(b, existing_form(alpha), {}, 'button[value="revoke"]')
+    changed(b)
+    navigate(a, '/account', 'Owned by me')
+    assert cdp.evaluate(a, "!document.body.innerText.includes('C1 owner fixture')")
+    assert cdp.evaluate(a, f"(async () => (await fetch('/documents/{owned}')).status)()") == 404
+    submit(b, existing_form(beta), {}, 'button[value="revoke"]')
+    cdp.wait(b, "document.body.innerText.includes('A document must retain at least one owner')")
+    navigate(b, manage, 'Add existing beta user')
+    submit(b, existing_form(beta), {'role': 'viewer'}, 'button[value="grant"]')
+    cdp.wait(b, "document.body.innerText.includes('A document must retain at least one owner')")
+    print('PASS C1 reviewer grant, promotion, new owner controls, revocation and final-owner safety', flush=True)
+
+    # Normal owners cannot administer global invitations, even by crafted request.
+    navigate(b, manage, 'Add existing beta user')
+    result = cdp.evaluate(b, """(async () => {
+      const token = document.querySelector('meta[name=csrf-token]').content;
+      return [ (await fetch('/admin')).status,
+        (await fetch('/admin/beta-access', {method:'POST', headers:{'X-CSRF-Token':token},
+          body:new URLSearchParams({action:'allow',email:'owner-cannot-invite@example.test'})})).status ];
+    })()""")
+    assert result == [403, 403]
+
+    cdp.call('Network.setCookie', {'name': 'pdf_review_session', 'value': fixture['admin_cookie'], 'url': base, 'httpOnly': True, 'sameSite': 'Lax'}, a)
+    navigate(a, '/admin', 'Private beta administration')
+    assert cdp.evaluate(a, f"(async () => (await fetch('/versions/{fixture['versions'][0]}/pdf', {{headers:{{Range:'bytes=0-3'}}}})).status)()") == 404
+    email = 'browser-newbeta@example.test'
+    submit(a, '#beta-access > form', {'email': email, 'note': 'Synthetic browser invitation'})
+    changed(a)
+    assert cdp.evaluate(a, f"document.body.innerText.includes({json.dumps(email)})")
+    users = cdp.evaluate(b, f"(async () => (await (await fetch('/api/documents/{owned}/shareable-users')).json()).users)()")
+    assert not any(user['email'] == email for user in users)
+    # Follow the normal Google route against the disposable offline provider boundary.
+    cdp.call('Page.navigate', {'url': base + '/auth/google?next=/account'}, a)
+    cdp.wait(a, "location.pathname === '/account' && document.body.innerText.includes('BrowserNewBeta')")
+    assert cdp.evaluate(a, "!document.querySelector('a[href=\"/admin\"]')")
+    navigate(b, manage, 'BrowserNewBeta')
+    users = cdp.evaluate(b, f"(async () => (await (await fetch('/api/documents/{owned}/shareable-users')).json()).users)()")
+    new_user = next(user['user_id'] for user in users if user['email'] == email)
+    submit(b, 'form:has(select[name="user_id"])', {'user_id': new_user, 'role': 'reviewer'})
+    changed(b)
+    navigate(a, '/account', 'C1 owner fixture')
+    assert cdp.evaluate(a, "document.body.innerText.includes('Reviewer')")
+    print('PASS C1 admin invitation, offline first login, new shareable identity; admin/PDF and owner/invitation separation', flush=True)
+
+    # Layout checks at iPad and phone widths for every new surface.
+    for width, height in [(1024, 768), (768, 1024), (390, 844)]:
+        cdp.call('Emulation.setDeviceMetricsOverride', {'width': width, 'height': height, 'deviceScaleFactor': 1, 'mobile': False}, b)
+        for path, text in [('/account', 'Owned by me'), (manage, 'Add existing beta user')]:
+            navigate(b, path, text)
+            assert cdp.evaluate(b, 'document.documentElement.scrollWidth <= innerWidth'), (path, width)
+        cdp.call('Network.setCookie', {'name': 'pdf_review_session', 'value': fixture['admin_cookie'], 'url': base, 'httpOnly': True, 'sameSite': 'Lax'}, a)
+        cdp.call('Emulation.setDeviceMetricsOverride', {'width': width, 'height': height, 'deviceScaleFactor': 1, 'mobile': False}, a)
+        navigate(a, '/admin', 'Private beta administration')
+        assert cdp.evaluate(a, 'document.documentElement.scrollWidth <= innerWidth'), ('/admin', width)
+    print('PASS C1 desktop/tablet/phone responsive account, sharing and admin layouts', flush=True)
 
 
 def migration_checks(cdp, a, b, fixture, base):

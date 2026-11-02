@@ -9,11 +9,12 @@ export class ReviewPresence {
     if (event?.schema_version !== 1 || event.version_id !== this.versionId ||
         !Array.isArray(event.reviewers)) return;
     const rows = event.reviewers.filter((user) => typeof user?.display_name === "string");
+    document.getElementById("presence-count").textContent = rows.length;
     this.container.textContent = rows.length
       ? rows.map((user) => `${user.display_name}${Number.isInteger(user.page) ? ` · p. ${user.page}` : ""}`).join(", ")
       : "No named reviewers connected";
   }
-  clear() { this.container.textContent = "Presence unavailable"; }
+  clear() { document.getElementById("presence-count").textContent = "0"; this.container.textContent = "Presence unavailable"; }
   watch(application, send) {
     this.send = send;
     this.page = application.pdfViewer.currentPageNumber;

@@ -14,6 +14,7 @@ from unittest.mock import patch
 
 from review import PROJECT_ROOT, create_app
 from review.documents import create_document, import_version
+from review.database import MIGRATIONS
 
 
 class PackagingTests(unittest.TestCase):
@@ -38,7 +39,7 @@ class PackagingTests(unittest.TestCase):
         with closing(sqlite3.connect(backup)) as db:
             self.assertEqual(db.execute("PRAGMA integrity_check").fetchone()[0], "ok")
             self.assertEqual(db.execute("SELECT title FROM documents").fetchone()[0], "Synthetic runtime test")
-            self.assertEqual(db.execute("SELECT COUNT(*) FROM schema_migrations").fetchone()[0], 6)
+            self.assertEqual(db.execute("SELECT COUNT(*) FROM schema_migrations").fetchone()[0], len(MIGRATIONS))
         self.assertEqual(blob.read_bytes(), content)
         self.assertTrue(store.verify(version.blob.relative_path, version.blob.sha256, len(content)).ok)
         self.assertEqual(app.test_cli_runner().invoke(args=["verify-storage"]).exit_code, 0)

@@ -6,13 +6,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}PDF Review{% endblock %}</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
+  <script type="module" src="{{ url_for('static', filename='review/menus.js') }}"></script>
 </head>
 <body>
-  <header class="site-header">
+  <header class="site-header app-toolbar">
     <a class="brand" href="{{ url_for('core.dashboard') }}">PDF Review</a>
     <span class="slice-label">Private beta</span>
-    {% if auth_user %}<span>{{ auth_user.display_name }} &middot; {{ auth_user.email }}</span>
-    <form method="post" action="{{ url_for('auth.logout') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button type="submit">Log out</button></form>{% endif %}
+    {% include "_account_menu.html" %}
   </header>
   <main class="page">
     {% with messages = get_flashed_messages(with_categories=true) %}

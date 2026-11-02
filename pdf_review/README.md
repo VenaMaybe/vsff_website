@@ -449,7 +449,7 @@ tests/
 
 ## Deferred work
 
-Invitation UI, email delivery, cloud hosting, PostgreSQL, automatic projection/migration, fuzzy matching, Version Tracker coupling, manuscript snapshots, and PDF annotation writing/export remain deferred. Realtime runs in a single local process with no broker, persistent event log, or presence history. Standalone diagnostic anchor operations remain non-realtime. Schema is now numbered migration 6. Vendored PDF.js remains unchanged; Authlib and requests were added.
+Email delivery, PostgreSQL, automatic projection/migration, fuzzy matching, Version Tracker coupling, manuscript snapshots, and PDF annotation writing/export remain deferred. Realtime runs in a single process with no broker, persistent event log, or presence history. Standalone diagnostic anchor operations remain non-realtime. Schema is now numbered migration 7. Vendored PDF.js remains unchanged.
 
 See `ARCHITECTURE.md` for invariants future slices must preserve.
 
@@ -492,7 +492,7 @@ python app.py
 
 Email preparation does not mark it verified: Google must verify and link the subject on first login. Linking an already linked/inactive user or an email assigned to another user fails. If no legacy identity should be retained, allow the email, log in once to create its user, then obtain the ID with `list-identities` and grant access explicitly.
 
-Administration is offline CLI only. `allow-email EMAIL` adds/re-enables; `disallow-email EMAIL` disables; `revoke-access DOCUMENT_UUID USER_UUID` removes a grant. `grant-access ... --role owner|reviewer|viewer` adds/changes one grant. Creator/grantor fields are nullable for offline operators instead of inventing actors. Re-enabling preserves subjects and prior document grants.
+The offline CLI remains the bootstrap/recovery path. `allow-email EMAIL` adds/re-enables; `disallow-email EMAIL` disables; `remove-email EMAIL [--confirm-established]` deletes only the allowlist row. `revoke-access DOCUMENT_UUID USER_UUID` removes a grant; `grant-access ... --role owner|reviewer|viewer` adds/changes one grant. Removing/demoting the final owner is rejected. Creator/grantor/audit actor fields are nullable for offline operators instead of inventing actors. Re-enabling preserves subjects and prior document grants. Private Beta C1 also provides owner sharing and explicit site-admin web administration, described below.
 
 ### Authorization and session policy
 
@@ -502,7 +502,7 @@ Administration is offline CLI only. `allow-email EMAIL` adds/re-enables; `disall
 | reviewer | Yes | Yes | Yes | No |
 | viewer | Yes | No | No | No |
 
-All active globally permitted accounts may create logical documents; the creator becomes owner atomically. This grants no access to existing documents. Nobody, including owners, can edit/delete another author's comments. All roles can read authorized migration history. Allowlist/ACL administration is CLI-only and independent of document roles.
+All active globally permitted accounts may create logical documents; the creator becomes owner atomically. This grants no access to existing documents. Nobody, including owners, can edit/delete another author's comments. All roles can read authorized migration history. Document owners manage their own ACLs. Only explicit site administrators manage global beta membership; site administration grants no document/PDF access.
 
 `review/auth.py` implements default-deny authorization for `core` and `carry`, resolving document ownership from document/version/thread/comment/anchor/migration IDs before content handlers execute. Inaccessible/missing resources return the same generic 404. Insufficient roles on accessible documents return 403. Anonymous safe requests redirect to login; anonymous API/mutation requests return 401. The dashboard lists granted documents only; reviewer lookup exposes only the current account.
 
@@ -541,3 +541,175 @@ python -c "import sqlite3; from app import app; c=sqlite3.connect(app.config['DA
 ```
 
 The browser harness uses temporary data and offline signed fixture sessions injected through DevTools, never a production bypass route. Real Google consent/login and future HTTPS proxy operation require manual acceptance. See [BETA_A_REPORT.md](BETA_A_REPORT.md) for implementation and verification results.
+
+## Private Beta C1: accounts, document sharing and site administration
+
+Every active, verified, allowlisted user has **Account** navigation, including
+from the viewer. `/account` shows the verified Google email, account status,
+editable display name, a subdued technical account ID, and separate **Owned by
+me** / **Shared with me** lists with current roles. Document links use the
+existing ACL-protected routes.
+
+Display names are trimmed, nonempty, at most 100 characters, and reject Unicode
+control/hidden formatting characters. Duplicate names are allowed. Jinja escapes
+names normally. Profile updates change only `users.display_name`; Google logins
+retain an existing user's chosen name. UUID, Google subject, verified email,
+authorship, historical foreign keys, grants and admin membership stay intact.
+
+Owners use **Manage access** on the account or document page. They select an
+existing active beta identity by name and verified email, choose Viewer,
+Reviewer or Owner, and grant access. Existing grants can be changed or revoked.
+A document must retain one owner, including self-removal and CLI changes. To
+transfer ownership, add another owner first. Owners cannot invite new beta
+members or create placeholder users. Ask a site admin to allow the person's
+Google email, then have that person sign in once before sharing.
+
+The sharing directory is owner-scoped to a specific document; it returns only
+`user_id` (the selector key), `display_name`, and verified `email` for active,
+Google-linked, enabled-allowlisted identities. Unlinked users, inactive or
+disallowed accounts, and allowlist-only invitations are excluded. It never
+returns subjects, login timestamps, administrator state or audit data.
+
+Only explicit `site_admins` members see **Admin** navigation or enter `/admin`.
+Its Beta access, Users and Site admins panels allow/re-enable/disable/remove
+emails and grant/revoke site administration. Allowing an email does not send an
+email, create a user, or grant document access. There is no automatic admin
+inference from document ownership, email domain, first login or session flags.
+An administrator still needs an ordinary ACL grant to read any document/PDF.
+Global document support/recovery uses the retained offline ACL commands.
+
+Disabling an allowlist entry retains its row/note. Removing a mistaken entry
+deletes only that row. Both stop new HTTP requests from existing sessions and
+prevent login; neither deletes stable users, comments, revisions, grants or
+history. Established accounts require a confirmation checkbox or the CLI's
+`--confirm-established` flag. Re-enabling restores global eligibility while
+retaining prior grants. Normal operations cannot revoke the final active site
+admin or disable/remove that admin's allowlist entry. Add an active successor
+first; the offline CLI remains available if Google email changes or external
+account state require recovery.
+
+| Method | Route | Authorization |
+| --- | --- | --- |
+| GET | `/account` | Active authenticated beta user |
+| POST | `/account/profile` | Current user only |
+| GET | `/documents/<document_id>/access` | Current document owner |
+| POST | `/documents/<document_id>/access` | Current document owner; grant/change/revoke |
+| GET | `/api/documents/<document_id>/shareable-users` | Current document owner; limited directory |
+| GET | `/admin` | Explicit site admin |
+| POST | `/admin/beta-access` | Explicit site admin; allow/disable/remove |
+| POST | `/admin/site-admins` | Explicit site admin; grant/revoke |
+
+All new mutations use the existing CSRF token system and POST forms. Unknown
+identity/authority fields are rejected. Anonymous HTML GETs redirect to login;
+anonymous APIs/mutations return 401. Inaccessible documents return 404; an
+existing viewer/reviewer attempting owner sharing receives 403. Non-admin beta
+users receive 403 for admin endpoints. Validation failures return an explained
+422 without mutation. Pages/API responses retain private/no-store and existing
+security headers. No GET mutates state.
+
+`review/access.py` shares transactional profile/access/allowlist/admin services
+between thin Flask/Jinja routes and the CLI. Write transactions use
+`BEGIN IMMEDIATE`; actor eligibility and owner/admin authority are checked again
+inside the transaction. Final-owner/admin checks and audit insertion commit
+atomically with the mutation. Offline operators are explicitly represented by
+a null actor; HTTP always passes the authenticated stable ID.
+
+Migration **7**, `accounts_sharing_and_site_admins`, adds `site_admins` and
+`access_audit_log` and replaces the old unique display-name index with a
+nonunique lookup index. It rewrites no domain rows, creates no admins or grants,
+and leaves migrations 1-6 unchanged. Audit rows record actor, fixed action,
+target type/identifier, small JSON details and timestamp. The audit table has
+update/delete rejection triggers. Email allow/re-enable/disable/remove,
+admin grant/revoke and document grant/role change/revoke are audited; failed
+operations and unchanged grants create no records. Details contain only target
+user ID and old/new role for document changes, never notes, comment bodies,
+OAuth values, cookies or session data. Audit records are private runtime data;
+there is no audit web endpoint in this slice.
+
+Additional recovery commands:
+
+```text
+python -m flask --app app list-site-admins
+python -m flask --app app grant-site-admin USER_UUID
+python -m flask --app app revoke-site-admin USER_UUID
+python -m flask --app app remove-email EMAIL [--confirm-established]
+```
+
+After the ordinary production deploy/startup applies migration 7, an operator
+can bootstrap the existing signed-in user using the same environment wrapper as
+`ops/pdf_review/README.md`. Run these commands on the server as the existing
+privileged operator; they are documentation, not executed by this local task:
+
+```bash
+review_admin() {
+    systemd-run --quiet --wait --pipe --collect \
+        --uid=vsff --gid=vsff \
+        --working-directory=/srv/vsff_website/pdf_review \
+        --property=EnvironmentFile=/etc/vsff-review.env \
+        --property=UMask=0077 \
+        --property=Environment=PYTHONDONTWRITEBYTECODE=1 \
+        /srv/vsff_website/pdf_review/.venv/bin/python -m flask --app wsgi "$@"
+}
+review_admin list-identities
+read -r -p 'Existing signed-in user UUID: ' REVIEW_USER_UUID
+review_admin grant-site-admin "$REVIEW_USER_UUID"
+review_admin list-site-admins
+unset REVIEW_USER_UUID
+```
+
+Refresh the account page and open `/admin` for routine beta invitations. A new
+admin must already be an active, verified, Google-linked, allowlisted identity.
+No real email or user ID belongs in source. No new port, service, secret,
+dependency, proxy/OIDC callback, broker or worker is needed. Existing SQLite
+snapshot/startup-migration/health-check deployment remains compatible.
+
+Full validation remains `python -m unittest discover -s tests -q`,
+`python tests/browser_sanity.py`, and `python -m pip check`. The C1 browser
+extension uses only disposable synthetic data and a fixture-process offline
+provider; the existing auth tests still exercise real Authlib JWT validation.
+It covers account/profile, sharing and ownership transitions, revocation,
+owner/invitation and admin/PDF separation, first-login identity creation, and
+layouts at 1024x768, 768x1024 and 390x844. Existing WebSocket/review acceptance
+remains in the same harness.
+
+Admin/account pages refresh normally. Existing idle Socket.IO rooms may still
+receive notifications until the next authorization check (page event,
+join/reconnect); no proactive eviction was added. Presence may retain an old
+display name until rejoin. Account deletion/deactivation UX, email delivery,
+audit browsing, global web ACL recovery and a larger searchable directory are
+outside this slice.
+## Local viewer UI
+
+The document viewer uses a compact app-owned toolbar with PDF.js rendering,
+navigation, search and viewing commands underneath. Select PDF text to reveal
+the contextual comment button, or use **Ctrl+Alt+M** (**Command+Option+M** on Mac).
+Submit the selection composer with **Ctrl/Command+Enter**; **Escape** cancels.
+Comments always use one right-hand rail, including both pages of a spread.
+Expanded shows compact cards; Minimized uses narrow markers and one active full
+card; Hidden reserves no width. Comments sit beside the page/spread inside the
+same native scrolling workspace. Small screens and large zoom use its horizontal
+scrollbar instead of a drawer. Empty/hidden comments reserve no document width.
+Account, admin and logout are in the identity menu.
+
+`static/app.css` imports shared tokens, base and C1 account styles. Viewer-only
+styles live in `static/styles/viewer.css`, `comments.css` and `pdfjs.css`.
+`viewer_bootstrap.js` configures the vendored viewer through its pre-run hook;
+`viewer_shell.js` owns toolbar integration and canonical-anchor rail layout.
+Vendored PDF.js files remain unchanged. Native preferences are disabled to
+prevent saved PDF editor settings from enabling a competing annotation model.
+Developer anchor tools are available deliberately with `?debug=anchors`.
+
+View, Comments, identity and management actions share the canonical menu styles
+and `static/review/menus.js` behavior. Scrolling and Spreads are submenus with
+checkmarks. Search keeps native PDF.js inputs/listeners/matching in a compact
+header-attached surface. Shared account markup lives in `_account_menu.html`.
+New PDF Review server-rendered pages should use the shared application shell,
+tokens and control/menu primitives rather than introducing one-off visual systems.
+
+Run the existing synthetic acceptance environment with
+`.venv/Scripts/python tests/browser_sanity.py` on Windows. It now also runs
+`tests/viewer_acceptance.py` and writes ignored synthetic screenshots under
+`tests/visual-artifacts/`. See [the viewer redesign report](VIEWER_REDESIGN_REPORT.md)
+for the original audit and control classification; see
+[the refinement report](VIEWER_REFINEMENT_REPORT.md) for the current right-only
+rail, markers, menus, shared shell and verification results.

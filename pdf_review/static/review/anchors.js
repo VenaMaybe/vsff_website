@@ -1,3 +1,5 @@
+import { installViewerControls, anchorGeometry, CommentRail } from "./viewer_shell.js";
+import { syncMenuValues } from "./menus.js";
 import { fetchAnchors, removeAnchor, saveAnchor } from "./anchor_api.js";
 import { CAPTURE_ERROR } from "./anchor_constants.js";
 import { renderAnchorInspector } from "./anchor_debug.js";
@@ -17,7 +19,7 @@ import {
   fetchReviewers,
   fetchThreads,
 } from "./thread_api.js";
-import { renderThreadSidebar, scrollThreadIntoView } from "./thread_sidebar.js";
+import { renderThreadSidebar } from "./thread_sidebar.js";
 
 const config = JSON.parse(document.getElementById("anchor-config").textContent);
 const frame = document.getElementById("pdf-viewer-frame");
@@ -36,6 +38,8 @@ let captureTimer = null;
 let realtime = null;
 let migrationUI = null;
 let retryTimer = null;
+let rail = null;
+let selectionDismissed = false;
 const presence = new ReviewPresence(config.versionId, document.getElementById("review-presence"));
 const threadRefresh = new RefreshCoordinator(
   () => fetchThreads(config.threadsUrl),
@@ -160,12 +164,14 @@ const sidebarActions = {
 };
 
 function refreshSidebar() {
+  syncMenuValues();
   renderThreadSidebar(
     threadList,
     state.visibleThreads(),
     state.selectedThreadId,
     sidebarActions
   );
+  rail?.schedule();
 }
 
 function refreshAll() {
@@ -184,7 +190,7 @@ function selectThread(threadId, navigate) {
   state.selectedThreadId = threadId;
   refreshSidebar();
   refreshOverlay();
-  scrollThreadIntoView(threadList, threadId);
+  rail?.showThread(threadId);
   if (navigate) {
     const anchor = threadAnchor(thread);
     if (anchor) overlay?.navigateTo(anchor);
@@ -199,7 +205,7 @@ async function mutateThread(operation, selectedThreadId, successMessage) {
     state.replaceThread(thread);
     state.selectedThreadId = selectedThreadId;
     refreshAll();
-    scrollThreadIntoView(threadList, selectedThreadId);
+    rail?.showThread(selectedThreadId);
     setReviewStatus(successMessage, "success");
     threadRefresh.request();
     return true;
@@ -234,8 +240,20 @@ async function waitForViewer() {
 
 function updateSelectionControls(ready) {
   commentButton.disabled = !ready || !config.canMutate;
+  positionSelectionButton();
   saveButton.disabled = !ready || !config.canMutate;
   migrationUI?.selectionChanged(ready ? pendingSelection : null);
+}
+
+function positionSelectionButton() {
+  const geometry = viewerApplication && pendingSelection && anchorGeometry(viewerApplication, pendingSelection);
+  const bounds = frame.getBoundingClientRect();
+  const visible = geometry && geometry.bottom > 0 && geometry.top < bounds.height && geometry.right > 0 && geometry.left < bounds.width;
+  commentButton.hidden = !visible || !config.canMutate || selectionDismissed || !composer.container.hidden;
+  if (commentButton.hidden) return;
+  commentButton.style.left = `${Math.max(bounds.left + 4, Math.min(innerWidth - 38, bounds.left + geometry.right + 4))}px`;
+  const below = bounds.top + geometry.bottom + 4;
+  commentButton.style.top = `${Math.max(bounds.top + 4, Math.min(innerHeight - 36, below > innerHeight - 36 ? bounds.top + geometry.top - 34 : below))}px`;
 }
 
 function rememberSelection() {
@@ -250,6 +268,7 @@ function rememberSelection() {
         return;
       }
       pendingSelection = captureTextSelection(frame.contentWindow, viewerApplication);
+      selectionDismissed = false;
       updateSelectionControls(true);
       setAnchorStatus("Selection ready.");
     } catch (_error) {
@@ -283,6 +302,7 @@ const composer = new SelectionCommentComposer(
       const thread = await createThread(config.threadsUrl, anchorPayload, body);
       frame.contentWindow.getSelection()?.removeAllRanges();
       pendingSelection = null;
+      composer.setBusy(false);
       composer.close();
       threadRefresh.invalidate();
       state.replaceThread(thread);
@@ -300,6 +320,7 @@ const composer = new SelectionCommentComposer(
 );
 
 function openCommentComposer() {
+  if (!composer.container.hidden) { composer.body.focus(); return; }
   if (!state.currentReviewer) {
     setReviewStatus("Sign in to comment.", "error");
     return;
@@ -310,6 +331,8 @@ function openCommentComposer() {
     return;
   }
   composer.open(payload);
+  commentButton.hidden = true;
+  rail?.schedule();
 }
 
 commentButton.addEventListener("pointerdown", () => {
@@ -361,7 +384,30 @@ async function initialize() {
   viewerApplication = application;
   state.currentReviewer = reviewerData.current_reviewer;
   overlay = new AnchorOverlay(frame.contentWindow, viewerApplication);
+  installViewerControls(frame, application);
+  rail = new CommentRail(frame, application, state, composer, positionSelectionButton);
+  new MutationObserver(() => rail.schedule()).observe(composer.container, { attributes: true, attributeFilter: ["hidden"] });
+  new ResizeObserver(() => rail.schedule()).observe(composer.container);
   frame.contentDocument.addEventListener("selectionchange", rememberSelection);
+  for (const doc of [document, frame.contentDocument]) {
+    doc.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") {
+        selectionDismissed = true;
+        commentButton.hidden = true;
+        if (!composer.container.hidden && !composer.busy) { composer.close(); commentButton.focus(); }
+        pendingSelection = null;
+        updateSelectionControls(false);
+      }
+      if ((event.ctrlKey || event.metaKey) && event.altKey && event.key.toLowerCase() === "m" && config.canMutate && pendingSelection) {
+        event.preventDefault(); openCommentComposer();
+      }
+    });
+  }
+  document.addEventListener("pointerdown", (event) => {
+    if (!commentButton.contains(event.target) && !composer.container.contains(event.target)) {
+      selectionDismissed = true; commentButton.hidden = true;
+    }
+  });
   refreshAll();
   if (config.migrationUrl) migrationUI = new MigrationSidebar(config.migrationUrl, captureCurrentSelection, () => threadRefresh.request(), config.isOwner);
   if (config.initialThreadId) selectThread(config.initialThreadId, true);

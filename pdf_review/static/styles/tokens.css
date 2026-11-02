@@ -1,0 +1,26 @@
+:root {
+  color-scheme: light;
+  --ui-font-size: 13px;
+  --ui-font-size-small: 11px;
+  --control-height: 30px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --toolbar-height: 40px;
+  --comment-width: 264px;
+  --comment-marker-width: 48px;
+  --surface-hover: #e9ecea;
+  --layer-rail: 5;
+  --layer-popup: 20;
+  --bg: #f3f2ee;
+  --surface: #fff;
+  --ink: #202421;
+  --muted: #6a706b;
+  --line: #d9d8d2;
+  --accent: #315f52;
+  --accent-dark: #23483e;
+  --danger: #9b302c;
+  --success: #226442;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+

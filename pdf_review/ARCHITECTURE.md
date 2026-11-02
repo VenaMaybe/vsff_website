@@ -112,7 +112,7 @@ existing host validation and private/no-store headers. It authorizes no content.
 
 ## Deliberately deferred
 
-- invitation/admin web UI and additional identity providers
+- email invitation delivery and additional identity providers
 - PostgreSQL/cloud deployment
 - cross-version projection, fuzzy matching, and automatic carry-forward
 - Version Tracker/story/source-snapshot coupling
@@ -166,7 +166,7 @@ These deferred features must extend the identities, immutable origins, service t
 80. Google OIDC `sub` is unique and immutable once linked. Current verified email is authorization evidence, normalized by trimming/case-folding only. Authlib owns the server code flow, state, signature/issuer/audience/expiry/nonce validation and PKCE. No OAuth tokens are persisted.
 81. Stable local user IDs and historical attribution survive authentication. Legacy linking requires explicit offline email preparation for one active unlinked user; names never link accounts. Conflicting/ambiguous matches fail closed. New allowed accounts receive no existing document grants.
 82. Active users with a verified Google identity and enabled `allowed_emails` entry are required for protected HTTP and socket connect/join. Database authorization is reread, never cached as session authority. Sessions contain stable `authenticated_user_id`, CSRF state and lifetime metadata only.
-83. `document_access` grants owner/reviewer/viewer explicitly, with no blanket migration backfill. Owners import/verify and mutate migration workflows. Reviewers create/reply/resolve/reopen. Both edit/delete only their own comments. Viewers read. All roles read authorized history. Globally approved accounts may create a document and become owner atomically. Permission management is offline CLI only.
+83. `document_access` grants owner/reviewer/viewer explicitly, with no blanket migration backfill. Owners import/verify and mutate migration workflows. Reviewers create/reply/resolve/reopen. Both edit/delete only their own comments. Viewers read. All roles read authorized history. Globally approved accounts may create a document and become owner atomically. C1 adds owner sharing and explicit site-admin beta membership administration; the offline CLI remains available for bootstrap/recovery.
 84. Shared default-deny HTTP policy resolves resource ownership before content handlers. Missing/inaccessible resources return generic 404, insufficient roles on accessible documents 403, anonymous APIs/mutations 401, anonymous pages a login redirect. Lists contain granted documents only; reviewer lookup exposes only the current account.
 85. Every PDF request, including GET/HEAD/conditional/valid or invalid Range, passes authentication and document ACL before blob access. Werkzeug conditional/206 behavior remains. Blobs stay outside static and receive no public URLs or tokens. Protected responses are private/no-store.
 86. Every authenticated unsafe HTTP method requires session CSRF, compared in constant time. Forms submit hidden tokens; app-owned APIs share http.js. OAuth state is independent. Authenticated server identity supplies every review actor; clients cannot choose identities.
@@ -174,3 +174,78 @@ These deferred features must extend the identities, immutable origins, service t
 88. Environment secrets persist across production restarts and never enter SQLite/source. Production refuses missing credentials/host, short secrets, HTTP scheme or insecure cookies. Cookies enforce HttpOnly, SameSite=Lax and production Secure. Development supports loopback HTTP, without an identity-selection fallback.
 89. Proxy trust defaults to zero. One optional trusted isolated ingress may supply forwarded scheme only; canonical host/scheme are explicitly configured and hosts validated. Nosniff, same-origin referrer policy and SAMEORIGIN framing preserve PDF.js; production adds HSTS. Vendored PDF.js/CSP are unchanged. Deployment is outside this slice.
 90. Migration 6 adds identity fields/indexes, immutable-subject protection, allowlist and document ACL constraints/indexes, without rewriting historical migrations/domain rows. Existing documents require explicit bootstrap grants. Back up a live SQLite database with SQLite's backup API before migration; a raw copy of an open WAL database is not sufficient.
+
+## Private Beta C1: independent account, owner and site-admin scopes
+
+Migration 7 adds explicit `site_admins(user_id, created_at, created_by)` and
+append-only `access_audit_log(id, actor_user_id, action, target_type,
+target_identifier, details, created_at)`. It replaces the unique display-name
+index with a nonunique index; existing rows, constraints and historical
+migrations are preserved. Admin membership is never inferred or backfilled.
+
+`account_routes.py` handles server-rendered profile, owner-sharing and admin
+forms. `auth.py` has explicit ACCOUNT_ENDPOINTS, OWNER_ENDPOINTS and
+ADMIN_ENDPOINTS registries beside the existing document policy. Current database
+identity/allowlist state precedes each scope check; unsupported endpoints remain
+default-deny. Admin status never enters `document_role` or content-route policy.
+Account editing accepts only a display name for the session user. Unknown
+identity fields are rejected, and existing Google logins preserve chosen names.
+
+`access.py` contains SQL and mutation business rules shared with `auth_cli.py`.
+All writes use BEGIN IMMEDIATE. Mutations reauthorize their authenticated actor
+inside that transaction, validate eligible recipient identities, preserve a
+final document owner and an active final site admin, and append access audit
+rows atomically. Null actors represent trusted offline recovery only; no HTTP
+field can request offline privilege. Existing CLI legacy-user ACL bootstrap
+remains possible without exposing placeholder creation through owner UI.
+
+The owner-scoped sharing directory exposes only active verified Google-linked
+allowlisted recipients' display names, verified emails and internal selector
+IDs. It is separate from admin identity listings. Owners cannot expand global
+beta membership. Allowlist removal needs confirmation for any associated user
+and deletes no identity/history/grant. Disabling/removing the final usable
+admin's email is rejected along with ordinary final-admin revocation.
+
+New pages use existing Jinja escaping, CSS panels, POST/CSRF forms, private
+no-store responses and security headers. Mutation errors return 422; stale
+service-layer authority returns 403. Content/PDF/Range routes, review services,
+Socket.IO semantics and infrastructure are unchanged. Idle sockets are not
+proactively evicted, and presence names update on rejoin. No admin content
+bypass or global web ACL override was added. See README and BETA_C1_REPORT for
+routes, bootstrap commands, audit behavior and verification evidence.
+## Viewer presentation ownership
+
+The original same-origin PDF.js iframe and canonical selection/anchor APIs remain.
+`viewer_bootstrap.js`, loaded before the iframe, handles `webviewerloaded` to set
+read-only native editor configuration and inject app-owned `styles/pdfjs.css`.
+No vendored files are patched. `viewer_shell.js` bridges compact parent controls
+to existing PDF.js handlers/properties and positions parent-owned comment cards
+from canonical anchor segments using `pdfRectangleToCss`.
+
+The rail reserves document space only when populated/being composed, uses a
+deterministic page/y/thread-ID collision pass with a 6px gap (3px for markers), and translates
+cached card positions on the primary PDF scrollbar. Render/zoom/rotation/mode
+events and ResizeObservers coalesce layout through animation frames. The full-width
+native scroll container surrounds both the PDF and comments; space is reserved
+inside the document stage. Cards sit adjacent to the owning page/spread, including
+at narrow widths and large zoom, using horizontal scrolling when needed. Every
+page and spread uses a right rail; no left-rail selection or width reservation exists. Minimized mode
+reserves only 48px and renders real marker buttons with one active full card
+overlaid into the stage. A trailing spacer makes
+collision overflow reachable with the document scrollbar.
+
+Shared tokens/base/account CSS are imported by `app.css`; viewer chrome,
+comments/migration/debug styling and PDF.js integration each have explicit
+ownership. See `VIEWER_REDESIGN_REPORT.md` for classification and test evidence.
+
+## Shared visual language
+
+New PDF Review server-rendered pages should use the shared application shell,
+tokens and control/menu primitives rather than introducing one-off visual systems.
+`base.html` and independent `viewer.html` share `.app-toolbar`, canonical
+`.toolbar-menu` / `.toolbar-popover` styling in `base.css`, `menus.js` behavior,
+and `_account_menu.html`. The viewer retains its special workspace DOM.
+Native find controls/listeners remain in the iframe and are arranged/restyled by
+the app-owned integration. Page borders and both row/spread gaps use the vendored
+PDF.js defaults; no app-owned page-spacing override remains.
+See `VIEWER_REFINEMENT_REPORT.md` for the current presentation contract.
