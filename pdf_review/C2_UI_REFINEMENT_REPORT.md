@@ -1,6 +1,340 @@
 # C2 management interaction refinement
 
-## Fixed Sections panel follow-up
+## Inspector-only boundaries, following-page borders and click-away focus
+
+Removed the separate structural end rails/ticks that were visible with Sections
+closed. PDF section boundary lines and labels now render only while the Sections
+card is open. Section feedback remains independent and available on the right.
+
+Linked page-transition dividers render 12 px inside the following section's first
+page, and use that start member for activation and card centering. This corrects
+the previous interpretation that selected the preceding end while retaining its
+physical position. Split boundaries remain on their respective pages.
+
+Left cards drop active styling, focus priority and input focus on PDF, background
+or comment clicks. This works in the iframe and host document, preserves card
+positions and keeps cards open. Inside-left-card events still preserve selected
+right comments. Listeners are cleaned up on close. Boundary activation can still
+focus the Sections card. Constraint colors now reflect actual clamping rather
+than every informational endpoint-moved notice.
+
+Removed the one-page minimum in the editor and paired-save service. Linked
+neighbors can shrink below one page; positive range length and non-overlap still
+apply. The regression now verifies sub-page saving and rejects an empty range.
+
+Edited files:
+
+- `static/review/section_viewer.js`
+- `static/review/section_placement_editor.js`
+- `static/review/left_card.js`
+- `review/sections.py`
+- `tests/management_acceptance.py`
+- `tests/beta_c2_acceptance.py`
+- `tests/viewer_acceptance.py`
+- `tests/test_beta_c2.py`
+- `README.md`, `ARCHITECTURE.md`, and this report.
+
+Validation: management, C2 and comment UI browser checks passed, together with
+all 164 unit tests. Updated following-page spread screenshot inspected.
+Management coverage includes following-page geometry, close/reopen visibility,
+click-away focus (including after another card closes), linked sub-page edits
+and existing drag/split/range behavior. The final whitespace check passed.
+No schema/dependency changes or deployment. Work remains local and uncommitted.
+Earlier refinement notes below are historical.
+
+## Linked page edits and viewer-only tool access
+
+A linked divider at a page transition now defaults to the preceding section's
+end, even if the following section was selected. Its line still sits inside the
+upper page. Both pointer and keyboard activation use that member.
+
+Page-number edits now move the linked neighbor endpoint atomically, just like a
+shared-divider drag. For example, 1-4 / 5-10 becomes 1-5 / 6-10 when the first
+end changes to page 5. Notices identify the moved start/end. The neighbor keeps
+at least one full page of canonical length; an already shorter neighbor cannot
+be shortened further. Client movement clamps at that limit and the service checks
+the same minimum for paired writes carrying `edited_id`. Unlinked or explicitly
+split boundaries keep their independent behavior. No schema change is required.
+
+Removed Review Settings and Manage Sections buttons from the document page.
+Their PDF viewer controls remain available. Browser flows now use those controls.
+
+Edited files:
+
+- `static/review/section_viewer.js`
+- `static/review/section_placement_editor.js`
+- `review/sections.py`
+- `templates/document.html`
+- `tests/management_acceptance.py`
+- `tests/beta_c2_acceptance.py`
+- `tests/test_beta_c2.py`
+- `README.md`, `ARCHITECTURE.md`, and this report.
+
+Validation: focused management and broader C2 browser checks passed, along with
+all 164 unit tests and the whitespace check. The C2 outline check now waits for
+the import commit before closing the inspector. The new service regression covers 1-4 / 5-10 to 1-5 / 6-10,
+reverse start edits, minimum-length rollback, and absent document-page buttons.
+Work remains local and uncommitted; no deployment or runtime data migration.
+Earlier refinement notes below are historical.
+
+## In-page edge zones and section page ranges
+
+Removed section-driven page/spread margins, gap classes, layout events and
+between-page divider positioning. PDF.js owns page spacing. Boundary overlays
+now snap within 18 px of either canonical page edge and render 12 px inside it;
+page-edge controls say Start of page / End of page. Each spread page keeps its
+own boundary line. The inset follows canonical geometry through rotation.
+
+Double-clicking a shared boundary inside or near an edge zone splits it across
+the page transition: an end at the preceding page bottom and start at the next
+page top. Explicit numeric PDF-edge coordinates retain independent dividers at
+all zooms and after reload, while null page-edge pairs can share a divider.
+Interior splits still separate slightly within the page. The existing owner-only
+atomic split operation accepts the exact-edge pair with unchanged outer endpoints
+and existing range/revision/non-overlap validation. No schema migration is needed.
+
+The Sections list now has a compact right-aligned page-range column, derived from
+live draft geometry and updated while dragging. Single-page ranges show one number;
+unmapped sections leave it blank. Names truncate cleanly without displacing ranges.
+
+Edited files for this follow-up:
+
+- `static/review/section_boundary_geometry.js`: inset geometry and edge-zone helpers; removed gap layout.
+- `static/review/section_placement_editor.js`: symmetric snapping and cross-page edge splits.
+- `static/review/section_boundaries.js`: explicit split grouping and page-range formatting.
+- `static/review/section_viewer.js`: page-contained dividers and structural markers.
+- `static/review/sections_workspace.js`: live page ranges and edge labels.
+- `static/review/left_card.js`, `static/review/viewer_shell.js`: removed obsolete section layout event listeners.
+- `static/styles/sections.css`, `static/styles/dialogs.css`: removed page margins; in-page labels and list columns.
+- `review/sections.py`: validated atomic exact-page-edge split.
+- `tests/management_acceptance.py`, `tests/beta_c2_acceptance.py`, `tests/test_beta_c2.py`: edge zones, stable spacing, ranges and split regressions.
+- `README.md`, `ARCHITECTURE.md`, and this report.
+
+Validation: management browser checks cover edge snaps from both directions,
+unchanged page positions, shared and near-edge cross-page splits, multiple zooms,
+page ranges, spreads, autosave/retry and delayed saves. The broader C2 browser
+checks passed zoom/rotation, spread modes, feedback, review visibility, outline,
+privacy and responsive layouts. Desktop split screenshot inspected.
+Final management browser rerun passed, including zoom-stable explicit edge splits.
+All 163 unit tests and the final whitespace check passed.
+
+No dependency changes, deployment or runtime data migration. Work remains local
+and uncommitted. Earlier refinement notes below are historical.
+
+## Shared-divider fixes and double-click separation
+
+Removed the structural rail beneath management dividers, which caused the white
+box between pages. Marker backings are transparent and inter-page editing lines
+are now 2 px rather than 3 px.
+
+Fixed false shared-boundary errors in two places: client/server location comparison
+now uses matching precision, and each queued save captures its own geometry at
+gesture completion. Later drags cannot change an earlier request. Revision rebasing
+uses only this client's acknowledged writes. Overlap checks now use the fixed
+opposite endpoint, so dragging past a section's own start/end clamps correctly
+without treating the pointer's temporary range as an overlapping section.
+
+Double-click a shared divider to separate it into two independent edges, about
+6 rendered pixels on either side. This creates a small gap and saves both shrunk
+ranges atomically through the existing guarded endpoint with an explicit split
+flag. Outer endpoints and unrelated sections remain untouched. Independent edges
+can still snap back together, and the rejoined divider can be dragged normally.
+Retry retains whether a failed operation was a split.
+
+Edited files for this follow-up:
+
+- `review/sections.py`
+- `static/review/section_boundaries.js`
+- `static/review/section_placement_editor.js`
+- `static/review/section_viewer.js`
+- `static/review/sections_workspace.js`
+- `static/styles/sections.css`
+- `tests/test_beta_c2.py`
+- `tests/management_acceptance.py`
+- `README.md`, `ARCHITECTURE.md`, and this report.
+
+Focused management browser checks pass, including native double-click split,
+rejoin/re-drag, delayed save snapshots, own-edge and neighbor clamps, transparent
+2 px lines and spread alignment. The updated desktop screenshot was inspected.
+Unit coverage adds floating-point round trips and validated atomic splits.
+All 162 unit tests passed in one full suite run. The final whitespace check passed.
+
+No schema/dependency changes or deployment. Work remains local and uncommitted.
+Earlier refinement notes below are historical.
+
+## Draggable cards and autosaving section inspector
+
+New left cards open unpinned near the viewport center. Dragging the header moves
+one vertically without changing its horizontal alignment. Natural content height,
+comment selection motion and the independent single pinned overlay are preserved.
+
+Sections now uses compact horizontal Start/End controls and an autosave footer.
+Names and prompts save after a short typing pause or on change/blur; page edits
+save on change, and PDF boundary drags save on release. Fields and markers share
+transient canonical geometry. Saving, Saved and retryable errors replace the
+manual Save boundaries, Cancel changes and Save section workflow. Delete remains
+explicit and confirmed. Failed saves retain the entered values or geometry.
+
+Touching section endpoints render one shared divider. Dragging that divider saves
+both placements atomically, preserving their outer endpoints. Gaps remain separate;
+independent movement clamps at the nearest valid neighbor, shows an overlap notice
+and can snap into a shared divider. Unrelated sections are never resized. The new
+owner-only, CSRF-protected shared-boundary endpoint reuses placement validation and
+revision checks inside one transaction; stale revisions roll back both writes.
+There is no schema migration or dependency change.
+
+Between-page lines are thicker. Spread spacing belongs to the whole spread row;
+stale per-page margins are cleared after PDF.js reuses page nodes. Both pages stay
+aligned and a shared row-edge divider spans the spread. PDF bytes and page dimensions
+are unchanged.
+
+Edited files for this follow-up:
+
+- [left_card.js](static/review/left_card.js): centered opening and header drag.
+- [sections_workspace.js](static/review/sections_workspace.js): compact autosaving inspector.
+- [section_placement_editor.js](static/review/section_placement_editor.js): synchronized drafts, clamping and serialized saves.
+- [section_boundaries.js](static/review/section_boundaries.js): shared endpoint derivation (new).
+- [section_viewer.js](static/review/section_viewer.js): shared management dividers and status styling.
+- [section_boundary_geometry.js](static/review/section_boundary_geometry.js): spread-wide rails and row spacing.
+- [management.js](static/review/management.js): reusable card loading/reopening.
+- [dialogs.css](static/styles/dialogs.css), [sections.css](static/styles/sections.css): compact inspector, drag affordance and thicker lines.
+- [sections.py](review/sections.py), [review_routes.py](review/review_routes.py), [auth.py](review/auth.py): guarded atomic shared-boundary save.
+- [test_beta_c2.py](tests/test_beta_c2.py): revision rollback, unchanged outer endpoints, owner and CSRF guards.
+- [management_acceptance.py](tests/management_acceptance.py): focused browser coverage.
+- [README.md](README.md), [ARCHITECTURE.md](ARCHITECTURE.md), and this report.
+
+Validation: focused management and comment UI browser checks passed. Management
+coverage includes header dragging, centered unpinned opening, metadata/page/drag
+autosave, failed-save Retry, shared divider updates, preserved gaps, overlap
+clamping, natural card height and aligned spreads. Desktop spread and tablet
+screenshots were inspected under ignored `tests/visual-artifacts/`. All 161 unit tests passed in one full suite run; the final whitespace check passed.
+
+Work remains local, unstaged and uncommitted. No deployment or runtime data
+migration was performed. Earlier refinement notes below are historical.
+
+## Independent pinned overlay
+
+The pinned card is now excluded from document-card collision packing, focus
+priority and scroll-extent calculations. Resizing, activating or closing it does
+not displace unpinned cards. Pinning preserves the existing positions of document
+cards. No document card tracks or reserves the pinned card's height. Only after
+unpinning does a card join normal collision handling. Full content height and the
+single top-snapped pin remain unchanged.
+
+Changed `static/review/left_card.js` and the focused checks in
+`tests/management_acceptance.py`, plus README, ARCHITECTURE and this report.
+Browser checks passed pinned growth/shrink, activation and stable scroll extent,
+as well as existing section interactions. All 160 unit tests and the whitespace
+check passed. No backend/schema/dependency changes. Work remains local and
+uncommitted.
+Earlier refinement notes below are historical.
+
+## Natural card height and a single top pin
+
+Left cards, bodies and section lists now use their full content height. Shared
+layout height limits, viewport caps and internal scrolling are removed, including
+limits inherited from active comment styles. Collision resolution moves cards;
+it never resizes them. Overflow below the PDF uses the native PDF scrollbar.
+
+Only one card may be pinned. It snaps to the top and stays above other cards.
+Pinning a second releases the old pin beneath the new one; unpinning drops a card
+into document space. The old card remains below when newly loaded pinned content
+grows. Unpinned cards retain full height and move apart to prevent overlap.
+Pinned cards stay top-snapped on section activation; unpinned cards can center on
+section lines. Existing comment animation, boundary editing and focus remain.
+
+Implementation: `static/review/left_card.js`, `static/styles/dialogs.css`.
+Focused checks: `tests/management_acceptance.py`, including content taller than
+the viewport, pin replacement, natural heights, scrolling and collision packing.
+Documentation: README, ARCHITECTURE and this report. Focused browser checks, all
+160 unit tests and the whitespace check passed. Desktop/tablet screenshots were
+inspected. No backend or schema changes. Work remains local and uncommitted.
+Earlier refinement notes below are historical.
+
+## Cross-page boundaries and shared card focus
+
+Comment click-away now preserves selection for every left-card control, including
+rows that replace their DOM during the click. PDF/background clicks still clear it.
+Boundary activation centers the Sections card beside the selected line with the
+shared comment animation. Both pinned and document-attached cards participate in
+nearest-free-space packing; the active card is the fixed point and others move.
+
+Start/End page fields replace percent and Set start / Set end controls. Page entry
+creates an explicit page-edge boundary. Small row gaps fit the line and title;
+PDF page dimensions and spread pairs are preserved. Boundaries drag across pages
+in either direction, with near-edge auto-scroll and canonical conversion using
+the target page viewport. Changes remain pending until Save boundaries.
+Cancel restores saved geometry. Boundary spacing changes notify both card rails.
+
+Focused browser checks cover comment focus retention, background deselection,
+cross-page drag/auto-scroll, centered activation, mixed pin-state collision packing,
+page-only controls and existing save/cancel/outline behavior. Updated desktop and
+tablet screenshots were inspected. The focused management and comment UI checks
+passed, along with all 160 unit tests in one final run and the whitespace check.
+Backend, schema and dependencies are unchanged. Work remains local and uncommitted.
+Earlier refinement notes below are historical.
+
+## Concurrent cards and inline boundary inspector
+
+Left utility cards now coexist. Pin means viewport-fixed; unpinned means attached
+to the current document position. The reusable shell packs pinned cards vertically
+and gives long bodies independent scrolling. Card activation/retrieval and pinning
+use the shared comment animation. Closing one card retains the others.
+
+Sections is now the sole boundary editing surface. The top toolbar, row drag
+handles and manual order controls are removed. Mapped rows follow canonical PDF
+start order; unmapped rows retain previous logical slots. Inline page/percentage
+fields, PDF picking and owner-only draggable Start/End lines share pending drafts.
+Blank percentages use explicit page edges. Dragging a page edge into the page
+produces precise Y. Save boundaries uses the existing revision-checked service;
+Cancel restores saved placement. Markers select and retrieve the inspector.
+
+Backend/schema/authorization and dependencies are unchanged. Existing prompts,
+outline import, spread/row rails and right-side section feedback remain intact.
+Focused browser checks cover concurrent packing, pin semantics, PDF ordering,
+canonical dragging, fields/picking synchronization, explicit save/cancel, marker
+activation and card-only editing. Save validation errors retain pending geometry.
+Three desktop/tablet screenshots were inspected. All 160 existing unit tests passed
+in one final suite run; the focused browser checks and whitespace check passed.
+Changes remain local, unstaged and uncommitted. No deployment actions were taken.
+Earlier notes below are historical.
+
+## Reusable left cards and section ordering
+
+Sections and Review Settings now share `left_card.js`: comment styling, exact
+page-relative pinning, viewport following, close/focus/busy handling and listener
+cleanup. `card_motion.js` shares the existing comment selection animation (160 ms,
+ease-out, reduced-motion support). The white sidebar is removed; left space now
+belongs to the PDF canvas, with the same background and native scrollbars.
+
+Sections uses the open PDF version automatically. Drag handles replace Move up /
+Move down, with pointer support and Alt + Arrow Up / Down keyboard ordering.
+Hover/selected rows now specify readable foreground and background colors.
+Existing section, privacy and settings APIs are unchanged. No new dependencies.
+
+Focused browser checks cover pointer/keyboard reorder, exact pin position, shared
+animation timing, both settings/section scroll modes, document entry, save failures,
+outline import and boundary save/Cancel. Updated desktop/tablet screenshots were
+inspected. The focused management and existing comment UI browser checks passed,
+as did all 160 unit tests and the whitespace check. Changes remain local, unstaged
+and uncommitted. Earlier refinement notes below are historical.
+
+## Comment card and pin follow-up
+
+Sections now reuses the comment card styling: the same width, muted background,
+compact controls and accent edge, positioned beside the PDF on the left. A pin
+button sits beside Close and is pressed by default. Pinned, the card tracks its
+opening position on the PDF and can scroll off screen. Unpinned, it follows the
+viewport down the document. Pinning again attaches at the current position;
+Manage Sections retrieves a card that has scrolled away. Section boundary lines
+and settings behavior remain available in both modes. No backend changes.
+
+Focused browser checks passed pinned movement/offscreen retrieval, unpinned
+following, boundary overlays, CRUD, outline import and boundary save/Cancel.
+Updated screenshots at 1440 and 768 pixels were inspected. All 160 existing unit
+tests and the whitespace check passed. Changes remain local and uncommitted.
+
+## Earlier fixed Sections panel follow-up
 
 Sections now uses a compact non-modal panel fixed to the left of the PDF. Controls
 scroll independently, and PDF scrolling leaves the panel in place. Opening it

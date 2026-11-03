@@ -1,6 +1,6 @@
 @import url("tokens.css");
 /* Thin integration stylesheet, injected via PDF.js's pre-run hook. Vendor unchanged. */
-:root { color-scheme: light; --toolbar-height: 0px; --review-rail-right: 0px; }
+:root { color-scheme: light; --toolbar-height: 0px; --review-rail-right: 0px; --review-rail-left: 0px; }
 /* Keep native popup DOM and event handlers; only the parent owns toolbar chrome. */
 #toolbarContainer { height: 0; min-height: 0; padding: 0; border: 0; box-shadow: none; overflow: visible; }
 #toolbarViewer { height: 0; min-height: 0; padding: 0; visibility: hidden; }
@@ -12,7 +12,7 @@
 .textLayer .editToolbar { display: none; }
 #viewerContainer { top: 0; left: 0; right: 0; background: #e4e6e5; }
 /* The native scrollbar surrounds the document and its adjacent comments. */
-#viewer { box-sizing: content-box; width: calc(100% - var(--review-rail-right)); min-width: var(--review-stage-width, 0px); padding-right: var(--review-rail-right); }
+#viewer { box-sizing: content-box; width: calc(100% - var(--review-rail-right) - var(--review-rail-left)); min-width: var(--review-stage-width, 0px); padding-right: var(--review-rail-right); padding-left: var(--review-rail-left); }
 #mainContainer { background: #e4e6e5; }
 #findbar { position: fixed; top: 4px; left: 8px; font-size: 12px; visibility: visible; }
 #viewsManager { position: fixed; top: 4px; left: 8px; max-height: calc(100vh - 12px); visibility: visible; }

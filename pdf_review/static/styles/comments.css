@@ -92,9 +92,6 @@
 .thread-marker { color:var(--review-color,inherit); }
 .section-feedback-marker { border-style:dashed; }
 .section-prompt { margin:4px 0 6px; font-size:11px; color:#566059; }
-.section-editor { display:flex; gap:6px; align-items:center; flex-wrap:wrap; padding:5px 10px; border-bottom:1px solid #bdc7c0; background:#f3f5f3; font-size:11px; }
-.section-editor[hidden] { display:none; }
-.section-editor select { max-width:180px; }
 .outline-dialog { max-width:min(620px,90vw); max-height:80vh; padding:12px; border:1px solid #89948c; border-radius:2px; font-size:12px; }
 .outline-candidate { display:flex; gap:6px; margin:5px 0; }
 .outline-candidate input[type=number] { width:65px; }

@@ -7,14 +7,42 @@ This local version adds owner-controlled **Shared / Isolated** review, personal
 a ten-color Tableau 10 Account palette, page/spread presence, logical sections and exact-version
 section feedback. See [BETA_C2_REPORT.md](BETA_C2_REPORT.md) for the audit and checks.
 
-- Owners open **Review settings** from the document page to set privacy and
+- Owners open **Review settings** in the PDF viewer to set privacy and
   first-open spread/comment/scope defaults. Existing personal choices survive
   later default changes. **Reset to document defaults** is in Comments.
-- Review Settings opens a dialog. Manage Sections opens a compact, non-modal
-  settings panel fixed to the left of the PDF, with its own scrolling controls.
-  Opening it shows all mapped section start/end lines; selection emphasizes a range.
-  Boundary editing keeps the panel available; Done saves pending placement and
-  Cancel discards unsaved previews. From the document page, Sections enters the PDF.
+- Review Settings and Manage Sections coexist as compact comment-style cards on
+  the left of the PDF. New cards open unpinned near the viewport center. Drag a
+  header to move a card vertically. Cards always use their full content height. One card may be
+  **pinned**, snapped to the viewport top as an independent overlay. It reserves no
+  space and never moves unpinned cards. Pinning another unpins the previous card. **Unpinned** cards attach to the document and move
+  up/down to avoid overlap; they scroll with the PDF. Opening a tool or clicking a section marker retrieves an offscreen card
+  using the comment selection animation. Reduced motion is respected.
+- Sections uses the open PDF version. Mapped sections follow PDF start order;
+  unmapped sections keep their previous logical display slots. No manual ordering.
+  Type Start/End page numbers: Start means before that page, End means after it.
+  Near the top or bottom of a page, boundaries snap to page edges and display
+  12 px inside the page. Pages keep their native spacing. Drag a line into a
+  page for a precise position, or across pages; holding near the viewport edge
+  scrolls the PDF. Name and prompt edits autosave after a short pause; page changes
+  save on change and boundary drags save on release. A small status shows saving,
+  success or an error with Retry. Delete remains explicit. Clicking a line smoothly
+  centers the inspector beside that line. Unpinned cards avoid one another.
+  Touching section endpoints share one divider; dragging it or editing its page
+  updates both sections together. At page transitions, the divider selects the
+  following section by default, with the line at the top of its first page.
+  A small notice names the endpoint moved; sub-page sections are allowed. Double-click a shared divider to separate its endpoints; near a page
+  edge, the split places one line at the preceding page end and one at the next
+  page start. Those edge splits stay separate at every zoom.
+  Gaps stay separate. Movement clamps at other sections with an inline
+  notice rather than resizing unrelated sections. The section list shows page
+  ranges on the right and updates while dragging. Edge lines stay inside their
+  own page, including spreads; sections never move or space pages apart.
+  Boundary lines are visible only while Sections is open. Clicking the PDF,
+  background or a comment clears left-card focus without closing the card.
+  Clicking within a left card preserves the selected right-side comment.
+  Section prompts, outline import, spread pairs and right-side feedback remain.
+  Review Settings and Manage Sections are available in the PDF viewer; their
+  document-page buttons have been removed.
 - Isolated non-owners receive only their own top-level conversations and replies
   within them. Owners can inspect all review and apply convenience filters.
   Personal filtering hides whole conversations by top-level author, preserving
@@ -25,18 +53,14 @@ section feedback. See [BETA_C2_REPORT.md](BETA_C2_REPORT.md) for the audit and c
   Colors use [Tableau 10](https://d3js.org/d3-scale-chromatic/categorical#schemeTableau10),
   replacing the original 24 similar muted shades. Migration 9 maps existing choices
   to a corresponding hue when the app starts; historical review identities stay intact.
-- Owners use **Manage sections** to add, rename, reorder, prompt or archive sections.
-  Select a version and choose **Edit boundaries in document** or **Import outline**.
-  In the viewer, **View â†’ Manage sections** opens the workspace; Edit boundaries enters the PDF edit mode. Choose
-  Set start / Set end, click the PDF, inspect preview markers, then Save boundaries.
-  A click near a page edge chooses a page boundary; an interior click chooses a
-  precise canonical Y. Normal text commenting resumes after capture/Done.
-- Precise ends have neutral left-edge ticks; page/spread-row ends have compact
-  horizontal rails in the existing gap. Boundaries inside a spread retain that
-  spread. Feedback stays on the right and supports one response per reviewer,
+- Owners use **Manage sections** to add, rename, prompt or archive sections.
+  Use **Import outline** or the inline Start/End controls to place sections.
+  In the viewer, Manage sections opens the inspector. Enter pages and drag the
+  resulting lines to refine boundaries; changes save automatically.
+- While Sections is open, its boundaries render inside each page and preserve
+  spread membership. Closing Sections hides all boundary overlays. Feedback stays on the right and supports one response per reviewer,
   section and exact version, with replies, author-only edits and tombstones.
-- New PDF versions leave section placements unmapped. Management shows previous
-  placement summaries; the owner confirms new placements. Outline import previews
+- New PDF versions leave section placements unmapped; the owner sets their placements. Outline import previews
   names/start pages and a selectable flat subset; nothing is created until confirmed.
 
 Startup applies migration **9** (Tableau 10 palette refresh). Back up real SQLite with the existing online

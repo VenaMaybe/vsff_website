@@ -297,10 +297,10 @@ pixels. Finite coordinates, page bounds, range ordering, non-overlap and expecte
 placement revision are checked under BEGIN IMMEDIATE. Adjacent ranges/gaps are
 valid. New versions remain unmapped; previous placements are informative only.
 
-Precise boundaries render absolute neutral ticks on the page's left edge.
-Exact page ends use the existing inter-row gap; inside a spread they use only
-a page-edge tick. Neither changes page dimensions or splits a spread. Structural
-markers and accessible author prompts survive Hidden review mode. Section
+Section boundary overlays render only while the Sections card is open.
+Exact page-edge markers render 12 px inside their own page. Section overlays
+never change page margins, spacing, dimensions or spread membership. Section
+feedback and its author prompts remain available independently of the inspector. Section
 feedback uses the existing collision-managed right rail, including on narrow
 screens. No section conversation is persisted as an artificial text anchor.
 
@@ -321,23 +321,106 @@ There is no outbox, IndexedDB, service worker or persistent private PDF cache.
 
 ## Management interaction rule
 
-Short-lived configuration uses an application dialog. Sections uses a compact,
-non-modal inspector fixed to the left of the PDF, outside its scroll container.
-Desktop/tablet layouts reserve space for it; narrow layouts overlay the panel.
-Account, Admin, authentication, document lists and general document pages remain
-normal pages. `dialogs.js` supplies the native dialog/focus/busy/confirmation shell
-for Settings, outline import and confirmations.
+`left_card.js` is the reusable shell for simultaneous document utility cards on
+one left rail. Sections and Review Settings coexist at natural content height;
+there are no viewport/share height limits or internal card/list scrolling. New
+cards open unpinned near the viewport center, then retain their document-relative
+position. Header pointer dragging moves a card vertically; dragging a pinned card
+releases it into document space. Header buttons retain their normal actions.
+At most one card is pinned, snapped 8 px below the workspace top above other cards.
+The pinned card is an independent overlay, excluded from collision packing,
+neighbor focus priority and scroll-extent calculations. Its content height and
+activation cannot move unpinned cards. Pinning preserves existing document-card
+positions; pinning a second card unpins the previous one into document flow. Unpinning releases the card downward into document space. Collision
+packing only moves unpinned full-height cards up/down into free intervals; it never
+shrinks them. A pinned card participates only after it is unpinned.
+The active unpinned card is the fixed point among document-attached neighbors.
+Outside pointer/click events in either the host document or PDF iframe clear
+left-card focus and blur its controls without closing or moving cards. Events
+inside any left card retain focus; section-line activation may focus Sections.
+Per-card event listeners are aborted on close.
+A left-card overflow sentinel makes below-document cards reachable via the PDF
+scrollbar. Pinned cards remain top-snapped even when activating a section line;
+unpinned inspectors retain line-centered activation.
+Closing one retains the gutter
+and other cards. `card_motion.js` supplies the existing 160 ms ease-out comment
+selection animation; scrolling itself remains immediate and reduced motion is honored.
 
-Review settings returns a shared form fragment and saves asynchronously through
-the existing owner service. Sections returns owner-scoped workspace data, edited
-through existing section APIs. `sections_panel.js` manages panel visibility and
-focus; opening it asks `section_viewer.js` to draw labeled start/end lines for all
-mapped sections, emphasizing the selected section. The overlays follow PDF page
-coordinates and disappear when the panel closes. Normal structure markers remain.
-Boundary mode keeps the panel open and returns to the same selected section.
-Document-page entry navigates to the current authorized PDF with the panel open.
-No standalone management-page UI is maintained. Schema and authorization remain
-unchanged.
+Left space is padding in the PDF scrollable canvas (`--review-rail-left`), using
+its gray background and native scrollbars. The iframe stays full width. There is
+no separate sidebar background. Right-hand comments keep their existing layout.
+`dialogs.js` remains for destructive/outline confirmations and Settings on a
+PDF-less document. The document page has no Review Settings or Manage Sections
+buttons; the tools remain in the PDF viewer.
+
+Sections always uses the open PDF version. `section_order.js` orders mapped rows
+by canonical start page/Y, filling mapped slots in the previous logical order so
+unmapped rows retain their display positions. No UI reordering or order writes.
+`section_placement_editor.js` owns transient, per-section boundary drafts shared by
+page-number fields and owner-only draggable demarkers. Page entry means start
+before the page or end after it. `section_boundary_geometry.js` supplies a
+12 px visual inset and an 18 px edge snap zone, measured along the canonical
+page axis through the PDF viewport (including rotation). These are overlay-only
+choices: no section-driven page/spread margins, spacing classes or layout events
+remain. Target-page hit
+testing and near-edge auto-scroll support cross-page dragging, converting through
+the destination PDF viewport/view box. Layout changes notify both card rails. Pointer
+cancel/Escape restores the pre-drag draft. Page edits autosave on change and drags
+autosave on release. Requests are serialized; newer drafts retain their geometry
+and receive the committed revision. Validation/conflict errors retain the draft
+and expose Retry. There is no persistent outbox.
+
+`section_boundaries.js` derives shared endpoints from coincident canonical
+locations; no shared-boundary table or migration is needed. One management divider
+represents a touching end/start pair. Dragging it or editing a linked page field
+changes both endpoints. Page-transition dividers use the following start member
+for physical geometry, activation and inspector centering. A notice names the
+moved neighbor endpoint. Sub-page sections are allowed; the one-page minimum
+is removed from client and service. Positive range length and non-overlap
+remain enforced. Split or
+unlinked endpoints continue to edit independently. Independent boundaries clamp/snap to
+the closest valid neighbor and show an overlap notice; unrelated placements are
+never silently resized. `POST /api/versions/<id>/sections/shared-boundary` saves
+the two adjacent placements in one transaction. Owner and CSRF guards, placement
+validation and expected revisions remain enforced. The service permits only the
+shared end/start to change, requires unchanged outer endpoints, and rolls back
+both writes on failure. An explicit `split: true` on that operation separates the
+endpoints around their old position. Interior splits shrink both ranges by about
+6 rendered pixels to either side (bounded by the pair's outer endpoints). Near
+an interior page edge, splitting places an explicit numeric end at the preceding
+page's exact bottom and start at the next page's exact top, preserving the outer
+endpoints. Those exact numeric edges intentionally remain independent in divider
+grouping even though their canonical locations touch. Null page-edge pairs remain
+shared. This representation uses existing geometry fields, keeps a split stable
+across zoom/reload, and needs no schema migration. Both placements save atomically
+through the same guarded service; range and non-overlap validation still applies.
+Canonical location comparison uses 10 decimal places of page height on both
+client and server, avoiding false gaps from viewport round trips. Each queued save
+captures its geometry at gesture completion; subsequent saves rebase only onto
+revisions acknowledged from this client's own earlier writes. Independent drags
+across their own opposite edge clamp rather than appearing to overlap a neighbor.
+
+Page-edge management dividers use a 2 px line with transparent backing, inside
+their own page. There are no separate always-visible structural rails or ticks.
+The shared divider at an exact page transition renders at the following page start; splitting displays the two edges on their
+respective pages. PDF.js alone owns page/spread spacing and alignment.
+
+`sections_workspace.js` is the sole boundary inspector. List rows show compact,
+right-aligned page ranges derived from live geometry (including drafts); an end
+at the following page top does not count that page. Unmapped ranges stay blank.
+Compact horizontal
+Start/End controls synchronize with the PDF markers. Names and prompts autosave
+after a short typing pause or on change/blur; a small footer shows Saving, Saved
+or a retryable error. Delete retains confirmation. The separate top section
+editing toolbar and manual save/cancel workflow are removed. Start/End markers select and activate its section and
+smoothly center the card beside the selected boundary (clamped to the viewport),
+matching comment selection. Unpinned cards capture that document-relative position. Opening Sections reveals all mapped
+start/end lines; closing removes all PDF section boundary overlays. Outline import, precise boundaries, in-page edge lines, spread rules,
+prompts and right-side feedback remain. Review Settings retains its form fragment
+and existing save service. Click-away checks use the event path so left-card DOM updates cannot deselect a
+right-side comment. PDF/background clicks retain normal deselection.
+Schema and immutable PDF bytes are unchanged. The shared-boundary operation
+uses the existing owner-only authorization policy.
 
 ## Review palette refresh (migration 9)
 

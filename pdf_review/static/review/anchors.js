@@ -401,7 +401,7 @@ async function initialize() {
   overlay = new AnchorOverlay(frame.contentWindow, viewerApplication);
   installViewerControls(frame, application);
   sectionViewer=new SectionViewer(frame,application,config,state,()=>threadRefresh.request(),setReviewStatus);
-  registerManagement({config,sectionViewer,refresh:()=>threadRefresh.request()});
+  registerManagement({config,sectionViewer,deselectThread:sidebarActions.deselect,refresh:()=>threadRefresh.request()});
   viewerPreferences=new ViewerPreferences(config,application,()=>threadRefresh.request(),setReviewStatus);
   await viewerPreferences.initialize();
   rail = new CommentRail(frame, application, state, composer, positionSelectionButton);
@@ -411,7 +411,8 @@ async function initialize() {
   frame.contentDocument.addEventListener("selectionchange", rememberSelection);
   for (const doc of [document, frame.contentDocument]) {
     doc.addEventListener("click", (event) => {
-      if (state.selectedThreadId && !event.target.closest?.(".pdf-review-thread-highlight, .thread-card, .thread-marker, #comment-selection-button, .selection-comment-composer")) {
+      const inLeftCard = event.composedPath().some(node => node.matches?.('.left-card'));
+      if (state.selectedThreadId && !inLeftCard && !event.target.closest?.(".pdf-review-thread-highlight, .thread-card, .thread-marker, #comment-selection-button, .selection-comment-composer")) {
         sidebarActions.deselect();
       }
     });

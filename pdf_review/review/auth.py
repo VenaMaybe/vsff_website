@@ -31,7 +31,7 @@ OWNER_ENDPOINTS = {'accounts.access_page', 'accounts.access_mutation', 'accounts
 ADMIN_ENDPOINTS = {'accounts.admin', 'accounts.beta_email', 'accounts.site_admin'}
 REVIEW_OWNER_ENDPOINTS = {'review_options.settings_page','review_options.settings_save',
     'review_options.sections_page','review_options.create_section','review_options.section_update',
-    'review_options.placement','review_options.outline'}
+    'review_options.placement','review_options.shared_boundary','review_options.outline'}
 PROTECTED_ENDPOINTS.update(REVIEW_OWNER_ENDPOINTS | {'review_options.viewer_preferences',
     'review_options.context','review_options.response_create','review_options.response_reply','review_options.response_comment'})
 

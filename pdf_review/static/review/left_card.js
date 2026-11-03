@@ -1,0 +1,273 @@
+import { animateCard } from './card_motion.js';
+
+const cards = new Set();
+const tails = new Map();
+let scheduled = false;
+let focusedCard = null;
+function layoutCards(animate = false) {
+  if (scheduled && !animate) return;
+  const run = () => {
+    scheduled = false;
+    const groups = new Map();
+    for (const card of cards) {
+      const parent = card.element.parentElement;
+      if (!parent) continue;
+      if (!groups.has(parent)) groups.set(parent, []);
+      groups.get(parent).push(card);
+    }
+    for (const [parent, group] of groups) {
+      for (const card of group) {
+        if (card.openingCentered && !card.pinned) card.captureAnchor(parent.getBoundingClientRect().top + Math.max(8, (parent.clientHeight-card.element.offsetHeight)/2));
+        if (card.centerRequest) {
+          const center = card.centerRequest();
+          if (!card.pinned && Number.isFinite(center)) card.captureAnchor(parent.getBoundingClientRect().top + Math.max(8, center - parent.getBoundingClientRect().top - card.element.offsetHeight / 2));
+          card.centerRequest = null;
+        }
+        card.preferredTop = card.pinned ? 8 : card.documentTop();
+      }
+      // Pinned cards are an independent overlay. Only document-attached cards
+      // take part in collision packing and choose a fixed point.
+      const occupied = [];
+      for (const card of group) if (card.pinned) card.layoutTop = 8;
+      const order = group.filter(card => !card.pinned).sort((a,b) => (b === focusedCard)-(a === focusedCard));
+      for (const card of order) {
+        const gaps = [];
+        const min = -Infinity, max = Infinity;
+        let start = min;
+        for (const box of occupied.sort((a,b) => a.top-b.top)) {
+          if (box.bottom + 8 <= min || box.top - 8 >= max) continue;
+          gaps.push({ start, end: Math.min(max, box.top - 8) });
+          start = Math.max(start, box.bottom + 8);
+        }
+        gaps.push({ start, end:max });
+        const fitting = gaps.filter(gap => gap.end - gap.start >= card.element.offsetHeight);
+        const choices = fitting.map(gap => Math.max(gap.start, Math.min(card.preferredTop, gap.end - card.element.offsetHeight)));
+        card.layoutTop = choices.length ? choices.reduce((a,b) => Math.abs(b-card.preferredTop) < Math.abs(a-card.preferredTop) ? b : a) : card.preferredTop;
+        occupied.push({top:card.layoutTop, bottom:card.layoutTop+card.element.offsetHeight});
+      }
+      // Full-height document cards can extend past the last PDF page. Make
+      // that content reachable with the existing PDF scrollbar, without resizing cards.
+      const attached = group.filter(card => !card.pinned), first = group[0];
+      if (attached.length && first.scroller) {
+        let tail = tails.get(parent);
+        if (!tail) {
+          tail = first.sectionViewer.frame.contentDocument.createElement('div');
+          tail.className = 'review-left-card-tail';
+          tail.style.cssText = 'position:absolute;left:0;width:1px;height:1px;pointer-events:none';
+          first.scroller.append(tail); tails.set(parent, tail);
+        }
+        const contentStart = Math.max(...attached.map(card => card.documentTop() + first.scroller.scrollTop));
+        const stack = attached.reduce((sum,card)=>sum+card.element.offsetHeight+8,0);
+        tail.style.top = `${Math.ceil(Math.max(parseFloat(tail.style.top)||0, first.sectionViewer.application.pdfViewer.viewer.offsetHeight, contentStart + stack + 8))}px`;
+      } else { tails.get(parent)?.remove(); tails.delete(parent); }
+      for (const card of group) {
+        const offset = card.layoutTop-card.preferredTop;
+        card.position(animate || (card.lastOffset !== undefined && Math.abs(offset-card.lastOffset)>1));
+        card.lastOffset = offset;
+      }
+    }
+  };
+  if (animate) run(); else { scheduled = true; requestAnimationFrame(run); }
+}
+function clearLeftCardFocus(event) {
+  if(event.composedPath().some(node=>node.matches?.('.left-card')))return;
+  if(![...cards].some(card=>card.element.classList.contains('active')))return;
+  // Freeze all document-card positions before dropping packing priority.
+  for(const card of cards)if(!card.pinned)card.captureAnchor(card.element.getBoundingClientRect().top);
+  for(const card of cards) {
+    if(!card.element.classList.contains('active'))continue;
+    card.element.classList.remove('active');
+    if(card.element.contains(document.activeElement))document.activeElement.blur();
+  }
+  focusedCard=null;
+}
+let nextId = 0;
+
+// Reusable simultaneous utility cards. Callers own content; the shell owns
+// viewport packing, document anchors, pinning, animation and focus.
+export class LeftCard {
+  constructor(title, { opener, viewer, className = '', onVisibility } = {}) {
+    Object.assign(this, { viewer, onVisibility, title });
+    this.opener = opener?.getClientRects().length ? opener : opener?.closest('.toolbar-menu')?.querySelector('summary');
+    this.pinned = false;
+    this.element = document.createElement('section');
+    this.element.className = `left-card thread-card ${className}`;
+    this.element.setAttribute('role', 'region');
+    const header = document.createElement('header'); header.className = 'dialog-header';
+    const heading = document.createElement('h2'); heading.id = `left-card-${++nextId}`; heading.textContent = title;
+    this.element.setAttribute('aria-labelledby', heading.id);
+    this.closeButton = document.createElement('button'); this.closeButton.type = 'button';
+    this.closeButton.textContent = '\u00d7'; this.closeButton.setAttribute('aria-label', `Close ${title}`);
+    this.closeButton.onclick = () => this.close();
+    this.pin = document.createElement('button'); this.pin.type = 'button'; this.pin.className = 'left-card-pin sections-pin';
+    this.pin.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3h6l-1 7 4 4v2H6v-2l4-4zM12 16v6"/></svg>';
+    this.pin.onclick = () => this.setPinned(!this.pinned);
+    header.addEventListener('pointerdown', event => this.startHeaderDrag(event));
+    this.updatePin(); header.append(heading, this.pin, this.closeButton);
+    this.body = document.createElement('div'); this.body.className = 'left-card-body sections-panel-body';
+    this.element.append(header, this.body);
+    this.schedule = () => layoutCards();
+    this.openingCentered = true;
+    this.element.addEventListener('pointerdown', () => { this.openingCentered=false; this.activate(); });
+    this.element.addEventListener('focusin', () => this.activate());
+    this.element.addEventListener('keydown', event => {
+      if (event.key === 'Escape' && this.cancelHeaderDrag) { event.preventDefault(); event.stopPropagation(); this.cancelHeaderDrag(); return; }
+      if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); this.close(); }
+    });
+    this.element.addEventListener('wheel', event => {
+      if (!this.scroller || event.ctrlKey || event.target.closest('textarea, select')) return;
+      const unit = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? this.scroller.clientHeight : 1;
+      this.scroller.scrollBy(event.deltaX * unit, event.deltaY * unit); event.preventDefault();
+    }, { passive: false });
+  }
+  get sectionViewer() { return this.viewer?.sectionViewer; }
+  open() {
+    if (this.element.isConnected) { this.reveal(); return true; }
+    cards.add(this);
+    const workspace = document.querySelector('.viewer-workspace');
+    (workspace || document.body).append(this.element);
+    const integration = this.sectionViewer;
+    this.scroller = integration?.application.pdfViewer.container;
+    this.root = integration?.frame.contentDocument.documentElement;
+    this.focusEvents=new AbortController();
+    const outside=event=>clearLeftCardFocus(event);
+    for(const doc of [document,integration?.frame.contentDocument].filter(Boolean))for(const type of ['pointerdown','click']) {
+      doc.addEventListener(type,outside,{capture:true,signal:this.focusEvents.signal});
+    }
+    this.bus = integration?.application.eventBus;
+    this.root?.style.setProperty('--review-rail-left', '284px');
+    this.bus?.dispatch('leftcardchanged', { source: this });
+    this.captureAnchor((workspace?.getBoundingClientRect().top || 0) + Math.max(8, ((workspace?.clientHeight || innerHeight)-this.element.offsetHeight)/2));
+    this.onScroll = () => this.schedule();
+    this.scroller?.addEventListener('scroll', this.onScroll, { passive: true });
+    this.resize = new ResizeObserver(this.schedule);
+    this.resize.observe(workspace || document.body); this.resize.observe(this.element);
+    for (const event of ['scalechanging', 'rotationchanging', 'spreadmodechanged', 'scrollmodechanged', 'pagerendered']) this.bus?.on(event, this.schedule);
+    layoutCards(true); animateCard(this.element, 4, true);
+    this.onVisibility?.(true); this.closeButton.focus({ preventScroll: true });
+    return true;
+  }
+  contentReady() {
+    if(!this.openingCentered)return;
+    layoutCards(true);
+    requestAnimationFrame(()=>requestAnimationFrame(()=>{this.openingCentered=false;}));
+  }
+  activate() {
+    const changed = !this.pinned && focusedCard !== this; if (!this.pinned) focusedCard = this;
+    for (const card of cards) card.element.classList.toggle('active', card === this);
+    if (changed) layoutCards(true);
+  }
+  startHeaderDrag(event) {
+    if (event.button !== 0 || event.target.closest('button') || this.busy) return;
+    event.preventDefault(); this.openingCentered = false;
+    const header = event.currentTarget, initial = this.element.getBoundingClientRect().top, start = event.clientY;
+    const listeners = new AbortController(); let moved = false;
+    header.setPointerCapture(event.pointerId);
+    const finish = cancel => {
+      listeners.abort(); this.cancelHeaderDrag = null;
+      if (header.hasPointerCapture(event.pointerId)) header.releasePointerCapture(event.pointerId);
+      if (cancel) { this.captureAnchor(initial); layoutCards(true); }
+    };
+    this.cancelHeaderDrag = () => finish(true);
+    document.addEventListener('pointermove', move => {
+      if (move.pointerId !== event.pointerId || (!moved && Math.abs(move.clientY-start)<3)) return;
+      if (!moved) { if (this.pinned) this.setPinned(false, false); this.activate(); moved = true; }
+      this.captureAnchor(initial + move.clientY-start); layoutCards();
+    }, {capture:true, signal:listeners.signal});
+    document.addEventListener('pointerup', up => { if(up.pointerId===event.pointerId)finish(false); }, {capture:true,signal:listeners.signal});
+    document.addEventListener('pointercancel', cancel => { if(cancel.pointerId===event.pointerId)finish(true); }, {capture:true,signal:listeners.signal});
+  }
+  setPinned(value, animate = true) {
+    this.openingCentered = false;
+    const parent = this.element.parentElement;
+    if (!parent) { this.pinned = value; this.updatePin(); return; }
+    const top = this.element.getBoundingClientRect().top;
+    if (value) {
+      // Removing a card from document flow must leave the existing neighbors
+      // exactly where they are, including any previous collision offsets.
+      for (const other of cards) if (other !== this && !other.pinned && other.element.parentElement === parent) other.captureAnchor(other.element.getBoundingClientRect().top);
+      if (focusedCard === this) focusedCard = null;
+      for (const other of cards) if (other !== this && other.pinned && other.element.parentElement === parent) {
+        other.pinned = false;
+        other.captureAnchor(Math.max(other.element.getBoundingClientRect().top, parent.getBoundingClientRect().top + 40));
+        other.updatePin(); focusedCard = other;
+      }
+    } else {
+      this.captureAnchor(Math.max(top, parent.getBoundingClientRect().top + 40));
+      focusedCard = this;
+    }
+    this.pinned = value; this.centerRequest = null; this.updatePin();
+    layoutCards(animate);
+  }
+  documentTop() {
+    if (!this.anchorPage) return 8;
+    const page = this.anchorPage.getBoundingClientRect();
+    return this.sectionViewer.frame.getBoundingClientRect().top - this.element.parentElement.getBoundingClientRect().top + page.top + this.anchorFraction * page.height;
+  }
+  centerOn(getCenter) {
+    this.openingCentered = false;
+    this.centerRequest = getCenter; this.activate(); layoutCards(true);
+    this.closeButton.focus({ preventScroll:true });
+  }
+  reveal() {
+    this.activate();
+    const rect = this.element.getBoundingClientRect(), parent = this.element.parentElement.getBoundingClientRect();
+    if (rect.top < parent.top || rect.bottom > parent.bottom) {
+      if (!this.pinned) this.captureAnchor(parent.top + 8);
+
+      layoutCards(true);
+    }
+    this.closeButton.focus({ preventScroll: true });
+  }
+  updatePin() {
+    this.pin.setAttribute('aria-pressed', String(this.pinned));
+    this.element.dataset.pinned = String(this.pinned);
+    const label = this.pinned ? `Unpin ${this.title} from the viewport` : `Pin ${this.title} to the viewport`;
+    this.pin.setAttribute('aria-label', label); this.pin.title = label;
+  }
+  captureAnchor(visualTop) {
+    const integration = this.sectionViewer, pdf = integration?.application.pdfViewer;
+    this.anchorPage = pdf?.getPageView(pdf.currentPageNumber - 1)?.div;
+    if (!this.anchorPage) return;
+    const page = this.anchorPage.getBoundingClientRect();
+    // Negative fractions are intentional: the card may be above the current page.
+    // Capture the actual rendered card position, never a clamped page boundary.
+    this.anchorFraction = (visualTop - integration.frame.getBoundingClientRect().top - page.top) / page.height;
+  }
+  position(animate = false, visualTop = this.element.getBoundingClientRect().top) {
+    const integration = this.sectionViewer;
+    if (!integration) return;
+    const pdf = integration.application.pdfViewer;
+    const page = !this.pinned ? this.anchorPage : pdf.getPageView(pdf.currentPageNumber - 1)?.div;
+    if (!page) return;
+    const rect = page.getBoundingClientRect(), frame = integration.frame.getBoundingClientRect();
+    const workspace = this.element.parentElement.getBoundingClientRect();
+    const siblings = pdf.scrollMode === 1 ? pdf.viewer.querySelectorAll('.page') : page.closest('.spread')?.querySelectorAll(':scope > .page') || [page];
+    const left = Math.min(...[...siblings].map(p => p.getBoundingClientRect().left));
+    const x = frame.left + left - workspace.left - this.element.offsetWidth - 12;
+    this.element.style.left = `${this.pinned ? Math.max(8, Math.min(x, workspace.width - this.element.offsetWidth - 8)) : x}px`;
+    const top = this.layoutTop ?? 8;
+    this.element.style.top = `${top}px`; this.lastTop = top;
+    if (animate && Math.abs(visualTop - workspace.top - top) > .5) animateCard(this.element, visualTop - workspace.top - top);
+  }
+  close(restoreFocus = true) {
+    if (this.busy) return false;
+    this.cancelHeaderDrag?.();this.focusEvents?.abort();
+    this.scroller?.removeEventListener('scroll', this.onScroll); this.resize?.disconnect();
+    for (const event of ['scalechanging', 'rotationchanging', 'spreadmodechanged', 'scrollmodechanged', 'pagerendered']) this.bus?.off(event, this.schedule);
+    this.element.getAnimations().forEach(animation => animation.cancel());
+    const parent = this.element.parentElement;
+    this.element.remove();
+    cards.delete(this);
+    if (![...cards].some(card => card.element.parentElement === parent)) { tails.get(parent)?.remove(); tails.delete(parent); } if (focusedCard === this) focusedCard = null;
+    if (![...cards].some(card => card.root === this.root)) this.root?.style.removeProperty('--review-rail-left');
+    this.bus?.dispatch('leftcardchanged', { source: this }); layoutCards(true);
+    this.onVisibility?.(false);
+    if (restoreFocus && this.opener?.isConnected) this.opener.focus({ preventScroll: true });
+    return true;
+  }
+  setBusy(value) {
+    this.busy = value; this.element.setAttribute('aria-busy', String(value)); this.body.inert = value;
+    this.closeButton.disabled = value; this.pin.disabled = value;
+  }
+}

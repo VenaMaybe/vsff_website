@@ -509,6 +509,30 @@ def comment_ui_checks(cdp, session):
       return [...document.querySelectorAll('.thread-card:not(.active)')].some(c=>c.getAnimations().some(a=>a.playState==='running')) && pdf.container.scrollTop===before;
     })()"""), 'Neighboring comments should animate without scrolling the PDF'
     time.sleep(.2)
+    # Left-card controls retain the selected comment, even when a row replaces
+    # its DOM during the click. PDF/background clicks still clear selection.
+    cdp.evaluate(session, """(async()=>{
+      const config=JSON.parse(document.querySelector('#anchor-config').textContent);
+      window.leftCardThread=document.querySelector('#thread-list .thread-card.active').dataset.threadId;
+      const {jsonRequest}=await import('/static/review/thread_api.js');
+      await jsonRequest(`/api/documents/${config.documentId}/sections`,{method:'POST',body:JSON.stringify({name:'Focus retention fixture'})});
+      document.querySelector('[data-sections]').click();
+    })()""")
+    cdp.wait(session,"document.querySelector('.section-master-item')!==null")
+    cdp.evaluate(session,"document.querySelector('[data-review-settings]').click()")
+    cdp.wait(session,"document.querySelector('.settings-form')!==null")
+    cdp.evaluate(session,"[...document.querySelector('iframe').contentDocument.querySelectorAll('.pdf-review-thread-highlight')].find(h=>h.dataset.threadId===window.leftCardThread).click()")
+    cdp.evaluate(session,"document.querySelector('.section-master-item').click();document.querySelector('.settings-panel select').click()")
+    assert cdp.evaluate(session,"document.querySelector('#thread-list .thread-card.active')?.dataset.threadId===window.leftCardThread")
+    cdp.evaluate(session,"document.querySelector('.settings-panel select').focus()")
+    assert cdp.evaluate(session,"document.querySelector('.left-card.active')!==null")
+    cdp.evaluate(session,"document.querySelector('#thread-list .thread-card.active').click()")
+    assert cdp.evaluate(session,"!document.querySelector('.left-card.active')&&document.querySelector('#thread-list .thread-card.active')?.dataset.threadId===window.leftCardThread")
+    cdp.evaluate(session,"document.querySelector('.sections-panel .dialog-header button:last-child').click();document.querySelector('.settings-panel .dialog-header button:last-child').click()")
+    assert cdp.evaluate(session,"document.querySelector('#thread-list .thread-card.active')?.dataset.threadId===window.leftCardThread")
+    cdp.evaluate(session,"document.querySelector('iframe').contentDocument.body.dispatchEvent(new MouseEvent('click',{bubbles:true}))")
+    assert cdp.evaluate(session,"!document.querySelector('#thread-list .thread-card.active')")
+    cdp.evaluate(session,"[...document.querySelector('iframe').contentDocument.querySelectorAll('.pdf-review-thread-highlight')].find(h=>h.dataset.threadId===window.leftCardThread).click()")
     # Reply controls, compact long threads and Ctrl+Shift+Enter posting.
     assert cdp.evaluate(session, "document.querySelector('.thread-card.active .thread-reply-form').hidden")
     cdp.evaluate(session, """(async()=>{

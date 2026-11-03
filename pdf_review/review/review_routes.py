@@ -132,6 +132,14 @@ def placement(version_id,section_id):
     return jsonify(ok=True)
 
 
+@bp.post('/api/versions/<version_id>/sections/shared-boundary')
+@guarded
+def shared_boundary(version_id):
+    sections.save_shared_boundary(database_path(),version_id,actor(),json_payload(16384))
+    notify_version_changed(version_id)
+    return jsonify(ok=True)
+
+
 @bp.post('/api/versions/<version_id>/sections/outline')
 @guarded
 def outline(version_id):

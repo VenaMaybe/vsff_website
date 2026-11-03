@@ -37,18 +37,19 @@ def run_c2(cdp,a,b,fixture,base):
     cdp.evaluate(a,"document.querySelector('[data-sections]').click()")
     cdp.wait(a,"document.querySelector('.sections-workspace')!==null")
     screenshot(cdp,a,'c2-sections-management')
-    cdp.evaluate(a,"document.querySelector('.sections-panel .dialog-header button').click()")
+    cdp.evaluate(a,"document.querySelector('.sections-panel .dialog-header button:last-child').click()")
     context=request(cdp,b,f'/api/versions/{version}/review-context')['data'];sid=context['sections'][0]['section_id']
     assert context['sections'][0]['placement'] is None
     navigate(cdp,a,base+f'/versions/{version}/view?sections=edit',True)
     cdp.evaluate(a,PDF+'.currentScale=.75')
-    cdp.wait(a,"!document.querySelector('#section-editor').hidden")
+    cdp.wait(a,"document.querySelector('.sections-panel [name=start_page]')!==null")
     screenshot(cdp,a,'c2-section-edit-mode')
-    # Set boundaries visually, preview, and explicitly save.
-    cdp.evaluate(a,"(()=>{document.querySelector('#section-set-start').click();const p=document.querySelector('iframe').contentDocument.querySelector('.page');const r=p.getBoundingClientRect();p.dispatchEvent(new MouseEvent('click',{clientX:r.left+20,clientY:r.top+2,bubbles:true,cancelable:true}));})()")
-    cdp.evaluate(a,"(()=>{document.querySelector('#section-set-end').click();const w=document.querySelector('iframe').contentWindow;const p=w.PDFViewerApplication.pdfViewer.getPageView(0);const r=p.div.getBoundingClientRect();const y=p.viewport.convertToViewportPoint(306,400)[1]*p.div.clientHeight/p.viewport.height;p.div.dispatchEvent(new MouseEvent('click',{clientX:r.left+20,clientY:r.top+p.div.clientTop+y,bubbles:true,cancelable:true}));document.querySelector('#section-save-placement').click();})()")
-    cdp.wait(a,"document.querySelector('#section-boundary-preview').textContent==='Boundaries saved.'")
-    cdp.evaluate(a,"document.querySelector('#section-editor-close').click()")
+    # Canonical geometry seed; interactive page entry/drag is covered by --management-ui.
+    box=cdp.evaluate(a,PDF+'.getPageView(0).viewport.viewBox')
+    assert request(cdp,a,f'/api/versions/{version}/sections/{sid}/placement','POST',{
+        'start_page':1,'start_y':None,'start_view_box':box,'end_page':1,'end_y':400,'end_view_box':box,
+        'page_count':cdp.evaluate(a,PDF+'.pagesCount'),'expected_revision':0})['status']==200
+    cdp.evaluate(a,"document.querySelector('.sections-panel .dialog-header button:last-child').click()")
     cdp.wait(b,"document.querySelector('.section-feedback-card')!==null")
     # Section feedback uses the existing right rail and shared safe comment forms.
     cdp.evaluate(b,"document.querySelector('.section-feedback-card .reply-control').click();document.querySelector('.section-feedback-card textarea').value='Section response from Beta';document.querySelector('.section-feedback-card .thread-reply-form').requestSubmit()")
@@ -70,53 +71,31 @@ def run_c2(cdp,a,b,fixture,base):
     second=request(cdp,a,f'/api/documents/{doc}/sections','POST',{'name':'Page end section'})['data']['section_id']
     placement=dict(start_page=1,start_y=390,end_page=1,end_y=None,start_view_box=[0,0,612,792],end_view_box=[0,0,612,792],page_count=2,expected_revision=0)
     assert request(cdp,a,f'/api/versions/{version}/sections/{second}/placement','POST',placement)['status']==200
-    cdp.wait(a,"document.querySelector('iframe').contentDocument.querySelector('.section-row-rail')!==null")
-    # No marker operation changes page/spread spacing at any zoom/rotation.
+    # With Sections closed there are no PDF boundary rails, ticks or labels.
+    cdp.wait(a,"document.querySelector('iframe').contentDocument.querySelectorAll('.section-structure-marker').length===0")
     for zoom in [.5,1,1.5,2]:
-        cdp.evaluate(a,PDF+f'.currentScale={zoom}')
-        cdp.wait(a,f"Math.abs({PDF}.currentScale-{zoom})<.01")
-        time.sleep(.25)
-        result=cdp.evaluate(a,"""(()=>{const v=document.querySelector('iframe').contentWindow.PDFViewerApplication.pdfViewer;
-          const page=v.getPageView(0),other=v.getPageView(1),mark=page.div.querySelector('.section-edge-tick');
-          const p=page.div.getBoundingClientRect(),q=other.div.getBoundingClientRect(),m=mark.getBoundingClientRect();
-          const expected=page.viewport.convertToViewportPoint(306,400)[1];
-          return {error:Math.abs(m.top-p.top-page.div.clientTop-expected),height:page.div.offsetHeight,gap:q.top-p.bottom,markers:page.div.querySelectorAll('.section-structure-marker').length};})()""")
-        assert result['error']<4,result
-        assert result['markers']==2,result
-        assert cdp.evaluate(a,"""(()=>{const d=document.querySelector('iframe').contentDocument;
-          const pages=[...d.querySelectorAll('.page')],markers=[...d.querySelectorAll('.section-structure-marker')];
-          const geometry=()=>pages.map(p=>{const b=p.getBoundingClientRect();return [b.x,b.y,b.width,b.height]});
-          const before=JSON.stringify(geometry());markers.forEach(m=>m.style.display='none');
-          const after=JSON.stringify(geometry());markers.forEach(m=>m.style.removeProperty('display'));return before===after;})()"""),'Section markers altered page layout'
-        screenshot(cdp,a,f'c2-precise-y-zoom-{int(zoom*100)}')
-    cdp.evaluate(a,PDF+'.pagesRotation=90');time.sleep(.5)
-    assert cdp.evaluate(a,"document.querySelector('iframe').contentDocument.querySelectorAll('.section-structure-marker').length===2")
-    assert cdp.evaluate(a,"""(()=>{const v=document.querySelector('iframe').contentWindow.PDFViewerApplication.pdfViewer;
-      const p=v.getPageView(0),m=p.div.querySelector('.section-edge-tick');const expected=p.viewport.convertToViewportPoint(306,400)[1]*p.div.clientHeight/p.viewport.height;
-      return Math.abs(m.getBoundingClientRect().top-p.div.getBoundingClientRect().top-p.div.clientTop-expected)<3;})()""")
-    screenshot(cdp,a,'c2-section-rotation-90')
-    cdp.evaluate(a,PDF+'.pagesRotation=0;'+PDF+'.currentScale=.5')
+        cdp.evaluate(a,PDF+f'.currentScale={zoom}');time.sleep(.25)
+        assert cdp.evaluate(a,"document.querySelector('iframe').contentDocument.querySelectorAll('.section-structure-marker').length===0")
+    for rotation in [90,0]:
+        cdp.evaluate(a,PDF+f'.pagesRotation={rotation}');time.sleep(.25)
+        assert cdp.evaluate(a,"document.querySelector('iframe').contentDocument.querySelectorAll('.section-structure-marker').length===0")
+    cdp.evaluate(a,PDF+'.currentScale=.5')
     for spread in [0,1,2]:
-        change(cdp,a,'#review-spread',spread);time.sleep(.35)
-        info=cdp.evaluate(a,"""(()=>{const d=document.querySelector('iframe').contentDocument,p=d.querySelector('.page');return {spread:p.closest('.spread')?.querySelectorAll(':scope > .page').length??1,rail:!!p.querySelector('.section-row-rail'),ticks:p.querySelectorAll('.section-edge-tick').length};})()""")
-        if spread==1:assert info['spread']==2 and not info['rail'] and info['ticks']==2,info
-        else:assert info['rail'],info
-        screenshot(cdp,a,f'c2-section-spread-{spread}')
-    # A real row-boundary after the last page in a spread.
+        change(cdp,a,'#review-spread',spread);time.sleep(.25)
+        assert cdp.evaluate(a,"document.querySelector('iframe').contentDocument.querySelectorAll('.section-structure-marker').length===0")
     third=request(cdp,a,f'/api/documents/{doc}/sections','POST',{'name':'Spread end section'})['data']['section_id']
     placement.update(start_page=2,start_y=None,end_page=2,end_y=None)
     assert request(cdp,a,f'/api/versions/{version}/sections/{third}/placement','POST',placement)['status']==200
-    change(cdp,a,'#review-spread',1);time.sleep(.4);screenshot(cdp,a,'c2-between-spreads-rail')
+    change(cdp,a,'#review-spread',1);time.sleep(.4)
     assert cdp.evaluate(a,"""(()=>{const d=document.querySelector('iframe').contentDocument;
       const right=Math.max(...[...d.querySelectorAll('.page')].map(p=>p.getBoundingClientRect().right));
       return [...document.querySelectorAll('.section-feedback-card:not([hidden])')].every(c=>c.getBoundingClientRect().left>=right);})()"""),'Section feedback left the right rail'
-    # Hidden reviews retain structural markers; minimized section markers are distinct.
+    # Feedback remains available even though boundary overlays are hidden.
     for mode in ['expanded','minimized','hidden']:
-        change(cdp,a,'#comments-visibility',mode);time.sleep(.35)
-        assert cdp.evaluate(a,"document.querySelector('iframe').contentDocument.querySelectorAll('.section-structure-marker').length===3")
+        change(cdp,a,'#comments-visibility',mode);time.sleep(.25)
+        assert cdp.evaluate(a,"document.querySelector('iframe').contentDocument.querySelectorAll('.section-structure-marker').length===0")
         if mode=='hidden':assert cdp.evaluate(a,"document.querySelector('#thread-list').hidden")
         if mode=='minimized':assert cdp.evaluate(a,"document.querySelector('.section-feedback-marker:not([hidden])')!==null")
-        screenshot(cdp,a,f'c2-comments-{mode}')
     change(cdp,a,'#comments-visibility','expanded')
     # Active spread presence paints at most two pages for a participant.
     change(cdp,b,'#review-spread',0);time.sleep(.7)
@@ -144,6 +123,8 @@ def run_c2(cdp,a,b,fixture,base):
     assert cdp.evaluate(a,"[...document.querySelector('iframe').contentDocument.querySelectorAll('.review-page-presence')].every(e=>e.textContent.trim().length>0)")
     # Owner policy change while both browsers are connected removes forbidden content.
     navigate(cdp,a,base+f'/documents/{doc}')
+    assert cdp.evaluate(a,"!document.querySelector('[data-review-settings],[data-sections]')")
+    navigate(cdp,a,base+f'/versions/{version}/view',True)
     cdp.wait(a,"document.querySelector('[data-review-settings]')!==null")
     cdp.evaluate(a,"document.querySelector('[data-review-settings]').click()")
     cdp.wait(a,"document.querySelector('[name=visibility_policy]')!==null")
@@ -160,15 +141,16 @@ def run_c2(cdp,a,b,fixture,base):
     # New version starts unmapped; outline preview makes no silent writes.
     navigate(cdp,a,base+f'/versions/{other}/view?sections=edit',True)
     assert all(s['placement'] is None for s in request(cdp,a,f'/api/versions/{other}/review-context')['data']['sections'])
-    cdp.evaluate(a,"document.querySelector('#section-editor-cancel').click();document.querySelector('[data-sections]').click()")
+    cdp.evaluate(a,"document.querySelector('[data-sections]').click()")
     cdp.wait(a,"document.querySelector('.sections-workspace')!==null")
-    cdp.evaluate(a,"[...document.querySelectorAll('.sections-panel button, dialog button')].find(b=>b.textContent==='Import outline?').click()")
+    cdp.evaluate(a,"[...document.querySelectorAll('.sections-panel button, dialog button')].find(b=>b.textContent==='Import outline...').click()")
     cdp.wait(a,"document.querySelectorAll('.outline-candidate').length===3")
     assert cdp.evaluate(a,"[...document.querySelectorAll('.outline-candidate input[type=checkbox]')].filter(i=>i.checked).length===2")
     screenshot(cdp,a,'c2-outline-preview')
     cdp.evaluate(a,"const rows=document.querySelectorAll('.outline-candidate');rows[0].querySelectorAll('input')[1].value='Edited outline section';document.querySelector('dialog[open] form').requestSubmit()")
     cdp.wait(a,"document.querySelector('.sections-workspace')!==null")
-    cdp.evaluate(a,"document.querySelector('.sections-panel .dialog-header button').click()")
+    cdp.wait(a,f"fetch('/api/versions/{other}/review-context').then(r=>r.json()).then(d=>d.sections.filter(s=>s.placement).length===2)")
+    cdp.evaluate(a,"document.querySelector('.sections-panel .dialog-header button:last-child').click()")
     assert len([s for s in request(cdp,a,f'/api/versions/{other}/review-context')['data']['sections'] if s['placement']])==2
     # Responsive review and structure at every requested viewport.
     for width,height in [(1440,900),(1280,800),(1024,768),(768,1024),(390,844)]:
@@ -177,7 +159,7 @@ def run_c2(cdp,a,b,fixture,base):
             change(cdp,a,'#comments-visibility',mode);time.sleep(.2);screenshot(cdp,a,f'c2-{mode}-{width}')
         for control,name,selector in [('data-review-settings','settings','[name=visibility_policy]'),
                 ('data-sections','sections','.sections-workspace'),(None,'palette','.review-palette')]:
-            navigate(cdp,a,base+(f'/documents/{doc}' if control else '/account'))
+            navigate(cdp,a,base+(f'/versions/{version}/view' if control else '/account'),bool(control))
             if control:
                 cdp.wait(a,f'document.querySelector("[{control}]")!==null')
                 cdp.evaluate(a,f'document.querySelector("[{control}]").click()')

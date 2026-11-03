@@ -1,3 +1,4 @@
+import { animateCard, CARD_MOTION_MS } from './card_motion.js';
 import { bindMenuDismissal, syncMenuValues } from "./menus.js";
 import { pdfRectangleToCss } from "./anchor_geometry.js";
 import { sectionGeometry } from './section_viewer.js';
@@ -72,9 +73,7 @@ export function installViewerControls(frame, application) {
   }
   syncScale();
   const header = document.querySelector(".viewer-shell-bar");
-  const editor=document.getElementById('section-editor');
-  const headerObserver=new ResizeObserver(() => document.documentElement.style.setProperty("--toolbar-height", `${header.offsetHeight+(editor?.offsetHeight??0)}px`));
-  headerObserver.observe(header);if(editor)headerObserver.observe(editor);
+  new ResizeObserver(() => document.documentElement.style.setProperty('--toolbar-height', `${header.offsetHeight}px`)).observe(header);
   syncMenuValues();
   installSearch(frame, application);
   bindMenuDismissal(native);
@@ -148,7 +147,7 @@ export class CommentRail {
       const signature = page && [Math.round(page.left + this.scroller.scrollLeft), Math.round(page.width), Math.round(page.height), application.pdfViewer.spreadMode].join(":");
       if (signature !== this.geometrySignature) { this.geometrySignature = signature; this.schedule(); }
     });
-    for (const event of ["scalechanging", "rotationchanging", "pagerendered", "textlayerrendered", "scrollmodechanged", "spreadmodechanged", "pagesinit"]) application.eventBus.on(event, () => this.schedule());
+    for (const event of ["scalechanging", "rotationchanging", "pagerendered", "textlayerrendered", "scrollmodechanged", "spreadmodechanged", "pagesinit", "leftcardchanged"]) application.eventBus.on(event, () => this.schedule());
     this.visibility.addEventListener("change", () => {
       this.mode = this.visibility.value;
       if (this.mode !== "mobile") this.desktopMode = this.mode;
@@ -208,7 +207,7 @@ export class CommentRail {
     root.style.setProperty("--review-rail-right", `${reserve}px`);
     const pages = Array.from({ length: this.application.pdfDocument.numPages }, (_, i) => pdf.getPageView(i));
     const stageWidth = Math.max(...pages.map((view) => (view?.viewport?.width || 0) + 18)) * (pdf.spreadMode ? 2 : 1) + 7;
-    root.style.setProperty("--review-stage-width", reserve ? `${stageWidth}px` : "0px");
+    root.style.setProperty("--review-stage-width", (reserve || parseFloat(root.style.getPropertyValue("--review-rail-left"))) ? `${stageWidth}px` : "0px");
     this.list.hidden = !visible;
     this.list.dataset.layout = "right-rail";
     const items = [];
@@ -299,18 +298,14 @@ export class CommentRail {
       let motion = old?.motion;
       if (changed && !reduced) {
         const opening = node.classList.contains("active") && !old;
-        const remaining = old?.motion ? Math.max(0, 1 - (now - old.motion.started) / 160) : 0;
+        const remaining = old?.motion ? Math.max(0, 1 - (now - old.motion.started) / CARD_MOTION_MS) : 0;
         const visualTop = old ? old.top + (old.motion?.delta || 0) * remaining ** 3 : top + 4;
         motion = { started: now, delta: visualTop - top, opening };
       }
       if (!reduced && motion && (changed || old?.node !== node)) {
-        const remaining = Math.max(0, 1 - (now - motion.started) / 160);
+        const remaining = Math.max(0, 1 - (now - motion.started) / CARD_MOTION_MS);
         if (remaining > 0 && (Math.abs(motion.delta) > .5 || motion.opening)) {
-          node.getAnimations().forEach((animation) => animation.cancel());
-          node.animate([
-            { transform: `translateY(${motion.delta * remaining ** 3}px)`, opacity: motion.opening ? 1 - remaining : 1 },
-            { transform: "translateY(0)", opacity: 1 },
-          ], { duration: 160 * remaining, easing: "ease-out" });
+          animateCard(node, motion.delta * remaining ** 3, motion.opening, CARD_MOTION_MS * remaining);
         }
       }
       next.set(key, { node, top, motion });

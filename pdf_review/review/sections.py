@@ -110,7 +110,8 @@ def location(page,y,box,kind):
     if y is None:
         return (page+(kind=='end'),0)
     # PDF y increases upward. Exact bottom is equal to the next page's top.
-    fraction=(box[3]-y)/(box[3]-box[1])
+    # Match viewer precision: viewport round trips must not create subpixel gaps.
+    fraction=round((box[3]-y)/(box[3]-box[1]),10)
     return (page+1,0) if fraction==1 else (page,fraction)
 
 
@@ -149,6 +150,51 @@ def _place(c,section_id,version_id,actor,payload):
 def save_placement(database,section_id,version_id,actor,payload):
     with transaction(database) as c:
         _place(c,section_id,version_id,actor,payload)
+
+
+def save_shared_boundary(database,version_id,actor,payload):
+    if not isinstance(payload,dict) or set(payload)-{'before_id','after_id','before','after','split','edited_id'} or not {'before_id','after_id','before','after'}<=set(payload):
+        raise SectionError('Shared boundary requires two adjacent placements.')
+    if 'split' in payload and payload['split'] is not True:
+        raise SectionError('Invalid divider split.')
+    before_id,after_id=payload['before_id'],payload['after_id']
+    if not isinstance(before_id,str) or not isinstance(after_id,str) or before_id==after_id:
+        raise SectionError('Two different sections are required.')
+    if 'edited_id' in payload and (payload['edited_id'] not in (before_id,after_id) or payload.get('split')):
+        raise SectionError('Invalid edited section.')
+    with transaction(database) as c:
+        version=c.execute('SELECT document_id FROM document_versions WHERE version_id=?',(version_id,)).fetchone()
+        if not version:
+            raise SectionError('Version not found.')
+        authorize_actor(c,actor,version[0])
+        current={s['section_id']:s['placement'] for s in sections_in_connection(c,version[0],version_id)}
+        before,after=current.get(before_id),current.get(after_id)
+        if not before or not after:
+            raise SectionError('Both sections must be mapped in this version.')
+        old_end=location(before['end_page'],before['end_y'],before['end_view_box'],'end')
+        if old_end!=location(after['start_page'],after['start_y'],after['start_view_box'],'start'):
+            raise SectionConflict('These section edges have changed. Reopen Sections and try again.')
+        left,right=payload['before'],payload['after']
+        if not isinstance(left,dict) or not isinstance(right,dict):
+            raise SectionError('Invalid shared placements.')
+        for target,old,kind in [(left,before,'start'),(right,after,'end')]:
+            if any(target.get(kind+'_'+key)!=old[kind+'_'+key] for key in ('page','y','view_box')):
+                raise SectionError('A shared edit may change only the shared boundary.')
+        # Validate shape/geometry before choosing the safe shrink-then-expand order.
+        lp,ly,lb=boundary(left,'end');rp,ry,rb=boundary(right,'start')
+        new_end=location(lp,ly,lb,'end')
+        new_start=location(rp,ry,rb,'start')
+        if payload.get('split'):
+            # Exact numeric edges encode independent end/start markers on two
+            # pages; null edges continue to represent one shared divider.
+            page_split=lp+1==rp and ly==lb[1] and ry==rb[3] and new_end==new_start
+            if not page_split and (not new_end<=old_end<=new_start or new_end>=new_start):
+                raise SectionError('Splitting must create a gap around the divider.')
+        elif new_end!=new_start:
+            raise SectionError('New shared boundaries must coincide.')
+        ordered=[(after_id,right),(before_id,left)] if new_end>old_end else [(before_id,left),(after_id,right)]
+        for section_id,placement in ordered:
+            _place(c,section_id,version_id,actor,placement)
 
 
 def import_outline(database,document_id,version_id,actor,candidates):

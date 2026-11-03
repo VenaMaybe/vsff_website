@@ -74,14 +74,6 @@
     </details>
     {% include "_account_menu.html" %}
   </header>
-  {% if document_role == 'owner' %}<section id="section-editor" class="section-editor" aria-label="Define section boundaries" hidden>
-    <strong id="section-edit-title">Editing section</strong>
-    <label>Section <select id="section-choice"></select></label>
-    <button id="section-set-start" type="button">Set start</button><button id="section-set-end" type="button">Set end</button>
-    <span id="section-boundary-preview" role="status">Choose a section, then a boundary.</span>
-    <button id="section-save-placement" type="button">Save boundaries</button>
-    <button id="section-editor-cancel" type="button">Cancel</button><button id="section-editor-close" type="button">Done</button>
-  </section>{% endif %}
   <main class="viewer-workspace">
     <section class="viewer-frame-wrap">
       <iframe id="pdf-viewer-frame" class="viewer-frame" src="{{ viewer_url }}" title="PDF.js viewer for {{ version.original_filename }}"></iframe>

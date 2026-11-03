@@ -63,6 +63,101 @@ class BetaC2Tests(unittest.TestCase):
         sections.save_placement(self.db,sid,self.versions[0],self.users[0],payload)
         return payload
 
+    def test_shared_boundary_atomic_revision_and_owner_guards(self):
+        left,right=self.section('Left'),self.section('Right')
+        a=self.place(left)
+        b=self.place(right,start_y=400.,end_y=None)
+        url=f'/api/versions/{self.versions[0]}/sections/shared-boundary'
+        def payload(y,revision):
+            return {'before_id':left,'after_id':right,
+                'before':dict(a,end_y=y,expected_revision=revision),
+                'after':dict(b,start_y=y,expected_revision=revision)}
+        self.assertEqual(self.clients[1].post(url,json=payload(300,1)).status_code,403)
+        self.assertEqual(self.clients[0].post(url,json=payload(300,1),headers={'X-CSRF-Token':'invalid'}).status_code,400)
+        self.assertEqual(self.clients[0].post(url,json=payload(300,1)).status_code,200)
+        current=self.context(0)['sections']
+        self.assertEqual([s['placement']['revision'] for s in current],[2,2])
+        self.assertEqual(current[0]['placement']['end_y'],300)
+        # The first update would succeed; the second is stale. Both must roll back.
+        stale=payload(500,2);stale['after']['expected_revision']=1
+        self.assertEqual(self.clients[0].post(url,json=stale).status_code,409)
+        self.assertEqual(self.context(0)['sections'],current)
+        bad=payload(500,2);bad['before']['start_y']=600
+        self.assertEqual(self.clients[0].post(url,json=bad).status_code,422)
+        self.assertEqual(self.context(0)['sections'],current)
+        self.assertEqual(self.clients[0].post(url,json=payload(500,2)).status_code,200)
+        current=self.context(0)['sections']
+        self.assertEqual([s['placement']['revision'] for s in current],[3,3])
+        self.assertEqual(current[1]['placement']['start_y'],500)
+
+    def test_shared_boundary_roundtrip_and_split(self):
+        left,right=self.section('Left'),self.section('Right')
+        a=self.place(left,end_y=399.123456789)
+        b=self.place(right,start_y=399.1234567890001,end_y=None)
+        url=f'/api/versions/{self.versions[0]}/sections/shared-boundary'
+        payload={'before_id':left,'after_id':right,
+            'before':dict(a,end_y=420,expected_revision=1),
+            'after':dict(b,start_y=380,expected_revision=1), 'split':True}
+        # Splitting only shrinks the two sections; it cannot expand across an edge.
+        bad=dict(payload,before=dict(payload['before'],end_y=390))
+        self.assertEqual(self.clients[0].post(url,json=bad).status_code,422)
+        self.assertEqual(self.clients[0].post(url,json=payload).status_code,200)
+        current=self.context(0)['sections']
+        self.assertEqual(current[0]['placement']['end_y'],420)
+        self.assertEqual(current[1]['placement']['start_y'],380)
+        self.assertEqual([s['placement']['revision'] for s in current],[2,2])
+        # An actual gap is never treated as a shared divider.
+        self.assertEqual(self.clients[0].post(url,json=payload).status_code,409)
+        self.assertEqual(self.context(0)['sections'],current)
+
+    def test_shared_boundary_exact_page_edge_split(self):
+        left,right=self.section('Left'),self.section('Right')
+        a=self.place(left,end_y=20)
+        b=self.place(right,start_y=20,end_page=2,end_y=None)
+        payload={'before_id':left,'after_id':right,'split':True,
+            'before':dict(a,end_y=0,expected_revision=1),
+            'after':dict(b,start_page=2,start_y=792,expected_revision=1)}
+        response=self.clients[0].post(f'/api/versions/{self.versions[0]}/sections/shared-boundary',json=payload)
+        self.assertEqual(response.status_code,200,response.data)
+        current=self.context(0)['sections']
+        self.assertEqual(current[0]['placement']['end_y'],0)
+        self.assertEqual(current[1]['placement']['start_page'],2)
+        self.assertEqual(current[1]['placement']['start_y'],792)
+        self.assertEqual([s['placement']['revision'] for s in current],[2,2])
+
+    def test_linked_page_edit_allows_subpage_neighbors(self):
+        left,right=self.section('Left'),self.section('Right')
+        a=self.place(left,start_page=1,end_page=4,end_y=None,page_count=10)
+        b=self.place(right,start_page=5,start_y=None,end_page=10,end_y=None,page_count=10)
+        url=f'/api/versions/{self.versions[0]}/sections/shared-boundary'
+        payload={'before_id':left,'after_id':right,'edited_id':left,
+            'before':dict(a,end_page=5,expected_revision=1),
+            'after':dict(b,start_page=6,expected_revision=1)}
+        self.assertEqual(self.clients[0].post(url,json=payload).status_code,200)
+        current=self.context(0)['sections']
+        self.assertEqual(current[0]['placement']['end_page'],5)
+        self.assertEqual(current[1]['placement']['start_page'],6)
+        invalid={'before_id':left,'after_id':right,'edited_id':left,
+            'before':dict(a,end_page=10,end_y=200,expected_revision=2),
+            'after':dict(b,start_page=10,start_y=200,expected_revision=2)}
+        self.assertEqual(self.clients[0].post(url,json=invalid).status_code,200)
+        current=self.context(0)['sections']
+        self.assertEqual(current[1]['placement']['start_y'],200)
+        empty=dict(invalid,before=dict(invalid['before'],end_y=0,expected_revision=3),after=dict(invalid['after'],start_y=0,expected_revision=3))
+        self.assertEqual(self.clients[0].post(url,json=empty).status_code,422)
+        self.assertEqual(self.context(0)['sections'],current)
+        # Editing the following start similarly moves the preceding end.
+        reverse={'before_id':left,'after_id':right,'edited_id':right,
+            'before':dict(a,end_page=3,expected_revision=3),
+            'after':dict(b,start_page=4,expected_revision=3)}
+        self.assertEqual(self.clients[0].post(url,json=reverse).status_code,200)
+        current=self.context(0)['sections']
+        self.assertEqual(current[0]['placement']['end_page'],3)
+        self.assertEqual(current[1]['placement']['start_page'],4)
+        html=self.clients[0].get(f'/documents/{self.doc}').get_data(as_text=True)
+        self.assertNotIn('data-review-settings',html)
+        self.assertNotIn('data-sections=',html)
+
     def test_shared_mine_and_hidden_authors_keep_conversation_replies(self):
         self.assertEqual(set(self.thread_ids(1)),{t['thread_id'] for t in self.threads})
         preferences.save_preferences(self.db,self.doc,self.users[1],{'scope':'mine'})
@@ -228,7 +323,7 @@ class BetaC2Tests(unittest.TestCase):
         for method,url in [('post',f'/documents/{self.doc}/review-settings'),('post','/account/review-color'),
             ('post',f'/api/documents/{self.doc}/viewer-preferences'),('delete',f'/api/documents/{self.doc}/viewer-preferences'),
             ('post',f'/api/documents/{self.doc}/sections'),('patch',f'/api/sections/{sid}'),
-            ('post',f'/api/versions/{self.versions[0]}/sections/{sid}/placement'),('post',f'/api/versions/{self.versions[0]}/sections/outline'),
+            ('post',f'/api/versions/{self.versions[0]}/sections/{sid}/placement'),('post',f'/api/versions/{self.versions[0]}/sections/shared-boundary'),('post',f'/api/versions/{self.versions[0]}/sections/outline'),
             ('post',f'/api/versions/{self.versions[0]}/sections/{sid}/responses'),('post',f'/api/section-responses/{rid}/comments'),
             ('patch',f'/api/section-comments/{cid}'),('delete',f'/api/section-comments/{cid}')]:
             self.assertEqual(getattr(client,method)(url,json={}).status_code,400,url)
