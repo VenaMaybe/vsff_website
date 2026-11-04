@@ -56,14 +56,20 @@ export function installViewerControls(frame, application) {
   document.querySelectorAll("[data-pdf-control]").forEach((button) => {
     button.title ||= button.getAttribute("aria-label") || button.textContent.trim();
     button.addEventListener("click", () => {
+      if (button.hasAttribute('data-left-card')) return;
       native.getElementById(button.dataset.pdfControl)?.click();
       button.closest("details")?.removeAttribute("open");
     });
   });
-  page.addEventListener("change", () => {
+  const commitPage = () => {
     const value = Number(page.value);
     if (Number.isInteger(value) && value >= 1 && value <= application.pdfDocument.numPages) pdf.currentPageNumber = value;
     page.value = pdf.currentPageNumber;
+    if (matchMedia('(width < 750px), (pointer: coarse)').matches) page.blur();
+  };
+  page.addEventListener("change", commitPage);
+  page.addEventListener("keydown", (event) => {
+    if (event.key === 'Enter') { event.preventDefault(); commitPage(); }
   });
   scale.addEventListener("change", () => { if (scale.value !== "custom") pdf.currentScaleValue = scale.value; });
   const syncScale = () => {
@@ -154,6 +160,8 @@ export class CommentRail {
     }, { passive: false });
     new ResizeObserver(() => this.schedule()).observe(document.querySelector(".viewer-workspace"));
     new ResizeObserver(() => this.schedule()).observe(this.scroller);
+    window.visualViewport?.addEventListener('resize', () => this.positionComposer());
+    window.visualViewport?.addEventListener('scroll', () => this.positionComposer());
     application.eventBus.on("updateviewarea", () => {
       // Scrolling alone changes no content-space geometry. Check one current page.
       const page = application.pdfViewer.getPageView(application.pdfViewer.currentPageNumber - 1)?.div?.getBoundingClientRect();
@@ -189,7 +197,9 @@ export class CommentRail {
     this.schedule();
   }
   layout() {
+    this.positionComposer();
     const composing = !this.composer.container.hidden;
+    const viewportComposer = this.composer.container.classList.contains('viewport-composer');
     const visible = this.mode !== "hidden";
     const cards = [...this.list.querySelectorAll(".thread-card")];
     for (const old of this.observed) {
@@ -235,7 +245,7 @@ export class CommentRail {
     const composerGeometry = composing && anchorGeometry(this.application, this.composer.payload);
     // An active card (or composer) is the fixed point. Pack neighbors backwards
     // and forwards around it, without touching either PDF scroll coordinate.
-    if (composerGeometry && !minimized) items.push({ card: this.composer.container,
+    if (composerGeometry && !minimized && !viewportComposer) items.push({ card: this.composer.container,
       page: composerGeometry.pageNumber, y: composerGeometry.top + this.scroller.scrollTop,
       center: (composerGeometry.top + composerGeometry.bottom) / 2 + this.scroller.scrollTop,
       active: true, x: this.spreadRight(composerGeometry.pageNumber) + 6 + this.scroller.scrollLeft,
@@ -304,7 +314,7 @@ export class CommentRail {
     const frame = this.frame.getBoundingClientRect();
     const reachable = new Set(items.map(item => item.card));
     if (this.floating) reachable.add(this.floating.card);
-    if (composing) reachable.add(this.composer.container);
+    if (composing && !viewportComposer) reachable.add(this.composer.container);
     this.stage.setBounds('comments', [...reachable].filter(card => card.getClientRects().length).map(card => {
       const rect = card.getBoundingClientRect();
       const visualTop = rect.top-frame.top+this.scroller.scrollTop;
@@ -385,17 +395,26 @@ export class CommentRail {
   positionComposer() {
     const box = this.composer.container;
     if (box.hidden) return;
+    if (this.mode === 'mobile' || this.mobileQuery.matches || matchMedia('(pointer: coarse)').matches) {
+      this.composer.setViewportDocked(true);
+      const viewport = window.visualViewport;
+      const left = viewport?.offsetLeft || 0, top = viewport?.offsetTop || 0;
+      const right = left + (viewport?.width || innerWidth);
+      const bottom = top + (viewport?.height || innerHeight);
+      // Safari may pan the visual viewport independently of the PDF frame.
+      // Size to the visible screen, never to their potentially tiny overlap.
+      box.style.width = `${Math.max(0, Math.min(280, right - left - 24))}px`;
+      box.style.maxHeight = `${Math.max(0, bottom - top - 28)}px`;
+      box.style.left = `${Math.max(left + 12, right - box.offsetWidth - 12)}px`;
+      box.style.top = `${Math.max(top + 12, bottom - box.offsetHeight - 16)}px`;
+      return;
+    }
+    this.composer.setViewportDocked(false);
     const geometry = anchorGeometry(this.application, this.composer.payload);
     if (!geometry) return;
     box.style.removeProperty("width");
     box.style.removeProperty("max-height");
-    if (this.mode === "mobile") {
-      const position = this.popupPosition(box, geometry);
-      box.style.left = `${position.left}px`;
-      box.style.top = `${position.top}px`;
-    } else {
-      box.style.left = `${this.spreadRight(geometry.pageNumber) + (this.mode === "minimized" ? 48 : 6)}px`;
-      box.style.top = `${Math.max(8, (geometry.top + geometry.bottom - box.offsetHeight) / 2)}px`;
-    }
+    box.style.left = `${this.spreadRight(geometry.pageNumber) + (this.mode === "minimized" ? 48 : 6)}px`;
+    box.style.top = `${Math.max(8, (geometry.top + geometry.bottom - box.offsetHeight) / 2)}px`;
   }
 }

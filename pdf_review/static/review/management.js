@@ -68,6 +68,7 @@ async function enterViewer(documentId, panel) {
 }
 
 document.addEventListener('click', event => {
+  if (event.target.closest('[data-left-card]')) return;
   const settings = event.target.closest('[data-review-settings]');
   const sections = event.target.closest('[data-sections]');
   if (!settings && !sections) return;

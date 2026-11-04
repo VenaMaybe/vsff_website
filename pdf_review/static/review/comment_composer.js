@@ -5,6 +5,8 @@ export class SelectionCommentComposer {
     this.body = body;
     this.quote = quote;
     this.payload = null;
+    this.home = document.createComment("selection composer home");
+    container.before(this.home);
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
       if (!this.payload || this.busy) return;
@@ -13,15 +15,44 @@ export class SelectionCommentComposer {
     body.addEventListener("keydown", (event) => {
       if ((event.ctrlKey || event.metaKey) && event.key === "Enter") { event.preventDefault(); form.requestSubmit(); }
     });
+    body.addEventListener("pointerdown", (event) => {
+      if (event.pointerType !== 'touch' || !event.isPrimary ||
+          !this.container.classList.contains('viewport-composer') ||
+          document.activeElement === body) return;
+      // Safari's default focus starts a native reveal-scroll animation that
+      // competes with our visual-viewport docking during keyboard opening.
+      // Focus inside this user gesture to open the keyboard without that scroll.
+      event.preventDefault();
+      body.focus({ preventScroll: true });
+    });
     cancelButton.addEventListener("click", () => this.close());
   }
 
   open(payload) {
     this.payload = payload;
     this.quote.textContent = payload.selection_text;
+    this.setViewportDocked(matchMedia("(width < 750px), (pointer: coarse)").matches);
     this.container.hidden = false;
     this.body.value = "";
-    this.body.focus({ preventScroll: true });
+    this.focusForOpen();
+  }
+
+  focusForOpen() {
+    // Safari can show its native form-navigation bar on programmatic focus
+    // even without opening the keyboard. Apply this to reopening too, including
+    // narrow layouts even when a mouse/trackpad is the primary pointer.
+    if (!matchMedia("(width < 750px), (pointer: coarse)").matches) {
+      this.body.focus({ preventScroll: true });
+    }
+  }
+
+  setViewportDocked(docked) {
+    if (this.container.classList.contains('viewport-composer') === docked) return;
+    this.container.classList.toggle('viewport-composer', docked);
+    // A keyboard-adjusted viewport overlay must not inherit PDF workspace
+    // clipping or participate in the document's scroll extent calculations.
+    if (docked) document.body.append(this.container);
+    else this.home.after(this.container);
   }
 
   close() {
@@ -29,6 +60,7 @@ export class SelectionCommentComposer {
     this.payload = null;
     this.body.value = "";
     this.container.hidden = true;
+    this.setViewportDocked(false);
   }
 
   setBusy(busy) {

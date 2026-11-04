@@ -54,6 +54,36 @@ existing host validation and private/no-store headers. It authorizes no content.
 12. Overlay styling remains in the same-origin external `anchor_overlay.css`; PDF.js's CSP blocks dynamic style text. App code may set dynamic geometry properties on highlight elements.
 13. Centered navigation is required. Navigating to an anchor must bring its first highlighted rectangle into the viewport, not only set the page number.
 
+Mobile/coarse-pointer PDF selection retains native text selection and handles.
+App-owned text-layer callout/contextmenu suppression is scoped to commenting
+accounts and does not affect form-field editing menus. Since Safari can retain
+system selection UI, Add comment is a labelled 44px-minimum action separate from
+the selection, at the bottom of the visible PDF viewport; desktop keeps its
+contextual icon. Placement tracks the visual viewport as well as PDF layout.
+Mobile Cancel immediately restores the selection action's pre-composer corner.
+That target stays fixed through intermediate keyboard-closing viewport sizes;
+normal placement resumes when viewport height returns or viewport width changes.
+New selections and composer opening reset the override. No delay or animation.
+The mobile selection composer docks at the visual viewport's bottom-right as a
+fixed body-level overlay, outside the PDF workspace's clipping and stage bounds.
+Its lifecycle restores the original parent for desktop positioning and on close.
+Keyboard sizing uses the full visual viewport height, never its intersection with
+the PDF frame: Safari can pan that viewport independently and leave almost no
+overlap. Draft and quote survive resizing, with scrolling only when the visual
+viewport itself is too short for the card.
+The first touch on an unfocused docked selection editor cancels default pointer
+focus and calls `focus({preventScroll:true})` within that same user gesture. This
+opens the keyboard without starting Safari's competing native reveal-scroll.
+Already-focused editor taps retain native caret placement and selection behavior.
+Coarse-pointer/narrow-layout users tap the editor to focus it; initial opening
+and reopening use the same focus policy. Mobile textareas render at 16px to avoid
+Safari's small-field focus zoom. Desktop retains autofocus and compact text.
+The selection editor wraps a transformed 16px textarea in a fixed 72px field,
+rendering compact 13px text without changing its native focus font metrics.
+Keyboard resizing repositions the composer without resizing this field; only
+genuinely insufficient viewport space requires scrolling the containing card.
+The mobile page-number field also uses 16px native text and blurs on confirmation.
+
 Highlight rendering deduplicates exact rectangles and omits rectangles fully
 contained by another rectangle in the same anchor segment. Browser range bounds
 can include both text and enclosing-span boxes of slightly different heights;
@@ -238,7 +268,8 @@ routes, bootstrap commands, audit behavior and verification evidence.
 The original same-origin PDF.js iframe and canonical selection/anchor APIs remain.
 `viewer_bootstrap.js`, loaded before the iframe, handles `webviewerloaded` to set
 read-only native editor configuration and inject app-owned `styles/pdfjs.css`.
-No vendored files are patched. `viewer_shell.js` bridges compact parent controls
+The viewer's native zoom path has one documented local patch; see
+`static/vendor/pdfjs/LOCAL_PATCHES.md`. `viewer_shell.js` bridges compact parent controls
 to existing PDF.js handlers/properties and positions parent-owned comment cards
 from canonical anchor segments using `pdfRectangleToCss`.
 
@@ -278,6 +309,19 @@ tokens and control/menu primitives rather than introducing one-off visual system
 `base.html` and independent `viewer.html` share `.app-toolbar`, canonical
 `.toolbar-menu` / `.toolbar-popover` styling in `base.css`, `menus.js` behavior,
 and `_account_menu.html`. The viewer retains its special workspace DOM.
+The viewer's Tools menu uses those same menu primitives for Search document,
+Filter comments, and owner-only Review settings/Manage sections. It calls existing
+card open/reveal handlers; search uses find.open rather than the native toggle.
+Shared LeftCard open/close synchronizes menuitemcheckbox aria-checked using each
+card's stateKey, including restored and shortcut-opened cards. Checkmarks reuse
+the existing menu pseudo-element styling. Tools uses the existing keep-menu-open
+attribute. Its actions go through the left-card registry: open/focus an inactive
+tool, close an active tool, or close all tools (including pinned cards) via the
+normal close lifecycle. Tools menu interaction preserves card active state so
+pointerdown does not clear it before testing a repeated tool click. Clicking
+outside the menu keeps the normal menu dismissal/card unfocus behavior.
+View holds PDF viewing operations; Comments holds display/filter-state choices
+and Reset to document defaults, with reviewer selection in Tools → Filter comments.
 Native find controls retain their PDF.js listeners and matching engine, but their
 DOM is adopted into the host document's reusable Search left card. The application
 synchronizes card/native open and close state, match/status text, and prevents
@@ -554,7 +598,31 @@ scaling, ensuring its location snapshot belongs to the old geometry. In a mixed
 page-size fixture, native pan marked that snapshot stale and the scale routine
 refreshed it after resizing pages; this caused a separate first-pinch jump.
 The preflight fixes snapshot ordering without applying an extra focal pan or
-computing a new scale factor. Vendor files remain unchanged.
+computing a new scale factor.
+
+The native viewer's scale/scroll transaction now captures the PDF-space point
+under a supplied zoom origin before resizing pages. This is independent of the
+first visible page: mixed page widths, rotations and wrapped rows can move by
+different amounts. Native destination conversion restores that point, combining
+its restoration offset with the origin/pan adjustment before each browser scroll
+assignment. Intermediate negative offsets are no longer clamped separately;
+genuine final limits still clamp normally. The requested final position updates
+PDF.js's private fractional pan state. Paper, borders, gaps and background share
+one page-relative plane. Background selects the nearest attached page, including
+offscreen pages, and extrapolates coordinates outside its content. Native touch
+callbacks hold that page identity for the gesture; camera coordinates resample
+within the same plane on each step, including after a real scroll limit. Gesture
+end/cancel, document reset and app blur/visibility cleanup release the reference.
+An empty visible-page list never restores an old page location for an origin-based
+zoom. Same-scale panning retains native panBy; ordinary non-origin navigation
+keeps native view-location behavior.
+
+This small viewer patch avoids DOM scroll-accessor interception, duplicate
+app-owned page geometry and a deferred corrective scroll. It makes no assumptions
+about page counts, spread parity or card dimensions. The patch and version-specific
+upgrade procedure are recorded under `vendor_patches/` and
+`static/vendor/pdfjs/LOCAL_PATCHES.md`. Rendering core, worker and TouchManager
+are unchanged; the app stage remains the sole owner of card reachability.
 
 `pdf_gestures.js` scopes pan-axis touch-action and Safari browser-gesture
 cancellation to the PDF surface/embedding wrapper. Other app chrome retains

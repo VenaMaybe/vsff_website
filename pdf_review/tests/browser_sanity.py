@@ -261,6 +261,11 @@ def run():
                     run_six(cdp,a,b,fixture,base)
                     assert not cdp.exceptions,cdp.exceptions
                     return
+                if '--tools-menu' in sys.argv:
+                    from tests.tools_menu import run_tools
+                    run_tools(cdp,a,b,fixture,base)
+                    assert not cdp.exceptions,cdp.exceptions
+                    return
                 if '--management-ui' in sys.argv:
                     from tests.management_acceptance import run_management
                     run_management(cdp,a,fixture,base)

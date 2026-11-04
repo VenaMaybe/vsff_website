@@ -109,8 +109,11 @@ Native page centering no longer changes on a later card-layout frame.
 A separate mixed-page touch reproduction exposed native view-snapshot ordering:
 a stale location could be refreshed after page resizing. A preflight native
 update() before updateScale refreshes that snapshot using the old geometry.
-Native scale/pan/focal math remains intact. No corrective pan wrapper or vendor
-patch is installed. Scoped PDF gesture handling and original touch-target
+At that stage, native scale/pan/focal math remained intact and no corrective pan
+wrapper or vendor patch was installed. The subsequent November 4 fitting-page
+transition fix adds the documented native viewer patch in
+`static/vendor/pdfjs/LOCAL_PATCHES.md`; see `MOBILE_ZOOM_STEPPING_DIAGNOSIS.md`.
+Scoped PDF gesture handling and original touch-target
 continuity address the browser-input concerns independently of stage sizing.
 
 Focused verification: 80 native zoom steps over all four rail states, an 8-page

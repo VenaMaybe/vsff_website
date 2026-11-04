@@ -11,6 +11,7 @@ export function installPdfGestures(frame, application) {
     for (const controller of targets.values()) controller.abort();
     targets.clear();
     application.reviewPdfTouchActive = application.reviewPdfPinching = false;
+    application.pdfViewer.endZoomGesture();
     application.eventBus.dispatch('pdftouchended', { source: application });
   };
   const track = event => {

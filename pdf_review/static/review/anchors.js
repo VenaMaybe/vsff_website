@@ -47,6 +47,8 @@ let rail = null;
 let sectionViewer = null;
 let viewerPreferences = null;
 let selectionDismissed = false;
+let selectionActionBeforeComposer = null;
+let restoredSelectionAction = null;
 const presence = new ReviewPresence(config.versionId, document.getElementById("review-presence"),config.currentUserId);
 const threadRefresh = new RefreshCoordinator(
   async () => {const [threads,context]=await Promise.all([fetchThreads(config.threadsUrl),jsonRequest(config.contextUrl)]);return {threads,context};},
@@ -264,6 +266,29 @@ function positionSelectionButton() {
   const visible = geometry && geometry.bottom > 0 && geometry.top < bounds.height && geometry.right > 0 && geometry.left < bounds.width;
   commentButton.hidden = !visible || !config.canMutate || selectionDismissed || !composer.container.hidden;
   if (commentButton.hidden) return;
+  if (matchMedia('(pointer: coarse)').matches) {
+    // iOS can retain its system selection menu despite callout cancellation.
+    // Keep the comment action separate from the selected text and its handles.
+    const viewport = window.visualViewport;
+    if (restoredSelectionAction) {
+      const normal = restoredSelectionAction;
+      if (Math.abs((viewport?.width || innerWidth) - normal.viewportWidth) > 2 ||
+          (viewport?.height || innerHeight) >= normal.viewportHeight - 2) {
+        restoredSelectionAction = null;
+      } else {
+        // Cancel returns directly to the pre-keyboard corner. Keep that target
+        // while Safari reports intermediate keyboard-closing viewport sizes.
+        commentButton.style.left = normal.left;
+        commentButton.style.top = normal.top;
+        return;
+      }
+    }
+    const right = Math.min(bounds.right, (viewport?.offsetLeft || 0) + (viewport?.width || innerWidth));
+    const bottom = Math.min(bounds.bottom, (viewport?.offsetTop || 0) + (viewport?.height || innerHeight));
+    commentButton.style.left = `${Math.max(bounds.left + 8, right - commentButton.offsetWidth - 12)}px`;
+    commentButton.style.top = `${Math.max(bounds.top + 8, bottom - commentButton.offsetHeight - 16)}px`;
+    return;
+  }
   commentButton.style.left = `${Math.max(bounds.left + 4, Math.min(innerWidth - 38, bounds.left + geometry.right + 4))}px`;
   const below = bounds.top + geometry.bottom + 4;
   commentButton.style.top = `${Math.max(bounds.top + 4, Math.min(innerHeight - 36, below > innerHeight - 36 ? bounds.top + geometry.top - 34 : below))}px`;
@@ -281,6 +306,7 @@ function rememberSelection() {
         return;
       }
       pendingSelection = captureTextSelection(frame.contentWindow, viewerApplication);
+      restoredSelectionAction = null;
       selectionDismissed = false;
       updateSelectionControls(true);
       setAnchorStatus("Selection ready.");
@@ -332,8 +358,14 @@ const composer = new SelectionCommentComposer(
   }
 );
 
+document.getElementById('cancel-selection-comment').addEventListener('click', () => {
+  if (!composer.container.hidden || !matchMedia('(pointer: coarse)').matches) return;
+  restoredSelectionAction = selectionActionBeforeComposer;
+  positionSelectionButton();
+});
+
 function openCommentComposer() {
-  if (!composer.container.hidden) { composer.body.focus(); return; }
+  if (!composer.container.hidden) { composer.focusForOpen(); return; }
   if (!state.currentReviewer) {
     setReviewStatus("Sign in to comment.", "error");
     return;
@@ -344,6 +376,15 @@ function openCommentComposer() {
     return;
   }
   sidebarActions.deselect();
+  if (matchMedia('(pointer: coarse)').matches) {
+    const viewport = window.visualViewport;
+    selectionActionBeforeComposer = {
+      left: commentButton.style.left, top: commentButton.style.top,
+      viewportHeight: viewport?.height || innerHeight,
+      viewportWidth: viewport?.width || innerWidth,
+    };
+  }
+  restoredSelectionAction = null;
   composer.open(payload);
   commentButton.hidden = true;
   rail?.schedule();
@@ -396,6 +437,14 @@ async function initialize() {
     loadThreads(),
   ]);
   viewerApplication = application;
+  frame.contentDocument.documentElement.classList.toggle('review-selection-actions', config.canMutate);
+  frame.contentDocument.addEventListener('contextmenu', event => {
+    if (config.canMutate && matchMedia('(pointer: coarse)').matches && event.target.closest?.('.textLayer')) {
+      event.preventDefault();
+    }
+  });
+  window.visualViewport?.addEventListener('resize', positionSelectionButton);
+  window.visualViewport?.addEventListener('scroll', positionSelectionButton);
   state.currentReviewer = reviewerData.current_reviewer;
   overlay = new AnchorOverlay(frame.contentWindow, viewerApplication);
   configureLeftCards(config);

@@ -7,7 +7,12 @@ This local version adds owner-controlled **Shared / Isolated** review, personal
 a ten-color Tableau 10 Account palette, page/spread presence, logical sections and exact-version
 section feedback. See [BETA_C2_REPORT.md](BETA_C2_REPORT.md) for the audit and checks.
 
-- Owners open **Review settings** in the PDF viewer to set privacy, PDF download access and
+- **Tools** opens Search document and Filter comments left cards; document owners
+  also see Review settings and Manage sections. Checkmarks identify open cards;
+  selecting an open tool focuses it; selecting the focused tool again closes it.
+  **Close all tools** closes the cards together. Tools stays open while choosing
+  items and dismisses when you click elsewhere. Cards also retain their X buttons.
+- Owners open **Tools → Review settings** in the PDF viewer to set privacy, PDF download access and
   first-open spread/comment/scope defaults. Existing personal choices survive
   later default changes. **Reset to document defaults** is in Comments.
   **PDF downloads: Off** hides download/print controls and blocks viewer save/print
@@ -223,8 +228,9 @@ migrations, and synthetic tests only. Never add `.env`, credentials, allowlists,
 real reviewer emails/comments, manuscript prose/PDFs, SQLite files, blobs,
 backups/baselines, logs, browser profiles, or generated caches. Both ignore files
 exclude common runtime artifacts; ignore rules do not replace content review.
-The unused PDF.js demonstration PDF is omitted; retained vendor bytes are
-unchanged. Tests generate their PDFs and keep runtime state in temporary folders.
+The unused PDF.js demonstration PDF is omitted. The viewer has one documented
+[native zoom patch](static/vendor/pdfjs/LOCAL_PATCHES.md); other retained vendor
+assets are unchanged. Tests generate PDFs and keep runtime state in temporary folders.
 
 The production configuration follows the official [Flask-SocketIO threaded
 Gunicorn deployment guidance](https://flask-socketio.readthedocs.io/en/latest/deployment.html).
@@ -428,7 +434,7 @@ python -m flask --app app verify-storage
 
 Text selections retain exact selection text, per-page quote/context selectors, page-local offsets, server-computed page-text fingerprints, and one or more ordered page segments. Canonical rectangles are stored in PDF page coordinates and converted through the current PDF.js viewport for capture and rendering.
 
-The app wraps the unmodified PDF.js v6.4.299 generic viewer. App-owned overlay code listens to page, text-layer, scale, rotation, initialization, and view-area events. It renders against stable page bounds rather than the recyclable text layer, rebuilds idempotently, and centers navigation on the target highlight.
+The app wraps the PDF.js v6.4.299 generic viewer with one documented [native zoom patch](static/vendor/pdfjs/LOCAL_PATCHES.md). App-owned overlay code listens to page, text-layer, scale, rotation, initialization, and view-area events. It renders against stable page bounds rather than the recyclable text layer, rebuilds idempotently, and centers navigation on the target highlight.
 
 PDF.js's CSP blocks dynamically inserted style text. Highlight styling therefore lives in `static/review/anchor_overlay.css`, loaded as a same-origin external stylesheet. Dynamic element positioning remains inline because it is required for PDF-space geometry and works under the existing CSP.
 
@@ -562,7 +568,7 @@ tests/
 
 ## Deferred work
 
-Email delivery, PostgreSQL, automatic projection/migration, fuzzy matching, Version Tracker coupling, manuscript snapshots, and PDF annotation writing/export remain deferred. Realtime runs in a single process with no broker, persistent event log, or presence history. Standalone diagnostic anchor operations remain non-realtime. Schema is now numbered migration 9. Vendored PDF.js remains unchanged.
+Email delivery, PostgreSQL, automatic projection/migration, fuzzy matching, Version Tracker coupling, manuscript snapshots, and PDF annotation writing/export remain deferred. Realtime runs in a single process with no broker, persistent event log, or presence history. Standalone diagnostic anchor operations remain non-realtime. Schema is now numbered migration 9. The PDF.js rendering core is unchanged; its viewer carries the documented native zoom patch.
 
 See `ARCHITECTURE.md` for invariants future slices must preserve.
 
@@ -813,7 +819,8 @@ Account, admin and logout are in the identity menu.
 styles live in `static/styles/viewer.css`, `comments.css` and `pdfjs.css`.
 `viewer_bootstrap.js` configures the vendored viewer through its pre-run hook;
 `viewer_shell.js` owns toolbar integration and canonical-anchor rail layout.
-Vendored PDF.js files remain unchanged. Native preferences are disabled to
+The PDF.js viewer carries the [documented zoom patch](static/vendor/pdfjs/LOCAL_PATCHES.md).
+Native preferences are disabled to
 prevent saved PDF editor settings from enabling a competing annotation model.
 Developer anchor tools are available deliberately with `?debug=anchors`.
 
@@ -829,7 +836,13 @@ their bottom near the section end using ordered list insertion. On the PDF
 surface, PDF.js retains native zoom and gesture calculations. A shared document
 extent makes cards reachable without changing PDF canvas width or centering;
 origin changes preserve the screen position in both axes. Native view state is
-snapshotted before zoom. Scoped Safari gesture handling and touch-target continuity
+snapshotted before zoom. The native scale transaction anchors the PDF point under
+the gesture and combines restoration with pan before browser scroll clamping.
+This covers small-page/overflow transitions and mixed-size/wrapped layouts without
+card-size constants or a second corrective scroll. Touch retains a page-relative
+reference across background and page boundaries, extrapolating outside paper;
+offscreen pages never trigger restoration of an obsolete visible-page position.
+Scoped Safari gesture handling and touch-target continuity
 support PDF-only pinching; physical iPhone Safari still needs verification.
 See [TRACKPAD_ZOOM_DIAGNOSIS.md](TRACKPAD_ZOOM_DIAGNOSIS.md) and
 [MOBILE_TESTING.md](MOBILE_TESTING.md). Shared account markup lives in `_account_menu.html`.

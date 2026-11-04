@@ -41,11 +41,32 @@
 .thread-marker svg { width: 18px; height: 18px; }
 .thread-marker span { font-size: 10px; }
 .selection-comment-composer { background: var(--surface); border: 1px solid var(--accent); padding: 8px; border-radius: 3px; z-index: 2; }
+.selection-comment-composer.viewport-composer { position: fixed; z-index: var(--layer-popup); }
 .composer-label { margin: 0 0 6px; font-size: 12px; font-weight: 600; }
 .selection-comment-composer blockquote { margin: 0 0 6px; border-left: 2px solid var(--line); padding-left: 6px; color: var(--muted); font-size: var(--ui-font-size-small); max-height: 42px; overflow: hidden; }
 .viewer-page textarea { border-radius: 3px; padding: 6px; font-size: 12px; }
+@media (width < 750px), (pointer: coarse) {
+  /* Small text fields trigger Safari's whole-page zoom when editing begins. */
+  .viewer-page textarea { font-size: 16px; }
+  #review-page-number { font-size: 16px; }
+  /* Keep native 16px editor metrics but render compact 13px text. The wrapper
+     reserves the transformed height so the keyboard cannot compress the field. */
+  .selection-editor-field { position: relative; height: 72px; flex-shrink: 0; }
+  .selection-editor-field textarea {
+    position: absolute; inset: 0 auto auto 0; display: block;
+    width: calc(100% / .8125); max-width: none;
+    height: calc(72px / .8125); min-height: calc(72px / .8125);
+    transform: scale(.8125); transform-origin: top left; resize: none;
+  }
+}
 .comment-selection-button { position: fixed; z-index: var(--layer-popup); width: 32px; height: 30px; background: white; color: var(--accent); border: 1px solid var(--line); box-shadow: 0 1px 3px #0002; }
 .comment-selection-button:hover { background: var(--surface-hover); }
+.selection-comment-label { display:none; }
+@media (pointer: coarse) {
+  .comment-selection-button { width:auto; min-height:44px; height:auto; padding:8px 12px; border-radius:4px; }
+  .comment-selection-button:not([hidden]) { display:inline-flex; align-items:center; gap:6px; }
+  .selection-comment-label { display:inline; }
+}
 .viewer-page svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.5; }
 .back-arrow { display: inline-block; font: inherit; line-height: 1; transform: translateY(-1px); }
 .anchor-debug-section, .migration-panel { position: absolute; top: 40px; right: 8px; width: min(320px, calc(100% - 16px)); max-height: calc(100% - 48px); overflow: auto; background: var(--surface); pointer-events: auto; z-index: 3; }
@@ -54,7 +75,7 @@
   .identity-menu summary { max-width: 80px; }
 }
 @media (width < 750px) {
-  .viewer-shell-bar { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto auto fit-content(80px); }
+  .viewer-shell-bar { display: grid; grid-template-columns: auto minmax(0, 1fr) repeat(4, auto) fit-content(80px); }
   .viewer-title { min-width: 0; overflow: hidden; }
   .viewer-title strong, .viewer-title span { max-width: 100%; }
   .viewer-shell-bar > .toolbar-menu { min-width: 0; }

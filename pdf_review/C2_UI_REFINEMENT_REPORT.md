@@ -1,5 +1,227 @@
 # C2 management interaction refinement
 
+## Tools menu close actions and persistent selection
+
+Added Close all tools and a separator above the tool list. Tools stays open via
+the existing keep-menu-open attribute. Selecting a closed or inactive tool uses
+its registered open/reveal handler; selecting its item again while the card is
+active closes it. Close all uses the shared card close lifecycle, including
+pinned cards and normal busy guards. No separate card instances or pin/layout
+implementation were introduced.
+
+Tools menu interaction preserves left-card active state so pointerdown does not
+clear it before deciding whether to close. Clicking elsewhere still dismisses
+the menu normally. Updated focused checks cover open/focus/repeat-close, X close,
+Close all with a pinned tool, live checkmarks, keyboard/mobile menu behavior and
+owner visibility.
+
+## Compact Tools toolbar menu
+
+Added Tools beside View and Comments using the existing disclosure/menu system.
+It contains Search document and Filter comments, plus server-rendered owner-only
+Review settings and Manage sections. Removed management injection into View and
+the Filter comments action from Comments. Existing search icon and shortcuts stay.
+Each item calls the existing left-card open/reveal handler; opening an existing
+tool focuses/retrieves it rather than closing or duplicating it. Search uses the
+existing find.open entry point instead of the PDF.js toggle for this menu action.
+
+LeftCard's shared open/close lifecycle updates aria-checked by stateKey, including
+shortcut opens and restored cards. Tools uses the same checkmark styling and
+keyboard/dismissal behavior as the other menus, with focus left in the opened
+card. Pinning, positions, collision packing and persistence logic are unchanged.
+The compact mobile header grid accounts for the extra menu.
+
+Validation: `tests/browser_sanity.py --tools-menu` passes all four actions,
+reopening without duplicates, live checks and X closes, native search shortcut,
+keyboard navigation, mobile popup bounds and reviewer/owner visibility.
+The existing `--six-refinements` check also passes search/filter behavior,
+left-card alignment and mobile composer interactions.
+
+## Immediate mobile Cancel action placement
+
+Mobile composer opening saves Add comment's normal corner and viewport size.
+Cancel immediately restores that position and shows the action using existing
+selection/permission checks. Intermediate keyboard-closing resize/scroll events
+keep the saved target, rather than positioning the button above the keyboard.
+Normal placement resumes when viewport height returns; width changes, new
+selections and reopening the composer reset the override. No timer or movement
+animation is added. The closing keyboard can still cover the final corner until
+it retracts.
+
+Changed `anchors.js` and existing six-refinement checks. Coverage verifies the
+button is immediately unhidden at its pre-composer coordinates on Cancel,
+retains those coordinates through viewport events, and resumes normal placement
+when the full-height viewport returns. Architecture/mobile notes updated.
+
+## Reverted movement animation and selection-action delay
+
+At the user's request, removed the 140ms composer position transition and the
+180ms viewport-settling delay for restoring Add comment after Cancel. Earlier
+keyboard clipping, editor sizing and preventScroll focus fixes remain in place.
+
+## Mobile keyboard-opening reveal-scroll jump
+
+The full-height viewport overlay fixed clipping, but a first native textarea tap
+could still initiate Safari's focus reveal-scroll animation while app positioning
+followed visual viewport changes. That is a separate likely source of the brief
+upward overshoot seen before the card settles. WebKit's
+[reveal-focused-element code](https://github.com/WebKit/WebKit/blob/main/Source/WebKit/UIProcess/ios/WKContentViewInteraction.mm)
+returns before that native scroll/zoom path when focus requests preventScroll.
+
+`comment_composer.js` now handles only the first primary touch on an unfocused
+viewport-docked editor: cancel default pointer focus and synchronously call
+`focus({preventScroll:true})`. The user gesture still opens the keyboard. Taps
+after focus, desktop input and other fields keep their native pointer behavior.
+No automatic focus on composer opening, keyboard delay, animation, timer or
+document-scroll reset is introduced.
+
+The focused six-refinement regression sends real Chrome touch input and checks
+that first focus uses preventScroll, a subsequent pointerdown remains uncanceled,
+and previous clipping/draft/height/desktop checks remain valid. Physical Safari
+keyboard-animation timing cannot be verified by Chrome emulation.
+
+## Safari keyboard clipping of the whole composer
+
+The screenshot exposed a container-height bug rather than an editor-height bug.
+The previous placement capped the entire composer to the intersection of the
+PDF frame, review panel and visual viewport. Safari's keyboard can pan that
+viewport independently; a small overlap reduced the card to its heading/quote.
+Earlier checks only resized the layout and visual viewports together, missing
+this failure mode.
+
+The mobile composer now uses a fixed body-level overlay sized to the full visual
+viewport, outside workspace clipping. It keeps its natural height when the screen
+above the keyboard can fit it, even if that screen barely overlaps the PDF frame.
+It is excluded from PDF stage reachability and comment collision packing, and
+returns to its original parent on close or a switch to desktop placement. The
+same editor, draft and focus survive viewport changes.
+
+Changed `comment_composer.js`, `viewer_shell.js`, `viewer.css` and the existing
+six-refinement checks. A new case independently offsets the visual viewport by
+430px while reducing its height to 320px: the full editor and submit button must
+remain inside the unchanged-height card, above the keyboard. This exercises the
+previously missing geometry; actual iPhone keyboard behavior remains manual.
+See the [Visual Viewport API explanation](https://developer.mozilla.org/en-US/docs/Web/API/VisualViewport).
+
+## Compact mobile selection editor and page-number entry
+
+The mobile selection textarea retains 16px native font metrics but is transformed
+to render at 13px inside a 72px-tall wrapper. This restores compact text while
+reserving the editor's visible height as the keyboard changes viewport bounds.
+The composer keeps its normal height when it fits above the keyboard; extremely
+small viewports retain the existing scrollable-card fallback.
+WebKit's [focused element information](https://github.com/WebKit/WebKit/blob/main/Source/WebKit/WebProcess/WebPage/ios/WebPageIOS.mm)
+uses the renderer's font size separately from its transformed interaction bounds.
+Physical Safari verification remains necessary.
+
+The header page number uses 16px text on mobile to avoid focus zoom, requests a
+numeric keyboard and Go action, and blurs after a change or Enter confirmation.
+The field remains directly editable. No automatic page-field focus was present.
+
+Changed `viewer.css`, `viewer.html`, `viewer_shell.js` and six-refinement checks.
+Coverage includes compact visual/native font sizes, stable field and composer
+height after viewport resizing, preserved draft, non-overlapping actions, page
+navigation and focus dismissal. Desktop composer focus/placement remain covered.
+
+## Mobile composer focus and Safari controls
+
+The selection composer no longer automatically focuses its textarea for coarse
+pointer input or narrow layouts. Initial opening and reopening an already-open
+composer now share this policy; the latter previously still forced focus.
+Tap the comment field to start typing; desktop autofocus remains.
+Mobile viewer textareas now use 16px text rather than 12px to avoid Safari's
+automatic whole-site input-focus zoom, which could move the composer out of view.
+No viewport zoom restriction or PDF gesture change is introduced.
+This avoids unnecessarily activating Safari's native form-navigation accessory
+when opening the card. Safari owns the previous/next/Done bar and URL display;
+the website cannot reliably hide those while the user edits a native text field.
+The URL shown is the current Cloudflare test hostname, not an app overlay.
+
+Changed `static/review/comment_composer.js`, `anchors.js`, `viewer.css` and the
+existing six-refinement check. Coverage includes desktop autofocus, initial and
+repeated mobile opening without editor focus, preserved drafts, real touch input
+on the card title, computed editor font size, and direct editor focus. Physical
+Safari focus zoom/chrome remain manual checks. The 16px approach is also used in
+[Flutter's iOS Safari input integration](https://docs.flutter.dev/ui/accessibility/web-accessibility#viewport-zoom-and-mobile-text-inputs).
+
+## Mobile selection composer at the viewer corner
+
+The Comment on selection composer now opens at the bottom-right of the visible
+PDF viewport on mobile/touch layouts. It stays there during PDF scrolling and
+tracks visual viewport changes when the keyboard opens. The available viewer
+area limits its width/height, with internal scrolling for smaller spaces.
+The selected quote and draft survive viewport resizing. Desktop placement and
+existing comment popovers retain their behavior.
+
+Changed `static/review/viewer_shell.js` and the existing six-refinement browser
+check; validation covers bottom/right alignment, PDF scroll, viewport resizing,
+selected quote and draft preservation. Physical iPhone keyboard behavior remains
+a manual check.
+
+## Mobile PDF selection callout and comment action
+
+Added coarse-pointer PDF-only context-menu cancellation and WebKit touch-callout
+suppression on the native text layer for accounts that can comment. Native text
+selection remains enabled; input fields and application controls keep their menus.
+The mobile Add comment action is now a labelled 44px-minimum button at the bottom
+right of the visible PDF viewport, separate from selection handles and Safari's
+selection bubble. Desktop retains its compact contextual icon. Visual viewport
+resize/scroll keeps the mobile action inside the visible area.
+
+Safari's system selection menu is not reliably controllable by web content;
+callout suppression is best effort. The separate action addresses access even
+when the native menu remains. See [Apple's callout property documentation](https://developer.apple.com/library/archive/documentation/AppleApplications/Reference/SafariCSSRef/Articles/StandardCSSProperties.html)
+and [WebKit's context-menu cancellation issue](https://bugs.webkit.org/show_bug.cgi?id=260722).
+
+Changed `anchors.js`, `viewer.html`, `viewer.css`, `pdfjs.css` and the existing
+six-refinement browser checks. That check passes PDF-only cancellation, preserved
+selection, the 44px action, and opening the composer with the selected quote.
+Actual iPhone selection handles and system-menu behavior remain a manual check.
+
+## Background and cross-boundary pinch continuity
+
+Completed the remaining background and boundary fix in the documented native
+viewer patch. Background origins select the nearest attached page, including
+offscreen pages, and extrapolate coordinates outside paper. Touch keeps that
+reference page through the gesture rather than switching calculations whenever
+the midpoint enters a gap or crosses a page edge. Each step reads the current
+camera; end/cancel, document changes and app blur/visibility cleanup release the
+reference. An origin-based zoom never restores stale visible-page location.
+
+Changed `static/vendor/pdfjs/web/viewer.mjs`, the cleanup hook in
+`static/review/pdf_gestures.js`, and the focused `tests/document_zoom.py` checks.
+The version-specific patch and current architecture/testing notes are updated.
+Scale recognition, rendering core, workers, card layout and backend are unchanged.
+
+Validation: 80 desktop and 28 fit/overflow cases pass. Offscreen-background,
+boundary crossing/reversal and fresh-gesture selection checks measure at most
+0.49px error. Actual two-touch divider/background pinch with midpoint translation
+keeps one reference page (1.97px drift). Live highlights, detached contacts,
+fractional panning and one-finger scrolling pass. Physical Safari remains manual.
+
+## Native zoom across fitting-page transitions
+
+Fixed loss of intermediate scroll offsets when zoom grows small centered pages
+into an overflowing page. The native viewer now captures the PDF point under the
+gesture and combines restoration with origin/pan adjustment before the browser
+clamps scrolling. The same page-relative conversion handles mixed dimensions,
+rotation and wrapped-row reflow. Native fractional pan state is preserved.
+
+The implementation is a documented patch to `static/vendor/pdfjs/web/viewer.mjs`;
+its private scale/scroll state cannot be changed cleanly from an external wrapper.
+The app's measured card bounds and independent stage remain unchanged. No card
+sizes, page counts or spread constants enter the fix. The exact patch and upgrade
+instructions accompany it under `vendor_patches/` and
+`static/vendor/pdfjs/LOCAL_PATCHES.md`. Tests extend `tests/document_zoom.py`.
+
+Validation: 80 existing desktop steps pass (2.12px max drift); 28 fitting/overflow
+cases with reversals pass across all rails, mixed/later pages, rotation, spreads
+and scroll modes (2.50px max reachable error). Actual Chrome touch transition and
+reversal measured 2.95px maximum drift. Fractional panning, live highlights,
+detached contacts and browser-owned one-finger scrolling pass, along with the
+existing six-refinement search/card/navigation check. Physical Safari remains a
+manual check; reload and repeat several-pages-to-one-page pinch with/without cards.
+
 ## Mobile left cards beside the document
 
 Removed the narrow-viewport override that clamped unpinned left cards to the

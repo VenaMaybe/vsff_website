@@ -12,6 +12,23 @@ export function configureLeftCards(config) {
   try{const data=JSON.parse(localStorage.getItem(storageKey)||'[]');savedCards=Array.isArray(data)?data.slice(0,4):[];}catch{savedCards=[];}
 }
 export function registerLeftCard(key,open) {openers.set(key,open);}
+function syncToolMenuValues() {
+  const open = new Set([...cards].map(card => card.stateKey));
+  document.querySelectorAll('[data-left-card]').forEach(item => {
+    item.setAttribute('aria-checked', String(open.has(item.dataset.leftCard)));
+  });
+}
+document.addEventListener('click', event => {
+  if (event.target.closest('[data-close-all-tools]')) {
+    for (const card of [...cards]) card.close(false);
+    return;
+  }
+  const tool = event.target.closest('[data-left-card]');
+  if (!tool) return;
+  const card = [...cards].find(card => card.stateKey === tool.dataset.leftCard);
+  if (card?.element.classList.contains('active')) card.close(false);
+  else openers.get(tool.dataset.leftCard)?.();
+});
 function persistCards() {
   clearTimeout(persistTimer);
   if(!storageKey||restoring)return;
@@ -116,7 +133,7 @@ function layoutCards(animate = false) {
   }
 }
 function clearLeftCardFocus(event) {
-  if(event.composedPath().some(node=>node.matches?.('.left-card')))return;
+  if(event.composedPath().some(node=>node.matches?.('.left-card, #review-tools-menu')))return;
   if(![...cards].some(card=>card.element.classList.contains('active')))return;
   // Freeze all document-card positions before dropping packing priority.
   for(const card of cards)if(!card.pinned)card.captureAnchor(card.element.getBoundingClientRect().top);
@@ -172,6 +189,7 @@ export class LeftCard {
     cards.add(this);
     const workspace = document.querySelector('.viewer-workspace');
     (workspace || document.body).append(this.element);
+    syncToolMenuValues();
     const integration = this.sectionViewer;
     this.scroller = integration?.application.pdfViewer.container;
     this.root = integration?.frame.contentDocument.documentElement;
@@ -323,6 +341,7 @@ export class LeftCard {
     const parent = this.element.parentElement;
     this.element.remove();
     cards.delete(this);
+    syncToolMenuValues();
     if (focusedCard === this) focusedCard = null;
     if (![...cards].some(card => card.root === this.root)) documentStage(this.sectionViewer.application).setBounds('left-cards', []);
     this.bus?.dispatch('leftcardchanged', { source: this }); layoutCards(true);

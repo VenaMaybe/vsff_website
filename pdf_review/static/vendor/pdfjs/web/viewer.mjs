@@ -72,7 +72,7 @@ const CursorTool = {
   ZOOM: 2
 };
 const AutoPrintRegExp = /\bprint\s*\(/;
-function scrollIntoView(element, spot) {
+function scrollIntoView(element, spot, pan = null) {
   let parent = element.offsetParent;
   if (!parent) {
     console.error("offsetParent is not set -- cannot scroll");
@@ -94,10 +94,20 @@ function scrollIntoView(element, spot) {
     }
     if (spot.left !== undefined) {
       offsetX += spot.left;
-      parent.scrollLeft = offsetX;
     }
   }
+  // Local patch: restore and adjust the zoom origin before browser clamping.
+  if (pan) {
+    offsetX -= pan[0];
+    offsetY -= pan[1];
+  }
+  if (spot?.left !== undefined || pan?.[0]) {
+    parent.scrollLeft = offsetX;
+  }
   parent.scrollTop = offsetY;
+  if (pan) {
+    return { parent, left: offsetX, top: offsetY };
+  }
 }
 function watchScroll(viewAreaElement, callback, abortSignal = undefined) {
   function onRAF() {
@@ -14607,6 +14617,7 @@ class PDFViewer {
   #minDurationToUpdateCanvas = 0;
   #mlManager = null;
   #panPosition = [NaN, NaN];
+  #zoomGesture = null;
   #printingAllowed = true;
   #scrollTimeoutId = null;
   #staleLocation = false;
@@ -15358,6 +15369,7 @@ class PDFViewer {
     }
   }
   _resetView() {
+    this.#zoomGesture = null;
     this._pages = [];
     this._currentPageNumber = 1;
     this._currentScale = (/* inlined export .UNKNOWN_SCALE */0);
@@ -15446,7 +15458,7 @@ class PDFViewer {
     }, 100);
     this.update();
   }
-  #scrollIntoView(pageView, pageSpot = null) {
+  #scrollIntoView(pageView, pageSpot = null, pan = null) {
     const {
       div,
       id
@@ -15472,7 +15484,13 @@ class PDFViewer {
         };
       }
     }
-    scrollIntoView(div, pageSpot);
+    const position = scrollIntoView(div, pageSpot, pan);
+    if (position?.parent === this.container) {
+      // Preserve the same requested fractional position as native panBy.
+      this.#panPosition[0] = position.left;
+      this.#panPosition[1] = position.top;
+      this.#staleLocation = true;
+    }
     if (!this._currentScaleValue && this._location) {
       this._location = null;
     }
@@ -15508,6 +15526,12 @@ class PDFViewer {
       this._updateLocation(first);
     }
   }
+  beginZoomGesture() {
+    this.#zoomGesture ||= { page: null };
+  }
+  endZoomGesture() {
+    this.#zoomGesture = null;
+  }
   #setScaleUpdatePages(newScale, newValue, {
     noScroll = false,
     preset = false,
@@ -15529,6 +15553,51 @@ class PDFViewer {
       }
       return;
     }
+    // Local patch: use the same page-relative plane for paper AND background.
+    // Keep its page identity through a touch gesture, even across page edges.
+    let focalLocation = null;
+    if (!noScroll && Array.isArray(origin) && !this.isInPresentationMode) {
+      const [top, left] = this.containerTopLeft;
+      const viewportX = origin[0] - left;
+      const viewportY = origin[1] - top;
+      const x = this.container.scrollLeft + viewportX;
+      const y = this.container.scrollTop + viewportY;
+      let anchor = this.#zoomGesture?.page;
+      if (!anchor?.div.isConnected || this._pages[anchor.id - 1] !== anchor) {
+        anchor = null;
+        let nearest = Infinity;
+        // Include offscreen pages: visible-page state may be empty or stale.
+        for (const view of this._pages) {
+          const div = view.div;
+          if (!div.isConnected || !div.offsetParent) {
+            continue;
+          }
+          const left = div.offsetLeft + div.clientLeft;
+          const top = div.offsetTop + div.clientTop;
+          const dx = Math.max(left - x, 0, x - left - div.clientWidth);
+          const dy = Math.max(top - y, 0, y - top - div.clientHeight);
+          const distance = dx * dx + dy * dy;
+          if (distance < nearest) {
+            nearest = distance;
+            anchor = view;
+          }
+          if (distance === 0) {
+            break;
+          }
+        }
+        if (this.#zoomGesture) {
+          this.#zoomGesture.page = anchor;
+        }
+      }
+      if (anchor) {
+        const div = anchor.div;
+        // Extrapolate outside the page; never clamp/snap the origin to its edge.
+        // Resample the actual camera each step so real scroll limits don't drift.
+        const [pdfX, pdfY] = anchor.getPagePoint(x - div.offsetLeft - div.clientLeft,
+          y - div.offsetTop - div.clientTop);
+        focalLocation = { pageNumber: anchor.id, pdfX, pdfY, viewportX, viewportY };
+      }
+    }
     this.clearSelection();
     this.viewer.style.setProperty("--scale-factor", newScale * PixelsPerInch.PDF_TO_CSS_UNITS);
     const postponeDrawing = drawingDelay >= 0 && drawingDelay < 1000;
@@ -15542,32 +15611,39 @@ class PDFViewer {
         this.refresh();
       }, drawingDelay);
     }
-    const previousScale = this._currentScale;
     this._currentScale = newScale;
     if (!noScroll) {
       this.#refreshLocation();
       let page = this._currentPageNumber,
         dest;
-      if (this._location && !(this.isInPresentationMode || this.isChangingPresentationMode)) {
+      if (focalLocation) {
+        page = focalLocation.pageNumber;
+        dest = [null, { name: "XYZ" }, focalLocation.pdfX, focalLocation.pdfY, null];
+      } else if (!Array.isArray(origin) && this._location && !(this.isInPresentationMode || this.isChangingPresentationMode)) {
         page = this._location.pageNumber;
         dest = [null, {
           name: "XYZ"
         }, this._location.left, this._location.top, null];
       }
-      this.scrollPageIntoView({
-        pageNumber: page,
-        destArray: dest,
-        allowNegativeOffset: true
-      });
       let dx = pan?.[0] ?? 0,
         dy = pan?.[1] ?? 0;
       if (Array.isArray(origin)) {
-        const scaleDiff = newScale / previousScale - 1;
-        const [top, left] = this.containerTopLeft;
-        dx -= (origin[0] - left) * scaleDiff;
-        dy -= (origin[1] - top) * scaleDiff;
+        if (focalLocation) {
+          dx += focalLocation.viewportX;
+          dy += focalLocation.viewportY;
+        }
       }
-      if (dx || dy) {
+      // Fuse restoration and native origin/pan adjustment into one scroll.
+      // Clamping the restoration alone loses offsets in fitting-page layouts.
+      if (focalLocation || !Array.isArray(origin)) {
+        this.scrollPageIntoView({
+          pageNumber: page,
+          destArray: dest,
+          allowNegativeOffset: true,
+          pan: dest && (dx || dy) ? [dx, dy] : null
+        });
+      }
+      if (!dest && (dx || dy)) {
         this.panBy(dx, dy);
       }
     }
@@ -15653,7 +15729,8 @@ class PDFViewer {
     destArray = null,
     allowNegativeOffset = false,
     ignoreDestinationZoom = false,
-    center = null
+    center = null,
+    pan = null
   }) {
     if (!this.pdfDocument) {
       return;
@@ -15753,7 +15830,7 @@ class PDFViewer {
     this.#scrollIntoView(pageView, {
       left,
       top
-    });
+    }, pan);
   }
   _updateLocation(firstPage) {
     this.#staleLocation = false;
@@ -19384,6 +19461,7 @@ const PDFViewerApplication = {
     this.pdfViewer.currentScaleValue = (/* inlined export .DEFAULT_SCALE_VALUE */"auto");
   },
   touchPinchCallback(origin, prevDistance, distance, panX, panY) {
+    this.pdfViewer.beginZoomGesture();
     const pan = [panX, panY];
     if (this.supportsPinchToZoom) {
       const newScaleFactor = this._accumulateFactor(this.pdfViewer.currentScale, distance / prevDistance, "_touchUnusedFactor");
@@ -19404,6 +19482,7 @@ const PDFViewerApplication = {
     pdfViewer.panBy(dx, dy);
   },
   touchPinchEndCallback() {
+    this.pdfViewer.endZoomGesture();
     this._touchUnusedTicks = 0;
     this._touchUnusedFactor = 1;
   },
@@ -20249,6 +20328,7 @@ const PDFViewerApplication = {
       container: window,
       isPinchingDisabled: () => pdfViewer.isInPresentationMode,
       isPinchingStopped: () => this.overlayManager?.active,
+      onPinchStart: () => pdfViewer.beginZoomGesture(),
       onPinching: this.touchPinchCallback.bind(this),
       onPinchEnd: this.touchPinchEndCallback.bind(this),
       onPanning: this.touchPanCallback.bind(this),
@@ -21345,4 +21425,4 @@ if (document.readyState === "interactive" || document.readyState === "complete")
 
 export { PDFViewerApplication, AppConstants as PDFViewerApplicationConstants, AppOptions as PDFViewerApplicationOptions };
 
-//# sourceMappingURL=viewer.mjs.map
+// Local viewer patch: see ../LOCAL_PATCHES.md. Upstream source map is not used.

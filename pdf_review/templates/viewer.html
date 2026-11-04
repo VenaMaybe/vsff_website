@@ -23,7 +23,7 @@
       <button type="button" data-pdf-control="viewsManagerToggleButton" title="Pages and outline" aria-label="Pages and outline">&#9636;</button>
       <button type="button" data-pdf-control="viewFindButton" title="Find in PDF (Ctrl+F)" aria-label="Find in PDF"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10" cy="10" r="6"/><path d="m15 15 5 5"/></svg></button>
       <button type="button" data-pdf-control="previous" aria-label="Previous page">&lsaquo;</button>
-      <input id="review-page-number" type="number" min="1" value="1" aria-label="Page number">
+      <input id="review-page-number" type="number" inputmode="numeric" enterkeyhint="go" min="1" value="1" aria-label="Page number">
       <span id="review-page-count" aria-label="Total pages">/ &hellip;</span>
       <button type="button" data-pdf-control="next" aria-label="Next page">&rsaquo;</button>
       <button type="button" data-pdf-control="zoomOutButton" aria-label="Zoom out">&minus;</button>
@@ -64,6 +64,19 @@
       </div>
     </details>
     <input type="hidden" id="comments-visibility" value="expanded">
+    <details class="toolbar-menu" id="review-tools-menu">
+      <summary>Tools</summary>
+      <div class="toolbar-popover" role="menu" aria-label="Tools" data-keep-menu-open>
+        <button type="button" data-close-all-tools>Close all tools</button>
+        <hr>
+        <button type="button" role="menuitemcheckbox" aria-checked="false" data-left-card="search" data-pdf-control="viewFindButton">Search document</button>
+        <button type="button" role="menuitemcheckbox" aria-checked="false" data-left-card="filters" data-comment-filters>Filter comments</button>
+        {% if anchor_config.isOwner %}
+        <button type="button" role="menuitemcheckbox" aria-checked="false" data-left-card="settings" data-review-settings="{{ version.document_id }}">Review settings</button>
+        <button type="button" role="menuitemcheckbox" aria-checked="false" data-left-card="sections" data-sections="{{ version.document_id }}">Manage sections</button>
+        {% endif %}
+      </div>
+    </details>
     <input type="hidden" id="thread-filter" value="open">
     <input type="hidden" id="review-scope" value="all">
     <details class="toolbar-menu comments-control" id="comments-menu"><summary>Comments</summary><div class="toolbar-popover" role="menu" aria-label="Comments">
@@ -105,7 +118,9 @@
         <p class="composer-label">Comment on selection</p>
         <blockquote id="selection-comment-quote"></blockquote>
         <form id="selection-comment-form">
-          <textarea id="selection-comment-body" maxlength="10000" aria-label="Write a comment" rows="3" placeholder="Add a comment..." required></textarea>
+          <div class="selection-editor-field">
+            <textarea id="selection-comment-body" maxlength="10000" aria-label="Write a comment" rows="3" placeholder="Add a comment..." required></textarea>
+          </div>
           <div class="composer-actions">
             <button id="cancel-selection-comment" class="quiet-control" type="button">Cancel</button>
             <button type="submit">Comment</button>
@@ -122,7 +137,7 @@
       </details>
     </aside>
   </main>
-  <button id="comment-selection-button" class="comment-selection-button" type="button" aria-label="Comment on selection" title="Comment on selection (Enter or Ctrl+Alt+M)" aria-keyshortcuts="Enter Control+Alt+M Meta+Alt+M" hidden disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h16v12H9l-5 4z"/><path d="M8 8h8M8 12h5"/></svg><span class="sr-only">Comment</span></button>
+  <button id="comment-selection-button" class="comment-selection-button" type="button" aria-label="Comment on selection" title="Comment on selection (Enter or Ctrl+Alt+M)" aria-keyshortcuts="Enter Control+Alt+M Meta+Alt+M" hidden disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h16v12H9l-5 4z"/><path d="M8 8h8M8 12h5"/></svg><span class="selection-comment-label">Add comment</span></button>
   <script id="anchor-config" type="application/json">{{ anchor_config|tojson }}</script>
   <script src="{{ url_for('static', filename='vendor/socket.io/socket.io.min.js') }}"></script>
   <script type="module" src="{{ url_for('static', filename='review/anchors.js') }}"></script>

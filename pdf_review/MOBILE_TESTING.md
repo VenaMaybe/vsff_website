@@ -60,6 +60,13 @@ Sources: [Cloudflare Quick Tunnels](https://developers.cloudflare.com/tunnel/get
 PDF.js still owns pinch recognition, scale limits, focal-point math and rendering.
 The document stage no longer changes its centering width when cards are present.
 Before native scaling, the app refreshes PDF.js's own view-location snapshot.
+The documented native viewer patch anchors the PDF point under the gesture and
+combines scroll restoration with pan before browser clamping. Its final offsets
+feed native fractional pan state; real document limits still apply.
+The reference also covers background and page gaps by extrapolating from a nearby
+attached page. Touch holds the same reference page until the gesture ends, so
+crossing edges does not switch zoom calculations. Completely offscreen pages are
+included; origin-based zoom never restores an obsolete visible-page snapshot.
 Scoped touch-action and Safari gesture cancellation apply only to the PDF/frame
 wrapper. Highlights now keep keyed elements with page-relative geometry, so
 they follow page resizing while fingers are still down. Section markers update
@@ -83,12 +90,39 @@ A 120px one-finger drag moved the page 105px with zero application scroll writes
 including while card-origin space was pending reclamation. Outer-site scale and
 scoped Safari-event cancellation are checked after delayed layout/drawing. These checks do **not** verify actual iPhone Safari.
 
+The November 4 fitting-page transition fix is implemented in the native viewer.
+The focused check now adds 28 fitting/overflowing transitions and reversals across
+all card states, mixed pages, later pages, rotation, odd/even spreads and horizontal/
+wrapped layouts. Maximum nearest-reachable focal error was 2.50px, including
+deferred layout/drawing. A real Chrome two-touch transition/reversal on a later
+mixed-size page measured 2.95px maximum drift, followed by fractional-pan checks.
+The existing 80 desktop steps still pass (2.12px maximum drift). These are browser
+measurements, not physical Safari verification. See the
+[diagnosis and implementation record](MOBILE_ZOOM_STEPPING_DIAGNOSIS.md) and
+[vendor patch notes](static/vendor/pdfjs/LOCAL_PATCHES.md).
+
+The follow-up background/boundary correction is now implemented. The earlier
+source audit identified a changing anchor strategy and stale-location restoration
+when no pages were visible. Regression checks now cover that entirely offscreen
+case, boundary crossing/reversal within one gesture, selection of a fresh reference
+for a new gesture, and actual two-touch input straddling a divider. See the
+implementation record at the top of the diagnosis. Physical Safari confirmation
+of this revision is still required.
+The new background/boundary check measured 0.49px maximum error, and the real
+Chrome two-touch divider gesture with midpoint translation measured 1.97px drift.
+
 On the physical iPhone:
 
 1. Reload the HTTPS viewer to replace handlers from earlier revisions.
 2. With cards hidden, pinch in/out near page 1 and well down the document. Watch a
    specific word between your fingers; it should remain near that midpoint.
+   Specifically zoom out until multiple pages are visible, then pinch into one
+   page. Repeat slowly and quickly, including near page transitions and while
+   both card rails are present; watch for the previous abrupt jump.
 3. Repeat several quick in/out reversals and pause with fingers still touching.
+   Also try both fingers on side background, one on each side of a page divider,
+   and moving the midpoint across a paper edge. Watch the zoom percentage as well
+   as page movement: a camera snap and an excessive scale update are distinct.
 4. Show comments and open a left tool; pinch on uncovered PDF content. Check
    highlights, a page transition and near the last page. Tool controls themselves
    remain ordinary controls. Unpinned left cards sit outside the document's left
@@ -108,3 +142,46 @@ On the physical iPhone:
 The tunnel and OAuth callback do not change with these frontend edits. The
 previous mobile research remains historical; successful emulation is not an iOS
 Safari success claim.
+
+## Mobile text selection
+
+Reload the viewer, long-press PDF text and adjust its selection handles. PDF-only
+callout/context-menu suppression is enabled for touch input when commenting is
+allowed. Safari may still display its system Copy / Find Selection / Look Up menu.
+The labelled Add comment action now stays at the bottom right of the visible PDF
+viewport, with a minimum 44px touch target. Tap it and confirm the composer keeps
+the selected quote and opens at the bottom-right of the viewer without automatically
+focusing the editor. Tap the comment field to open the keyboard
+without whole-site focus zoom (mobile textareas use 16px text). Tapping the title
+or quote, or reopening the existing card, must not focus the text field. Open it
+and scroll the PDF: the composer should remain in that visible corner, above the
+keyboard, with the draft preserved. Cancel, change the selection and repeat near the viewport
+bottom. Check that search and comment text fields keep normal editing menus.
+Desktop retains the small icon beside the selection. Chrome automation verifies
+selection preservation, scoped cancellation, button placement and composer flow;
+physical iPhone native menu/handle behavior is not emulated.
+
+The selection editor now renders compact 13px text using a transformed native
+16px textarea, inside a stable 72px field. Check its height before and after the
+keyboard opens: it should move up with the card rather than compress. In very
+short viewports the containing card can scroll. Verify caret positioning,
+multiline typing and selecting/editing a draft on the physical iPhone.
+The card is now a fixed overlay outside the PDF's clipped workspace. Keyboard
+positioning uses the full visual viewport, including Safari's viewport pan, rather
+than its overlap with the PDF. Confirm the entire editor and Cancel/Comment
+buttons remain visible when Safari moves the page/header offscreen on focus.
+On the first editor tap, check the keyboard-opening animation specifically: the
+card should move above the keyboard without briefly shooting toward the top.
+That touch now requests focus with preventScroll to avoid Safari's native reveal
+scroll competing with viewport docking. Once focused, tap within existing text
+and adjust the selection to confirm normal caret behavior remains available.
+On mobile Cancel, Add comment now immediately returns to its pre-composer bottom
+corner, instead of following the keyboard down. The keyboard may cover that
+corner until it closes. Check it does not hover above the retracting keyboard,
+and that new selections and rotating the phone restore normal positioning.
+Tap the header page number: it should open numeric entry without zooming the
+website. Confirm a page using Go/Enter; navigation should dismiss field focus.
+
+Safari controls the native previous/next/Done keyboard accessory and its URL bar.
+They can still appear when the comment field is tapped; web content cannot reliably
+remove them while preserving normal native editing. The URL is the tunnel hostname.

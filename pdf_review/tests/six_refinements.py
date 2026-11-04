@@ -13,7 +13,9 @@ def run_six(cdp, a, b, fixture, base):
     # A real text thread carries its root author's color through selection.
     ev(SELECT)
     wait("!document.querySelector('#comment-selection-button').disabled")
-    ev("document.querySelector('#comment-selection-button').click();document.querySelector('#selection-comment-body').value='Six refinements comment';document.querySelector('#selection-comment-form').requestSubmit()")
+    ev("document.querySelector('#comment-selection-button').click()")
+    assert ev("document.activeElement===document.querySelector('#selection-comment-body')"),ev("({width:innerWidth,coarse:matchMedia('(any-pointer:coarse)').matches,primaryCoarse:matchMedia('(pointer:coarse)').matches,active:document.activeElement.outerHTML.slice(0,250)})")
+    ev("document.querySelector('#selection-comment-body').value='Six refinements comment';document.querySelector('#selection-comment-form').requestSubmit()")
     wait("document.querySelector('#thread-list .thread-card')!==null")
     assert ev("(()=>{const c=document.querySelector('#thread-list .thread-card.active'),p=document.createElement('i');p.style.borderLeftColor='color-mix(in srgb,'+c.style.getPropertyValue('--review-color')+' 78%,white)';document.body.append(p);const ok=getComputedStyle(p).borderLeftColor===getComputedStyle(c).borderLeftColor;p.remove();return ok;})()")
     ev("document.querySelector('[data-sections]').click()")
@@ -91,4 +93,74 @@ def run_six(cdp, a, b, fixture, base):
     bounds=ev("(()=>{const r=document.querySelector('.search-panel').getBoundingClientRect();return {left:r.left,right:r.right,width:innerWidth};})()")
     assert bounds['left']>=0 and bounds['right']<=bounds['width'],bounds
     screenshot(cdp,a,'six-mobile-search-card')
+    # Touch selection keeps its text/handles and exposes a separate comment action.
+    cdp.call('Emulation.setTouchEmulationEnabled',{'enabled':True,'maxTouchPoints':2},a)
+    ev(SELECT)
+    wait("!document.querySelector('#comment-selection-button').hidden")
+    assert ev("matchMedia('(pointer:coarse)').matches")
+    assert ev("(()=>{const w=document.querySelector('iframe').contentWindow,b=document.querySelector('#comment-selection-button').getBoundingClientRect();const selected=w.getSelection().toString();const menu=new w.MouseEvent('contextmenu',{bubbles:true,cancelable:true});w.getSelection().anchorNode.parentElement.dispatchEvent(menu);return selected.length>0&&w.getSelection().toString()===selected&&menu.defaultPrevented&&b.width>80&&b.height>=44&&b.right<=innerWidth&&b.bottom<=innerHeight&&b.top>innerHeight-100;})()")
+    assert ev("(()=>{const input=document.querySelector('#findInput'),menu=new MouseEvent('contextmenu',{bubbles:true,cancelable:true});input.dispatchEvent(menu);return !menu.defaultPrevented;})()")
+    normal_selection_action=ev("({left:document.querySelector('#comment-selection-button').style.left,top:document.querySelector('#comment-selection-button').style.top})")
+    ev("document.querySelector('#comment-selection-button').click()")
+    wait("!document.querySelector('#selection-comment-composer').hidden")
+    docked="(()=>{const r=document.querySelector('#selection-comment-composer').getBoundingClientRect(),f=document.querySelector('iframe').getBoundingClientRect(),v=visualViewport;return Math.abs(r.right-Math.min(f.right,v.offsetLeft+v.width)+12)<2&&Math.abs(r.bottom-Math.min(f.bottom,v.offsetTop+v.height)+16)<2&&r.top>=f.top;})()"
+    wait(docked)
+    assert ev("document.activeElement!==document.querySelector('#selection-comment-body')")
+    # Reopening must not force focus either, and must preserve the existing draft.
+    ev("document.querySelector('#selection-comment-body').value='Existing draft';document.querySelector('#comment-selection-button').click()")
+    assert ev("document.activeElement!==document.querySelector('#selection-comment-body')&&document.querySelector('#selection-comment-body').value==='Existing draft'")
+    assert ev("parseFloat(getComputedStyle(document.querySelector('#selection-comment-body')).fontSize)>=16")
+    # Tapping the card label/quote must not activate the editor.
+    point=ev("(()=>{const r=document.querySelector('.composer-label').getBoundingClientRect();return {x:r.left+10,y:r.top+r.height/2};})()")
+    for kind in ['touchStart', 'touchEnd']:
+        cdp.call('Input.dispatchTouchEvent',{'type':kind,'touchPoints':[point] if kind=='touchStart' else []},a)
+    assert ev("document.activeElement!==document.querySelector('#selection-comment-body')")
+    # A first touch must request keyboard focus without Safari's reveal scroll.
+    ev("window.testFocusOptions=null;window.testEditorFocus=document.querySelector('#selection-comment-body').focus;document.querySelector('#selection-comment-body').focus=function(options){window.testFocusOptions=options;return testEditorFocus.call(this,options)}")
+    point=ev("(()=>{const r=document.querySelector('#selection-comment-body').getBoundingClientRect();return {x:r.left+20,y:r.top+20};})()")
+    for kind in ['touchStart', 'touchEnd']:
+        cdp.call('Input.dispatchTouchEvent',{'type':kind,'touchPoints':[point] if kind=='touchStart' else []},a)
+    assert ev("document.activeElement===document.querySelector('#selection-comment-body')")
+    assert ev("window.testFocusOptions?.preventScroll===true")
+    assert ev("(()=>{const e=document.querySelector('#selection-comment-body'),p=new PointerEvent('pointerdown',{bubbles:true,cancelable:true,pointerType:'touch',isPrimary:true});return e.dispatchEvent(p)&&!p.defaultPrevented;})()")
+    ev("document.querySelector('#selection-comment-body').focus=testEditorFocus;delete window.testEditorFocus;delete window.testFocusOptions")
+    assert ev("document.querySelector('#selection-comment-quote').textContent.includes('Review sentence')")
+    wait(docked)
+    ev(PDF+'.container.scrollTop+=100')
+    wait(docked)
+    # A smaller visible area models keyboard/viewport resizing without losing the draft.
+    ev("document.querySelector('#selection-comment-body').value='Draft survives viewport resize'")
+    editor_height=ev("document.querySelector('#selection-comment-body').getBoundingClientRect().height")
+    composer_height=ev("document.querySelector('#selection-comment-composer').getBoundingClientRect().height")
+    assert abs(editor_height-72)<1
+    assert ev("(()=>{const e=document.querySelector('#selection-comment-body'),s=getComputedStyle(e),scale=e.getBoundingClientRect().width/e.offsetWidth;return Math.abs(parseFloat(s.fontSize)*scale-13)<.1;})()")
+    cdp.call('Emulation.setDeviceMetricsOverride',{'width':390,'height':500,'deviceScaleFactor':1,'mobile':True},a)
+    wait(docked)
+    assert ev("document.querySelector('#selection-comment-body').value==='Draft survives viewport resize'")
+    assert abs(ev("document.querySelector('#selection-comment-body').getBoundingClientRect().height")-editor_height)<1
+    assert abs(ev("document.querySelector('#selection-comment-composer').getBoundingClientRect().height")-composer_height)<1
+    assert ev("(()=>{const a=document.querySelector('.selection-editor-field').getBoundingClientRect(),b=document.querySelector('.composer-actions').getBoundingClientRect();return a.bottom<=b.top;})()")
+    # Model Safari's independent visual viewport pan, rather than shrinking both
+    # layout + visual viewports together (which cannot reproduce the old bug).
+    ev("window.testNativeViewport=visualViewport;window.testViewportDescriptor=Object.getOwnPropertyDescriptor(window,'visualViewport');Object.defineProperty(window,'visualViewport',{configurable:true,value:{offsetLeft:0,offsetTop:430,width:390,height:320}});testNativeViewport.dispatchEvent(new Event('resize'))")
+    wait("(()=>{const r=document.querySelector('#selection-comment-composer').getBoundingClientRect();return r.top>=442&&Math.abs(r.bottom-734)<2;})()")
+    assert abs(ev("document.querySelector('#selection-comment-composer').getBoundingClientRect().height")-composer_height)<1
+    assert ev("(()=>{const c=document.querySelector('#selection-comment-composer'),r=c.getBoundingClientRect(),e=document.querySelector('#selection-comment-body').getBoundingClientRect(),b=c.querySelector('[type=submit]').getBoundingClientRect();return c.parentElement===document.body&&getComputedStyle(c).position==='fixed'&&e.top>=r.top&&b.bottom<=r.bottom&&c.scrollHeight<=c.clientHeight+1&&document.activeElement===document.querySelector('#selection-comment-body');})()")
+    ev("Object.defineProperty(window,'visualViewport',testViewportDescriptor);testNativeViewport.dispatchEvent(new Event('resize'));delete window.testNativeViewport;delete window.testViewportDescriptor")
+    wait(docked)
+    ev("document.querySelector('#cancel-selection-comment').click()")
+    assert ev("!document.querySelector('#comment-selection-button').hidden")
+    action_position="({left:document.querySelector('#comment-selection-button').style.left,top:document.querySelector('#comment-selection-button').style.top})"
+    assert ev(action_position)==normal_selection_action
+    ev("visualViewport.dispatchEvent(new Event('resize'));visualViewport.dispatchEvent(new Event('scroll'))")
+    assert ev(action_position)==normal_selection_action
+    cdp.call('Emulation.setDeviceMetricsOverride',{'width':390,'height':844,'deviceScaleFactor':1,'mobile':True},a)
+    wait("(()=>{const b=document.querySelector('#comment-selection-button').getBoundingClientRect();return Math.abs(b.bottom-Math.min(document.querySelector('iframe').getBoundingClientRect().bottom,visualViewport.offsetTop+visualViewport.height)+16)<2;})()")
+    assert ev("document.querySelector('#selection-comment-composer').parentElement.classList.contains('review-panel')")
+    assert ev("parseFloat(getComputedStyle(document.querySelector('#review-page-number')).fontSize)>=16")
+    ev("document.querySelector('#review-page-number').focus();document.querySelector('#review-page-number').value='2'")
+    key(cdp,a,'Enter',13)
+    wait(PDF+'.currentPageNumber===2')
+    assert ev("document.activeElement!==document.querySelector('#review-page-number')")
+    print('PASS mobile PDF callout cancellation, selection preservation, separate 44px Add comment action and composer',flush=True)
     print('PASS author-color selection, live left-rail alignment, search/filter cards, reviewer checklist, bottom-aligned section thoughts and mobile search',flush=True)

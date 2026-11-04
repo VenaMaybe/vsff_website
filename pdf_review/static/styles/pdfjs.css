@@ -13,6 +13,11 @@
 #viewerContainer { top: 0; left: 0; right: 0; background: #e4e6e5; overflow-anchor:none; scrollbar-gutter:stable; }
 /* Reserve browser panning here; native PDF.js handles the two-touch pinch. */
 #viewerContainer { touch-action:pan-x pan-y; }
+/* Keep native text selection/handles, suppress its callout where WebKit permits. */
+@media (pointer: coarse) {
+  .review-selection-actions .textLayer,
+  .review-selection-actions .textLayer * { -webkit-touch-callout:none; }
+}
 /* Cards extend scrolling, never the width used to center the PDF pages. */
 #viewer { box-sizing:content-box; width:100%; min-width:0; }
 .review-document-extent { position:absolute; top:0; left:0; pointer-events:none; }

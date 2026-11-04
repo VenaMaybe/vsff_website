@@ -21,6 +21,111 @@ def mixed_pdf(marker):
     return data+f'trailer\n<< /Size {len(offsets)} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n'.encode()
 
 
+def fit_transitions(cdp, session):
+    """Check the fitting/overflowing boundary, including genuine final limits."""
+    ev=lambda script:cdp.evaluate(session,script)
+    worst=0
+    count=0
+    for right,left in [(False,False),(True,False),(False,True),(True,True)]:
+        change(cdp,session,'#comments-visibility','mobile' if right else 'hidden')
+        if left:
+            ev("document.querySelector('[data-comment-filters]').click();document.querySelector('.comment-filter-panel').style.width='327px'")
+        for mode,spread,rotation,page,start,end in [(0,0,0,1,.4,.85),(0,1,0,1,.16,.65),
+                (0,2,90,1,.25,.9),(1,0,0,1,.25,.85),(2,1,0,1,.16,.65),
+                (0,0,0,3,.25,.85),(2,1,0,6,.16,.65)]:
+            result=ev(f"""(async()=>{{
+              zoomPdf.scrollMode={mode};zoomPdf.spreadMode={spread};zoomPdf.pagesRotation={rotation};
+              zoomPdf.currentPageNumber={page};zoomPdf.currentScale={start};
+              zoomPdf.container.scrollLeft=zoomApp.reviewStage.origin;zoomPdf.container.scrollTop=zoomApp.reviewStage.originY;
+              if({page}!==1){{const box=zoomPdf.getPageView({page}-1).div.getBoundingClientRect();zoomPdf.container.scrollTop+=box.top+box.height*.55-260;}}
+              await new Promise(r=>setTimeout(r,230));
+              const p=zoomPdf.getPageView({page}-1),s=zoomPdf.container,r=p.div.getBoundingClientRect();
+              const x=r.left+p.div.clientLeft+p.div.clientWidth*.55,y=r.top+p.div.clientTop+p.div.clientHeight*.55;
+              if(x<0||x>s.clientWidth||y<0||y>s.clientHeight)throw new Error('Transition origin must be visible');
+              const errors=[],writes=[],w=s.ownerDocument.defaultView;
+              const check=point=>{{
+                const box=p.div.getBoundingClientRect(),v=p.viewport,xy=v.convertToViewportPoint(...point);
+                const wantedX=s.scrollLeft+box.left+p.div.clientLeft+xy[0]*p.div.clientWidth/v.width-x;
+                const wantedY=s.scrollTop+box.top+p.div.clientTop+xy[1]*p.div.clientHeight/v.height-y;
+                // At real edges, compare with the nearest reachable focal position.
+                const clamp=(value,max)=>Math.max(0,Math.min(value,max));
+                errors.push(Math.hypot(s.scrollLeft-clamp(wantedX,s.scrollWidth-s.clientWidth),
+                  s.scrollTop-clamp(wantedY,s.scrollHeight-s.clientHeight)));
+              }};
+              zoomApp.reviewPdfTouchActive=true;
+              try{{
+                const before=zoomPoint({page},x,y);
+                // Observe actual scroll writes: intermediate clamping must be gone.
+                for(const name of ['scrollLeft','scrollTop']){{const d=Object.getOwnPropertyDescriptor(w.Element.prototype,name);
+                  Object.defineProperty(s,name,{{configurable:true,get(){{return d.get.call(this)}},set(value){{writes.push({{name,value}});d.set.call(this,value);}}}});}}
+                try{{zoomApp.updateZoom(null,{end/start},[x,y]);}}finally{{delete s.scrollLeft;delete s.scrollTop;}}
+                check(before);
+                await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));check(before);
+                // A delayed canvas replacement must retain the same location too.
+                if({mode}===0&&{spread}===0){{await new Promise(r=>setTimeout(r,450));check(before);}}
+                const back=zoomPoint({page},x,y);zoomApp.updateZoom(null,{start/end},[x,y]);check(back);
+                await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));check(back);
+                return {{errors,writes}};
+              }}finally{{zoomApp.reviewPdfTouchActive=false;}}
+            }})()""")
+            error=max(result['errors']);worst=max(worst,error);count+=1
+            assert error<4,('fit transition focal drift',right,left,mode,spread,rotation,page,result)
+            for axis in ['scrollLeft','scrollTop']:
+                assert sum(w['name']==axis for w in result['writes'])<=1,('intermediate scroll write',result)
+        if left:ev("document.querySelector('.comment-filter-panel .dialog-header button:last-child').click()")
+    ev('zoomPdf.pagesRotation=0;zoomPdf.scrollMode=0;zoomPdf.spreadMode=0')
+    print(f'PASS {count} fitting/overflowing transitions and reversals, all rail states, mixed pages, rotation, spreads and scroll modes; max reachable focal error {worst:.2f}px',flush=True)
+
+
+def background_transitions(cdp, session):
+    """Background stays spatially anchored; touch never switches reference pages."""
+    result=cdp.evaluate(session,"""(async()=>{
+      const pdf=zoomPdf,app=zoomApp,s=pdf.container,errors=[],destinations=[];
+      const original=pdf.scrollPageIntoView;let lastDestination;
+      pdf.scrollPageIntoView=function(options){lastDestination=options;destinations.push(options.pageNumber);return original.call(this,options)};
+      const pause=()=>new Promise(r=>setTimeout(r,220));
+      const check=(p,point,x,y)=>{const xy=p.viewport.convertToViewportPoint(...point),r=p.div.getBoundingClientRect();
+        const wantX=s.scrollLeft+r.left+p.div.clientLeft+xy[0]-x,wantY=s.scrollTop+r.top+p.div.clientTop+xy[1]-y;
+        const clamp=(n,max)=>Math.max(0,Math.min(n,max));
+        errors.push({error:Math.hypot(s.scrollLeft-clamp(wantX,s.scrollWidth-s.clientWidth),s.scrollTop-clamp(wantY,s.scrollHeight-s.clientHeight)),
+          page:p.id,scale:pdf.currentScale,point,destination:lastDestination,wanted:[wantX,wantY],actual:[s.scrollLeft,s.scrollTop]});};
+      try{
+        pdf.scrollMode=0;pdf.spreadMode=0;pdf.pagesRotation=0;pdf.currentScale=.35;s.scrollLeft=0;s.scrollTop=100;
+        await pause();app.reviewStage.setBounds('background-test',[{left:0,right:2400,top:0,bottom:6000}]);await pause();
+        s.scrollLeft=950;await pause();
+        if(pdf._getVisiblePages().views.length)throw new Error('Expected completely offscreen PDF');
+        app.reviewPdfTouchActive=true;pdf.beginZoomGesture();
+        const old=s.scrollLeft;app.updateZoom(null,1.08,[185,260]);
+        if(s.scrollLeft<old*.8)throw new Error('Background zoom restored stale page location');
+        const ref=pdf.getPageView(destinations.at(-1)-1),offscreenLeft=s.scrollLeft;
+        for(const factor of [1.08,1/1.08]){const point=ref.getPagePoint(s.scrollLeft+185-ref.div.offsetLeft-ref.div.clientLeft,s.scrollTop+260-ref.div.offsetTop-ref.div.clientTop);
+          app.updateZoom(null,factor,[185,260]);check(ref,point,185,260);}
+        pdf.endZoomGesture();app.reviewPdfTouchActive=false;
+        // Start on paper 1, move the origin across its border/gap and onto paper 2.
+        pdf.currentScale=.35;s.scrollLeft=0;
+        const initial=pdf.getPageView(0).div.getBoundingClientRect();
+        s.scrollTop+=initial.bottom-260;s.scrollLeft+=initial.left+initial.width*.5-185;await pause();
+        app.reviewPdfTouchActive=true;pdf.beginZoomGesture();destinations.length=0;
+        const page=pdf.getPageView(0),r=page.div.getBoundingClientRect();
+        app.updateZoom(null,1.03,[185,r.bottom-page.div.clientTop-1]);
+        const chosen=destinations[0];
+        if(chosen!==1)throw new Error('Expected initial origin on paper 1');
+        for(let i=0;i<5;i++){const p=pdf.getPageView(1).div.getBoundingClientRect(),x=185,y=p.top+pdf.getPageView(1).div.clientTop+12;
+          const point=page.getPagePoint(s.scrollLeft+x-page.div.offsetLeft-page.div.clientLeft,s.scrollTop+y-page.div.offsetTop-page.div.clientTop);
+          app.updateZoom(null,i%2?1/1.07:1.07,[x,y]);check(page,point,x,y);}
+        if(destinations.some(id=>id!==chosen))throw new Error('Anchor switched across page boundary');
+        pdf.endZoomGesture();
+        const next=pdf.getPageView(1).div.getBoundingClientRect();
+        pdf.beginZoomGesture();app.updateZoom(null,1.04,[185,next.top+pdf.getPageView(1).div.clientTop+30]);
+        if(destinations.at(-1)!==2)throw new Error('New gesture retained old page');
+        pdf.endZoomGesture();
+        return {offscreenLeft,maxError:Math.max(...errors.map(e=>e.error)),errors};
+      }finally{pdf.endZoomGesture();app.reviewPdfTouchActive=false;pdf.scrollPageIntoView=original;app.reviewStage.setBounds('background-test',[]);}
+    })()""")
+    assert result['maxError']<3,result
+    print(f"PASS no-visible-page background zoom (scrollLeft remains {result['offscreenLeft']}), boundary crossing/reversal, new-gesture reset; max error {result['maxError']:.2f}px",flush=True)
+
+
 def run_zoom(cdp,a,b,fixture,base,mobile_only=False):
     ev=lambda script:cdp.evaluate(a,script)
     wait=lambda script:cdp.wait(a,script)
@@ -116,6 +221,8 @@ def run_zoom(cdp,a,b,fixture,base,mobile_only=False):
     # Real two-touch browser input, also without waiting for redraw between reversals.
     cdp.call('Emulation.setDeviceMetricsOverride',{'width':375,'height':667,'deviceScaleFactor':2,'mobile':True},a)
     cdp.call('Emulation.setTouchEmulationEnabled',{'enabled':True,'maxTouchPoints':2},a)
+    fit_transitions(cdp,a)
+    background_transitions(cdp,a)
     change(cdp,a,'#comments-visibility','mobile')
     ev('zoomPdf.scrollMode=0;zoomPdf.spreadMode=0;zoomPdf.currentScale=1;zoomPdf.currentPageNumber=3;zoomPdf.container.scrollLeft=200;zoomPdf.container.scrollTop+=180')
     time.sleep(.3)
@@ -145,16 +252,17 @@ def run_zoom(cdp,a,b,fixture,base,mobile_only=False):
           Math.abs(b.height-Math.abs(y2-y1)*p.div.clientHeight/v.height));};})()""")
     live_error=0
     def point():return ev('zoomPoint(3,185,260)')
-    def pinch(start,end,detach=False):
+    def pinch(start,end,detach=False,vertical=False,travel=0):
         nonlocal live_error
         frame=ev("document.querySelector('iframe').getBoundingClientRect().toJSON()")
         if detach:
             ev(f"window.detachedTouchTarget=document.querySelector('iframe').contentDocument.createElement('div');detachedTouchTarget.style.cssText='position:fixed;z-index:999;left:{185-start/2-15}px;top:240px;width:30px;height:40px';zoomPdf.container.append(detachedTouchTarget)")
-        first={'x':185-start/2+frame['left'],'y':260+frame['top'],'id':0}
+        first={'x':185-(0 if vertical else start/2)+frame['left'],'y':260-(start/2 if vertical else 0)+frame['top'],'id':0}
         cdp.call('Input.dispatchTouchEvent',{'type':'touchStart','touchPoints':[first]},a)
         for i in range(13):
             span=start+(end-start)*i/12
-            points=[{'x':185-span/2+frame['left'],'y':260+frame['top'],'id':0},{'x':185+span/2+frame['left'],'y':260+frame['top'],'id':1}]
+            points=[{'x':185-(0 if vertical else span/2)+frame['left'],'y':260+travel*i/12-(span/2 if vertical else 0)+frame['top'],'id':0},
+                {'x':185+(0 if vertical else span/2)+frame['left'],'y':260+travel*i/12+(span/2 if vertical else 0)+frame['top'],'id':1}]
             cdp.call('Input.dispatchTouchEvent',{'type':'touchStart' if i==0 else 'touchMove','touchPoints':points},a)
             if detach and i==0:ev('detachedTouchTarget.remove()')
             time.sleep(.02)
@@ -183,6 +291,40 @@ def run_zoom(cdp,a,b,fixture,base,mobile_only=False):
     assert ev('zoomPdf.currentScale')>scale*1.1
     after=point()
     assert max(abs(u-v) for u,v in zip(before,after))*ev('zoomPdf.currentScale')*4/3<9,('detached target',before,after)
+    # Real touch input also crosses from multiple small pages into a later page.
+    ev('zoomPdf.currentScale=.4;zoomPdf.currentPageNumber=3;zoomPdf.container.scrollLeft=zoomApp.reviewStage.origin;const fitPage=zoomPdf.getPageView(2).div.getBoundingClientRect();zoomPdf.container.scrollTop+=fitPage.top+fitPage.height*.5-260')
+    time.sleep(.3)
+    transition_worst=0
+    for start,end in [(100,330),(330,100)]:
+        before=point()
+        pinch(start,end)
+        after=point()
+        drift=max(abs(u-v) for u,v in zip(before,after))*ev('zoomPdf.currentScale')*4/3
+        transition_worst=max(transition_worst,drift)
+        assert drift<6,('touch fitting-page transition',start,end,drift,before,after)
+    # Subsequent small pans must retain native fractional accumulation.
+    before=point()
+    ev('for(let i=0;i<12;i++)zoomApp.updateZoom(null,1,[185,260],[.25,.25])')
+    after=ev('zoomPoint(3,188,263)')
+    assert max(abs(u-v) for u,v in zip(before,after))*ev('zoomPdf.currentScale')*4/3<2,('fractional pan after zoom',before,after)
+    print(f'PASS actual touch fitting-page transition/reversal on a later mixed-size page ({transition_worst:.2f}px max drift) and fractional pan',flush=True)
+    # Fingers straddle a divider; the midpoint starts in background and translates.
+    ev('zoomPdf.currentScale=.4;zoomPdf.currentPageNumber=3;zoomPdf.container.scrollLeft=zoomApp.reviewStage.origin;const gapA=zoomPdf.getPageView(2).div.getBoundingClientRect(),gapB=zoomPdf.getPageView(3).div.getBoundingClientRect();zoomPdf.container.scrollTop+=(gapA.bottom+gapB.top)/2-260')
+    time.sleep(.3)
+    ev('window.gapDestinations=[];window.gapNativeScroll=zoomPdf.scrollPageIntoView;zoomPdf.scrollPageIntoView=function(options){gapDestinations.push(options.pageNumber);return gapNativeScroll.call(this,options)};true')
+    gap_points=ev('Array.from({length:zoomPdf.pagesCount},(_,i)=>zoomPoint(i+1,185,260))')
+    try:
+        pinch(100,280,vertical=True,travel=30)
+    finally:
+        ev('zoomPdf.scrollPageIntoView=gapNativeScroll;true')
+    gap_page=ev('gapDestinations[0]')
+    before=gap_points[gap_page-1]
+    after=ev(f'zoomPoint({gap_page},185,290)')
+    gap_drift=max(abs(u-v) for u,v in zip(before,after))*ev('zoomPdf.currentScale')*4/3
+    assert gap_drift<8,('touch divider/background drift',gap_drift,before,after)
+    assert ev('gapDestinations.length>2&&new Set(gapDestinations).size===1'),ev('gapDestinations')
+    assert not ev('zoomApp.reviewPdfTouchActive')
+    print(f'PASS actual two-touch divider/background pinch with midpoint translation, stable gesture reference ({gap_drift:.2f}px drift)',flush=True)
     time.sleep(.3)
     ev("zoomApp.reviewStage.setBounds('pan-space',[{left:0,right:500,top:-500,bottom:14000}])")
     time.sleep(.3)
