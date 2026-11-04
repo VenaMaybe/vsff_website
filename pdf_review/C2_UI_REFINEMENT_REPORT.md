@@ -1,5 +1,114 @@
 # C2 management interaction refinement
 
+## Mobile left cards beside the document
+
+Removed the narrow-viewport override that clamped unpinned left cards to the
+screen. They now use the same document/spread-relative left rail on phones as
+on desktop. The shared stage supplies horizontal scroll space to reach them;
+pinned cards keep their existing viewport behavior.
+
+Changed `static/review/left_card.js`, the mobile assertions in
+`tests/six_refinements.py`, and the current architecture/mobile testing notes.
+The six-refinement browser check passes, including document-edge alignment,
+horizontal reachability and full content height at a 390px mobile viewport.
+The native zoom regression also passes all 80 desktop steps and mobile touch
+checks, with maximum desktop focal drift unchanged at 2.12 CSS px.
+Physical iPhone confirmation remains manual.
+
+## Live mobile highlight geometry and browser-owned one-finger scrolling
+
+The physical iPhone test confirmed good desktop trackpad behavior, but showed
+highlights drifting during pinch and snapping back after release. The previous
+attempt to retain touch targets paused all highlight geometry updates. That
+froze pixel positions while the native PDF page resized, directly explaining the
+screenshots. This touch-only protection was incorrect.
+
+Highlights now reconcile keyed DOM nodes and use page-relative percentage
+geometry. They resize with the native page immediately, without per-move node
+replacement or waiting for touchend. Rotation, colors, resolution state and
+highlight click cycling update in place. Obsolete touched nodes can remain hidden
+until contacts end. Section dividers also reuse their nodes and update during
+pinches. Canonical anchors and PDF bytes remain unchanged.
+
+The user clarified that excessive panning occurred with **one finger**. Native
+PDF.js manual touch-pan callbacks concern two-contact gestures; one-finger motion
+belongs to browser scrolling. The stage could previously rebase origins/write
+scroll offsets while a browser drag was underway. It now defers origin maintenance
+and extent shrinking through active contacts and native scrolling/momentum, then
+reclaims space when idle. No speed multiplier or competing one-finger pan handler
+was added. This removes a competing writer; the physical Safari symptom still
+requires confirmation rather than being declared solved from Chrome.
+
+Validation: desktop's 80-step focal check still passes (maximum 2.12 CSS px drift).
+The new check measures canonical highlight geometry during each actual browser
+touch move: maximum live error 0.02px, including zoom/reversal and detached-target
+cases. A 120px one-finger drag produced 105px page motion with zero app scroll
+writes while origin space awaited reclamation. Highlight containment, immutable
+geometry, overlapping-thread cycling, zoom and rotation checks passed. Physical
+iPhone Safari remains unverified. See MOBILE_TESTING.md for the specific retest.
+
+Edited: static/review/anchor_overlay.js, document_stage.js, section_viewer.js;
+tests/document_zoom.py and browser_sanity.py; ARCHITECTURE.md, MOBILE_TESTING.md
+and this report. The working desktop layout fix and native PDF.js zoom math stay
+in place; no backend, vendor, deployment or version-control publishing changes.
+
+## Independent document stage and native gesture coordination
+
+Implemented the architectural follow-up to the confirmed trackpad diagnosis.
+`document_stage.js` owns one measured scroll extent while native page centering
+uses a card-independent viewport width. Right comments, floating cards/composers
+and unpinned left tools supply actual bounds. Origins left/above zero rebase
+canvas, scroll offset and parent comment coordinates atomically. Card size,
+column depth and spread/page counts do not appear in canvas-width corrections.
+The separate left/right tails and page-width freeze are removed. A stable native
+scrollbar gutter prevents tall cards from changing a fitted PDF's centering.
+Measured reachability includes both current and final animated card bounds.
+
+A separate mixed-page pinch reproduced a first-step jump caused by native stale
+view-location refresh after page resizing. Calling native update() before native
+updateScale fixes the snapshot order. All gesture, scale, focal/pan and rendering
+math remains native. `pdf_gestures.js` adds scoped browser-gesture suppression and
+relays only events stranded on detached touch targets to the native manager.
+Highlights defer destructive rebuilding until PDF contacts end; section markers
+defer it during pinches. Narrow left tools remain readable without forced PDF
+horizontal navigation. Backend, database, security and vendored code are unchanged.
+
+Validation: focused zoom run passed 80 native steps, four rail combinations,
+eight mixed-size pages, odd/even spreads, vertical/horizontal/wrapped scroll,
+card open/close/resize/pin changes, actual trackpad input, negative-origin and
+far-column bounds, and atomic overlay rebasing. Maximum desktop drift: 2.12 CSS
+px. Real Chrome touch input, quick reversals, delayed drawing, detached targets,
+one-finger scroll and scoped gesture cancellation passed; maximum measured touch
+drift: 2.37 CSS px. The existing six-refinement viewer check passed. Physical
+Safari is not verified; see MOBILE_TESTING.md for the exact retest. Native scroll
+limits at actual document edges remain. No deployment, staging, commit or push.
+
+Changed implementation: new document_stage.js and pdf_gestures.js; viewer_shell.js,
+left_card.js, anchors.js, comment_filters.js, anchor_overlay.js, section_viewer.js,
+styles/pdfjs.css and styles/viewer.css. Targeted coverage is tests/document_zoom.py
+plus its disposable browser_sanity.py fixture/entry point. Existing viewer
+acceptance assertions now check visibility/canvas independence instead of removed
+gutter CSS variables. Current README,
+ARCHITECTURE, MOBILE_TESTING and TRACKPAD_ZOOM_DIAGNOSIS describe the result;
+earlier implementation/rollback notes below are historical.
+
+## Confirmed card-dependent trackpad zoom displacement
+
+Investigated before changing behavior, as requested. The app's card-dependent
+`--review-stage-width` updates on a later animation frame, after PDF.js has
+already corrected native zoom around the cursor. Automatic page margins then
+recenter the PDF a second time. A disposable desktop fixture reproduced a
+77.516px extra leftward page shift in one zoom-out step. Disabling only that
+minimum-width rule in the fixture DOM, while retaining the right comment gutter,
+removed the extra shift; native cursor-point drift was approximately 0.46px.
+Left-only and combined gutters showed the same timing problem.
+
+See [TRACKPAD_ZOOM_DIAGNOSIS.md](TRACKPAD_ZOOM_DIAGNOSIS.md) for the exact code
+path, measurements and zoom-in/out asymmetry. This is a confirmed horizontal
+layout integration problem, distinct from speculative mobile gesture causes.
+Application and vendor source are unchanged; this turn adds the diagnosis and
+an ignored synthetic probe only.
+
 ## Revert all custom zoom and touch integration
 
 At the user's request, restored default PDF.js zoom behavior. Removed the

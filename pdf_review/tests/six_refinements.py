@@ -75,13 +75,20 @@ def run_six(cdp, a, b, fixture, base):
     time.sleep(.25)
     assert ev("(()=>{const c=document.querySelector('.section-feedback-card').getBoundingClientRect(),f=document.querySelector('iframe').getBoundingClientRect(),p="+PDF+".getPageView(1),r=p.div.getBoundingClientRect(),y=p.viewport.convertToViewportPoint(0,300)[1]*p.div.clientHeight/p.viewport.height;return Math.abs(c.bottom-f.top-r.top-p.div.clientTop-y)<2;})()")
     ev("document.querySelector('.sections-panel .dialog-header button:last-child').click()")
-    # Search remains usable at a mobile viewport with default PDF.js behavior.
+    # Mobile tools stay beside the PDF and are reachable by document scrolling.
     cdp.call('Emulation.setDeviceMetricsOverride',{'width':390,'height':844,'deviceScaleFactor':1,'mobile':True},a)
     ev("document.querySelector('[data-pdf-control=viewFindButton]').click()")
     wait("document.querySelector('.search-panel #findInput')!==null")
     time.sleep(.2)
     assert ev("document.querySelector('.search-panel').scrollHeight<=document.querySelector('.search-panel').clientHeight+1")
-    bounds=ev("(()=>{const r=document.querySelector('.search-panel').getBoundingClientRect();return {left:r.left,right:r.right,width:innerWidth,scroll:scrollX};})()")
+    aligned="(()=>{const c=document.querySelector('.search-panel').getBoundingClientRect(),f=document.querySelector('iframe').getBoundingClientRect();return Math.min(...[..."+PDF+".viewer.querySelectorAll('.page')].map(p=>Math.abs(c.right+12-f.left-p.getBoundingClientRect().left)))<2;})()"
+    wait(aligned)
+    # Let pending origin maintenance settle, then pan left to reach the rail.
+    time.sleep(.4)
+    ev("(()=>{const c=document.querySelector('.search-panel').getBoundingClientRect(),f=document.querySelector('iframe').getBoundingClientRect();"+PDF+".container.scrollLeft+=c.left-f.left-8;})()")
+    time.sleep(.3)
+    assert ev(aligned)
+    bounds=ev("(()=>{const r=document.querySelector('.search-panel').getBoundingClientRect();return {left:r.left,right:r.right,width:innerWidth};})()")
     assert bounds['left']>=0 and bounds['right']<=bounds['width'],bounds
     screenshot(cdp,a,'six-mobile-search-card')
     print('PASS author-color selection, live left-rail alignment, search/filter cards, reviewer checklist, bottom-aligned section thoughts and mobile search',flush=True)

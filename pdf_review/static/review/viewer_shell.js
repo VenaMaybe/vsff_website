@@ -3,6 +3,8 @@ import { bindMenuDismissal, syncMenuValues } from "./menus.js";
 import { pdfRectangleToCss } from "./anchor_geometry.js";
 import { sectionGeometry } from './section_viewer.js';
 import { LeftCard, registerLeftCard } from './left_card.js';
+import { documentStage } from './document_stage.js';
+import { installPdfGestures } from './pdf_gestures.js';
 
 function installSearch(frame, application) {
   const doc = frame.contentDocument;
@@ -29,7 +31,7 @@ function installSearch(frame, application) {
   const count=find.updateResultsCount.bind(find),ui=find.updateUIState.bind(find);
   find.updateResultsCount=(matches={})=>{count(matches);const {current=0,total=0}=matches;find.findResultsCount.textContent=total?`${current} of ${total}`:'';};
   find.updateUIState=(state,previous,matches)=>{ui(state,previous,matches);const id=find.findMsg.getAttribute('data-l10n-id');find.findMsg.textContent=id==='pdfjs-find-not-found'?'No matches':id==='pdfjs-find-reached-top'?'Reached top; continuing from bottom':id==='pdfjs-find-reached-bottom'?'Reached bottom; continuing from top':'';};
-  find.open=()=>{const opening=!card.element.isConnected;card.open();if(opening&&innerWidth<750)application.pdfViewer.container.scrollLeft=0;nativeOpen();card.contentReady();find.findField.focus({preventScroll:true});return card;};
+  find.open=()=>{card.open();nativeOpen();card.contentReady();find.findField.focus({preventScroll:true});return card;};
   find.close=()=>{nativeClose();card.close();};
   registerLeftCard('search',()=>find.open());
   const shortcut = (event) => {
@@ -43,6 +45,8 @@ function installSearch(frame, application) {
 }
 
 export function installViewerControls(frame, application) {
+  documentStage(application);
+  installPdfGestures(frame, application);
   const pdf = application.pdfViewer;
   const native = frame.contentDocument;
   const page = document.getElementById("review-page-number");
@@ -111,6 +115,16 @@ export class CommentRail {
     this.list = document.getElementById("thread-list");
     this.visibility = document.getElementById("comments-visibility");
     this.scroller = application.pdfViewer.container;
+    this.stage = documentStage(application);
+    application.eventBus.on('documentoriginchanged', ({dx,dy}) => {
+      // Parent overlay coordinates must rebase in the same transaction as the
+      // native scroll origin, before a scroll event can translate the list.
+      for (const card of this.list.children) {
+        if (card.style.left) card.style.left = `${parseFloat(card.style.left)+dx}px`;
+        if (card.style.top) card.style.top = `${parseFloat(card.style.top)+dy}px`;
+      }
+      this.translate();
+    });
     this.mobileQuery = matchMedia("(width < 750px)");
     this.desktopMode = "expanded";
     this.mode = this.mobileQuery.matches ? "mobile" : this.visibility.value;
@@ -121,7 +135,6 @@ export class CommentRail {
         this.mode = "mobile";
       } else if (this.mode === "mobile") this.mode = this.desktopMode;
       this.visibility.value = this.mode;
-      this.application.pdfViewer.viewer.style.removeProperty("width");
       this.schedule();
       syncMenuValues();
     });
@@ -139,14 +152,7 @@ export class CommentRail {
       this.scroller.scrollBy(event.deltaX * unit, event.deltaY * unit);
       event.preventDefault();
     }, { passive: false });
-    let workspaceWidth = this.panel.clientWidth;
-    new ResizeObserver(() => {
-      if (workspaceWidth !== this.panel.clientWidth) {
-        workspaceWidth = this.panel.clientWidth;
-        this.application.pdfViewer.viewer.style.removeProperty("width");
-      }
-      this.schedule();
-    }).observe(document.querySelector(".viewer-workspace"));
+    new ResizeObserver(() => this.schedule()).observe(document.querySelector(".viewer-workspace"));
     new ResizeObserver(() => this.schedule()).observe(this.scroller);
     application.eventBus.on("updateviewarea", () => {
       // Scrolling alone changes no content-space geometry. Check one current page.
@@ -158,7 +164,6 @@ export class CommentRail {
     this.visibility.addEventListener("change", () => {
       this.mode = this.visibility.value;
       if (this.mode !== "mobile") this.desktopMode = this.mode;
-      this.application.pdfViewer.viewer.style.removeProperty("width");
       this.schedule();
       const hidden = this.mode === "hidden";
       frame.contentDocument.documentElement.classList.toggle("review-comments-hidden", hidden);
@@ -167,21 +172,14 @@ export class CommentRail {
     if (document.getElementById("migration-panel")) this.panel.classList.add("migration-active");
   }
   schedule() {
-    if (this.scheduled) return;
-    this.scheduled = true;
-    requestAnimationFrame(() => { this.scheduled = false; this.layout(); });
+    this.stage.schedule('comments', () => this.layout());
   }
   translate() {
     this.list.style.transform = `translate(${-this.scroller.scrollLeft}px, ${-this.scroller.scrollTop}px)`;
     this.positionComposer();
     this.positionFloating();
   }
-  freezePageWidth() {
-    const viewer = this.application.pdfViewer.viewer;
-    if (!viewer.style.width) viewer.style.width = this.frame.contentWindow.getComputedStyle(viewer).width;
-  }
   showThread() {
-    this.freezePageWidth();
     if (this.mode === "hidden") {
       this.mode = this.mobileQuery.matches ? "mobile" : "expanded";
       this.visibility.value = this.mode;
@@ -199,22 +197,13 @@ export class CommentRail {
     }
     this.panel.classList.toggle("has-comments", cards.length > 0 && visible);
     this.panel.classList.toggle("composing", composing);
-    const pdf = this.application.pdfViewer;
     const mobile = this.mode === "mobile";
     const minimized = this.mode === "minimized" || mobile;
     this.panel.classList.toggle("mobile-comments", mobile);
-    const styles = getComputedStyle(document.documentElement);
-    const cardWidth = parseFloat(styles.getPropertyValue("--comment-width")) + (cards.some(card=>card.classList.contains("section-feedback-card")) ? parseFloat(styles.getPropertyValue("--section-comment-extra-width")) || 0 : 0);
-    const railWidth = minimized ? parseFloat(styles.getPropertyValue("--comment-marker-width")) : cardWidth + 20;
     // Comments remain beside their page/spread at every viewport and zoom. When
     // the pair is wider than the viewport, the native scrollbar reaches both.
-    const reserve = ((cards.length && visible) || composing) ? (minimized ? railWidth : cardWidth + 20) : 0;
     const root = this.frame.contentDocument.documentElement;
     root.classList.toggle("review-comments-hidden", !visible);
-    root.style.setProperty("--review-rail-right", `${reserve}px`);
-    const pages = Array.from({ length: this.application.pdfDocument.numPages }, (_, i) => pdf.getPageView(i));
-    const stageWidth = Math.max(...pages.map((view) => (view?.viewport?.width || 0) + 18)) * (pdf.spreadMode ? 2 : 1) + 7;
-    root.style.setProperty("--review-stage-width", (reserve || parseFloat(root.style.getPropertyValue("--review-rail-left"))) ? `${stageWidth}px` : "0px");
     this.list.hidden = !visible;
     this.list.dataset.layout = "right-rail";
     const items = [];
@@ -311,17 +300,20 @@ export class CommentRail {
       item.card.style.left = `${item.x}px`;
       item.card.style.top = `${item.top}px`;
     }
-    // Make collision overflow reachable using the PDF's primary scrollbar.
-    if (!this.tail) { this.tail = this.frame.contentDocument.createElement("div"); this.tail.className = "review-rail-tail"; this.scroller.append(this.tail); }
-    const viewer = this.application.pdfViewer.viewer;
-    const needed = !visible ? 0 : Math.max(0, bottom - viewer.offsetHeight);
-    const overflowKey = [pdf.currentScale, pdf.pagesRotation, pdf.scrollMode, pdf.spreadMode, this.mode].join(":");
-    this.overflowHeight = Math.max(this.overflowKey === overflowKey ? this.overflowHeight || 0 : 0, needed);
-    this.overflowKey = overflowKey;
-    this.tail.style.height = `${Math.ceil(this.overflowHeight)}px`;
     this.positionFloating();
-    const floatingRight = this.floating ? this.floating.card.offsetLeft + this.floating.card.offsetWidth + 10 : 0;
-    this.tail.style.width = `${Math.ceil(Math.max(this.scroller.clientWidth, floatingRight, ...items.map((item) => item.x + item.card.offsetWidth + 10)))}px`;
+    const frame = this.frame.getBoundingClientRect();
+    const reachable = new Set(items.map(item => item.card));
+    if (this.floating) reachable.add(this.floating.card);
+    if (composing) reachable.add(this.composer.container);
+    this.stage.setBounds('comments', [...reachable].filter(card => card.getClientRects().length).map(card => {
+      const rect = card.getBoundingClientRect();
+      const visualTop = rect.top-frame.top+this.scroller.scrollTop;
+      const targetTop = card.parentElement === this.list ? card.offsetTop : visualTop;
+      return {left:rect.left-frame.left+this.scroller.scrollLeft,
+        right:rect.right-frame.left+this.scroller.scrollLeft+10,
+        top:Math.min(visualTop,targetTop),
+        bottom:Math.max(visualTop,targetTop)+card.offsetHeight+gap};
+    }));
     // Parent-owned cards must never cover the iframe's native scrollbars.
     this.panel.style.clipPath = `inset(0 ${this.scroller.offsetWidth - this.scroller.clientWidth}px ${this.scroller.offsetHeight - this.scroller.clientHeight}px 0)`;
     this.animateComments(items, composing);

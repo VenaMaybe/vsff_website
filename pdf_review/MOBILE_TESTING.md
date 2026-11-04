@@ -55,15 +55,56 @@ HTTPS hostname is why this test uses a tunnel.
 Sources: [Cloudflare Quick Tunnels](https://developers.cloudflare.com/tunnel/get-started/quick-tunnels/),
 [Google callback rules](https://developers.google.com/identity/protocols/oauth2/web-server#uri-validation).
 
-## Default PDF.js zoom
+## Current native zoom integration
 
-At the user's request, all app-owned pinch/zoom experiments have been removed:
-custom touch handlers, the native-scale focal correction, Safari gesture-event
-cancellation, forced supportsPinchToZoom and viewer/iframe touch-action overrides.
-PDF.js vendor files and defaults are unchanged. Ordinary card dragging and
-section-boundary interactions remain. No improved physical Safari behavior is
-claimed; this is a return to the basic viewer behavior.
+PDF.js still owns pinch recognition, scale limits, focal-point math and rendering.
+The document stage no longer changes its centering width when cards are present.
+Before native scaling, the app refreshes PDF.js's own view-location snapshot.
+Scoped touch-action and Safari gesture cancellation apply only to the PDF/frame
+wrapper. Highlights now keep keyed elements with page-relative geometry, so
+they follow page resizing while fingers are still down. Section markers update
+in place as well. Stranded native events from detached canvas targets are relayed
+without calculating zoom. Stage origin reclamation and extent shrinking wait
+until touch scrolling/momentum is idle; the app does not write scroll offsets
+during a one-finger drag.
 
-Reload the HTTPS viewer to discard previously installed JavaScript handlers.
-The public test setup and Google callback do not need to change for this rollback.
-The earlier research is retained in MOBILE_ZOOM_ARCHITECTURE_REVIEW.md as history.
+The focused command is:
+
+```powershell
+.\.venv\Scripts\python.exe tests/browser_sanity.py --zoom-layout
+```
+
+It measures desktop PDF-space point retention across card states, mixed pages,
+spreads, scroll modes and resizing; it also sends real Chrome two-touch input in
+both directions, quick reversals, a detached-target gesture and one-finger scroll.
+It also checks live highlight alignment during every touch move, rather than
+only after release. The measured run had 0.02px maximum live highlight error.
+A 120px one-finger drag moved the page 105px with zero application scroll writes,
+including while card-origin space was pending reclamation. Outer-site scale and
+scoped Safari-event cancellation are checked after delayed layout/drawing. These checks do **not** verify actual iPhone Safari.
+
+On the physical iPhone:
+
+1. Reload the HTTPS viewer to replace handlers from earlier revisions.
+2. With cards hidden, pinch in/out near page 1 and well down the document. Watch a
+   specific word between your fingers; it should remain near that midpoint.
+3. Repeat several quick in/out reversals and pause with fingers still touching.
+4. Show comments and open a left tool; pinch on uncovered PDF content. Check
+   highlights, a page transition and near the last page. Tool controls themselves
+   remain ordinary controls. Unpinned left cards sit outside the document's left
+   edge on mobile too; pan left to reach them. Check that they follow the PDF
+   during horizontal panning. Pinned cards retain their viewport position.
+5. Pan with **one finger** after pinching. While the finger remains down, check
+   that the page follows it without jumping ahead. Distinguish that from normal
+   coasting after release. Watch highlights throughout pinch-in and pinch-out,
+   before lifting either finger: they should not need to snap back afterward.
+   Tap a highlight, select text, add/cancel a comment, and use the tool controls. Pinch on app chrome separately: PDF-specific
+   browser-zoom suppression must not apply there.
+6. Report whether any remaining jump happens during finger movement, during a
+   pause, on lifting fingers, or on starting the next pinch. Real document edges
+   still constrain native scrolling; exact focal retention cannot require a
+   scroll position beyond those limits.
+
+The tunnel and OAuth callback do not change with these frontend edits. The
+previous mobile research remains historical; successful emulation is not an iOS
+Safari success claim.

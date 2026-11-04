@@ -21,7 +21,7 @@ export class CommentFilters {
     this.card.body.append(this.modes,this.policy,this.choices);
     registerLeftCard('filters',()=>this.open());
   }
-  open(){this.card.open();if(innerWidth<750)this.card.sectionViewer.application.pdfViewer.container.scrollLeft=0;this.card.contentReady();return this.card;}
+  open(){this.card.open();this.card.contentReady();return this.card;}
   commit(draft){
     this.draft=draft;this.pending++;this.render();
     this.save(draft).finally(()=>{if(--this.pending===0){this.draft=null;this.render();}});

@@ -242,21 +242,30 @@ No vendored files are patched. `viewer_shell.js` bridges compact parent controls
 to existing PDF.js handlers/properties and positions parent-owned comment cards
 from canonical anchor segments using `pdfRectangleToCss`.
 
-The rail reserves document space only when populated/being composed, uses a
-deterministic page/y/thread-ID collision pass with a 6px gap (3px for markers), and translates
-cached card positions on the primary PDF scrollbar. Render/zoom/rotation/mode
-events and ResizeObservers coalesce layout through animation frames. The full-width
-native scroll container surrounds both the PDF and comments; space is reserved
-inside the document stage. Cards sit adjacent to the owning page/spread, including
-at narrow widths and large zoom, using horizontal scrolling when needed. Every
-page and spread uses a right rail; no left-rail selection or width reservation exists. Minimized mode
-reserves only 48px and renders real marker buttons with one active full card
-opening to the right. Mobile mode (automatic at <750px, also manually selectable)
-opens the active card below its highlight over the PDF. Focused expanded cards
-anchor at highlight Y while neighbors pack upward/downward. Selection and
-insertion preserve the PDF scroll position; Escape closes the active thread or
-composer, and Enter/Ctrl+Alt+M creates a comment from selected PDF text. A trailing spacer makes
-collision overflow reachable with the document scrollbar.
+`document_stage.js` separates the native PDF canvas from card reachability.
+The canvas keeps the scroll viewport's width; cards never change its padding,
+minimum width or centering. A stable native scrollbar gutter also prevents a
+tall card from changing centering when the PDF fits on screen. Right comments,
+floating cards/composers and unpinned
+left tools report their measured document-space rectangles to one coordinator.
+It unions those bounds with the native viewer's scroll dimensions and owns one
+absolute extent element. It neither assumes equal pages nor derives widths from
+page counts, spread parity or card-size constants.
+
+Content left of or above the scroll origin is made reachable by rebasing the
+canvas margin and native scroll offset by the same amount, atomically. Parent
+comment coordinates rebase in that transaction too. Pinned tools do not contribute
+bounds. Closing/shrinking content cannot remove the current viewport from the
+extent and force browser clamping; unused origin space is reclaimed as it scrolls
+away. This can retain empty space while it is currently visible, intentionally.
+Card collision and motion remain app-owned; canonical anchors remain PDF space.
+
+Comment ordering, 6px card gaps (3px marker gaps), section insertion and
+selection-pivot packing are unchanged. Mobile comments remain popovers. Unpinned
+left tools stay beside the document at every viewport size; the shared extent
+provides space to pan left to reach them. Pinned tools retain viewport positioning.
+The iframe and native scrollbar still surround the entire reachable
+workspace. Native page auto-centering is independent of card presence.
 
 Shared tokens/base/account CSS are imported by `app.css`; viewer chrome,
 comments/migration/debug styling and PDF.js integration each have explicit
@@ -376,15 +385,14 @@ Outside pointer/click events in either the host document or PDF iframe clear
 left-card focus and blur its controls without closing or moving cards. Events
 inside any left card retain focus; section-line activation may focus Sections.
 Per-card event listeners are aborted on close.
-A left-card overflow sentinel makes below-document cards reachable via the PDF
+The shared document extent makes below-document cards reachable via the PDF
 scrollbar. Pinned cards remain top-snapped even when activating a section line;
 unpinned inspectors retain line-centered activation.
-Closing one retains the gutter
-and other cards. `card_motion.js` supplies the existing 160 ms ease-out comment
+Closing one retains the other cards and recomputes measured reachability. `card_motion.js` supplies the existing 160 ms ease-out comment
 selection animation; scrolling itself remains immediate and reduced motion is honored.
 
-Left space is padding in the PDF scrollable canvas (`--review-rail-left`), using
-its gray background and native scrollbars. The outer workspace uses overflow
+Left-card space belongs to the shared document extent, using the PDF workspace
+gray background and native scrollbars; it is not canvas padding. The outer workspace uses overflow
 clipping so browser focus cannot programmatically scroll that fixed overlay;
 the iframe retains the native PDF scrollbar. The iframe stays full width. There is
 no separate sidebar background. Right-hand comments keep their existing layout.
@@ -491,7 +499,7 @@ Selected right-hand comments use a brighter mix of the immutable root author's
 review color (78% author color, 22% white). Utility cards keep their existing
 accent. No review identities or palette choices are changed.
 
-After right-rail layout applies visibility, width and stage changes,
+After right-rail layout applies visibility and card changes,
 `reviewlayoutchanged` schedules every open left card against the newly positioned
 PDF. It does not depend on selecting a card. Existing scrolling, pin independence
 and natural-height collision packing remain in the reusable shell.
@@ -513,8 +521,8 @@ without a selection change keeps the same positions. Ordinary-only and minimized
 marker packing are unchanged. Floating section cards retain their end anchor.
 
 Section response cards use the normal comment width plus 30px, including floating
-presentations. The expanded right gutter reserves that extra width whenever a
-section card is present; existing horizontal overflow remains reachable. All
+presentations. Their measured bounds extend horizontal reachability without
+changing page centering. All
 thread controls have zero top margin. Card height observations recompute packing
 when responses or reply forms grow.
 
@@ -540,20 +548,43 @@ checklist. Existing backend policy still enforces privacy independently of these
 controls. Viewer and reviewer roles can use personal filters where policy allows.
 
 
-Mobile zoom uses the unmodified vendored PDF.js defaults. The app does not
-install pinch/touch handlers, cancel Safari gesture events, override
-supportsPinchToZoom, wrap updateScale or add a focal-point pan correction.
-The custom pdf_touch.js and pdf_zoom_layout.js modules are removed. Viewer-wide
-and iframe touch-action overrides introduced for pinch zoom are removed too.
-Native PDF.js controls, TouchManager, browser negotiation and vendor CSS govern
-zoom. Existing card dragging and section-boundary touch controls remain local to
-those controls. Comment/section layout and download policy are unchanged.
+PDF.js retains its native TouchManager, scale limits, focal math, panning and
+rendering. The coordinator wraps updateScale only to call native update() before
+scaling, ensuring its location snapshot belongs to the old geometry. In a mixed
+page-size fixture, native pan marked that snapshot stale and the scale routine
+refreshed it after resizing pages; this caused a separate first-pinch jump.
+The preflight fixes snapshot ordering without applying an extra focal pan or
+computing a new scale factor. Vendor files remain unchanged.
 
-The user requested this rollback on November 3, 2026 after repeated iPhone
-jitter. [MOBILE_ZOOM_ARCHITECTURE_REVIEW.md](MOBILE_ZOOM_ARCHITECTURE_REVIEW.md)
-is retained as historical research, not an implemented zoom design or evidence
-that default PDF.js will fix every physical Safari issue. Custom focal-drift and
-browser-gesture-cancellation tests were removed with their experiments.
+`pdf_gestures.js` scopes pan-axis touch-action and Safari browser-gesture
+cancellation to the PDF surface/embedding wrapper. Other app chrome retains
+normal browser gestures. It observes PDF contacts without consuming the native
+TouchEvent stream. If a touch's original DOM target is detached, only its otherwise
+stranded events are relayed to the iframe window's native TouchManager; connected
+events are not duplicated. Highlights use keyed DOM nodes and page-relative
+percentage geometry: browser layout keeps them aligned throughout native page
+resizing, without waiting for touchend or recreating touched nodes. Rotation and
+review state reconcile in place. Section markers likewise update keyed nodes
+while pinching; obsolete nodes are hidden during contact and removed afterward.
+Ordinary boundary drag and text selection retain their existing handlers.
+Touchend/cancel, blur and visibility changes clean up contact listeners.
+
+The stage does not reclaim/rebase origins or shrink its extent during PDF touch
+contacts or active native scrolling/momentum. A scroll-idle phase performs that
+maintenance later, preserving the current viewport. During one-finger panning,
+the browser exclusively owns scroll motion; no app scroll assignment runs.
+This avoids interfering with WebKit's asynchronous touch scrolling. The measured
+browser case used a 120px finger drag, produced 105px page motion and recorded
+zero app scroll writes. Physical Safari's reported excess motion is not yet
+verified as resolved.
+
+Focused coverage uses an immutable synthetic eight-page PDF with mixed dimensions,
+all four rail combinations, odd/even spreads, vertical/horizontal/wrapped scroll,
+dynamic card bounds and origins in both axes. It measures PDF-space points after
+deferred layout, real browser trackpad input, pinch/reversal, detached targets and
+delayed drawing. Desktop touch emulation does not verify physical iPhone Safari;
+see MOBILE_TESTING.md for the remaining device checks. Earlier research is retained
+in MOBILE_ZOOM_ARCHITECTURE_REVIEW.md and TRACKPAD_ZOOM_DIAGNOSIS.md.
 
 Temporary HTTPS mobile testing uses `mobile_https.ps1` and
 [MOBILE_TESTING.md](MOBILE_TESTING.md). After an initial automatic approval

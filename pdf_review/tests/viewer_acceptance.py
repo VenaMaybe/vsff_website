@@ -132,7 +132,7 @@ def empty_checks(cdp, session):
     viewport(cdp, session, 1440, 900)
     cdp.wait(session, "document.querySelector('iframe').contentDocument.querySelector('.textLayer span')!==null")
     assert cdp.evaluate(session, "document.querySelectorAll('.thread-card').length===0")
-    assert cdp.evaluate(session, "document.querySelector('iframe').contentDocument.documentElement.style.getPropertyValue('--review-rail-right')==='0px'")
+    assert cdp.evaluate(session, "document.querySelector('iframe').contentWindow.PDFViewerApplication.pdfViewer.viewer.clientWidth===document.querySelector('iframe').contentWindow.PDFViewerApplication.pdfViewer.container.clientWidth")
     assert cdp.evaluate(session, "document.querySelector('.anchor-debug-section').hidden")
     assert cdp.evaluate(session, """(() => {
       const w=document.querySelector('iframe').contentWindow;
@@ -246,17 +246,17 @@ def populated_checks(cdp, session, fixture, base):
         change(cdp, session, '#comments-visibility', value)
         time.sleep(.12)
         if value=='hidden':
-            assert cdp.evaluate(session, "document.querySelector('#thread-list').hidden && document.querySelector('iframe').contentDocument.documentElement.style.getPropertyValue('--review-rail-right')==='0px'")
+            assert cdp.evaluate(session, "document.querySelector('#thread-list').hidden && document.querySelector('iframe').contentWindow.PDFViewerApplication.pdfViewer.viewer.clientWidth===document.querySelector('iframe').contentWindow.PDFViewerApplication.pdfViewer.container.clientWidth")
         if value=='minimized':
             assert cdp.evaluate(session, "document.querySelector('.thread-marker:not([hidden])')!==null")
-            assert cdp.evaluate(session, "document.querySelector('iframe').contentDocument.documentElement.style.getPropertyValue('--review-rail-right')==='48px'")
+            assert cdp.evaluate(session, "document.querySelector('.thread-marker:not([hidden])')!==null")
             assert cdp.evaluate(session, """(() => {
               const markers=[...document.querySelectorAll('.thread-marker:not([hidden])')].sort((a,b)=>a.offsetTop-b.offsetTop);
               return markers.every((m,i)=>m.offsetWidth<=36&&m.offsetHeight<=32&&(!i||m.offsetTop>=markers[i-1].offsetTop+markers[i-1].offsetHeight+2));
             })()""")
             cdp.evaluate(session, "document.querySelector('.thread-marker:not([hidden])').click()")
             cdp.wait(session, "document.querySelector('.thread-card.active:not([hidden])')!==null")
-            assert cdp.evaluate(session, "document.querySelector('#comments-visibility').value==='minimized' && document.querySelector('iframe').contentDocument.documentElement.style.getPropertyValue('--review-rail-right')==='48px'")
+            assert cdp.evaluate(session, "document.querySelector('#comments-visibility').value==='minimized' && document.querySelector('.thread-marker:not([hidden])')!==null")
             screenshot(cdp, session, 'refine-minimized-active')
             cdp.evaluate(session, "document.querySelector('.thread-card.active .thread-card-header .text-action').click()")
             cdp.wait(session, "!document.querySelector('.thread-card.active')")
@@ -313,7 +313,6 @@ def populated_checks(cdp, session, fixture, base):
             for mode in ['expanded', 'minimized', 'hidden']:
                 change(cdp, session, '#comments-visibility', mode)
                 time.sleep(.08)
-                assert cdp.evaluate(session, "!document.querySelector('iframe').contentDocument.documentElement.style.getPropertyValue('--review-rail-left')")
                 assert cdp.evaluate(session, "!document.querySelector('.review-panel').classList.contains('drawer')")
     change(cdp, session, '#review-scroll', 0)
     change(cdp, session, '#comments-visibility', 'expanded')

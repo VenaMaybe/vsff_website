@@ -197,7 +197,6 @@ function selectThread(threadId, navigate) {
     state.filter = "all";
     threadFilter.value = "all";
   }
-  rail?.freezePageWidth();
   state.selectedThreadId = threadId;
   refreshSidebar();
   refreshOverlay();
@@ -344,7 +343,6 @@ function openCommentComposer() {
     setReviewStatus(CAPTURE_ERROR, "error");
     return;
   }
-  rail?.freezePageWidth();
   sidebarActions.deselect();
   composer.open(payload);
   commentButton.hidden = true;

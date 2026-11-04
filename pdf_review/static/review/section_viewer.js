@@ -25,6 +25,7 @@ export class SectionViewer {
     const link=frame.contentDocument.createElement('link'); link.rel='stylesheet'; link.href=new URL('../styles/sections.css',import.meta.url).href;
     frame.contentDocument.head.append(link);
     for(const event of ['pagerendered','scalechanging','rotationchanging','spreadmodechanged','scrollmodechanged']) application.eventBus.on(event,()=>this.schedule());
+    application.eventBus.on('pdftouchended',()=>this.schedule());
     if (config.isOwner) this.placementEditor = new SectionPlacementEditor(this);
   }
   update(data) {
@@ -51,9 +52,9 @@ export class SectionViewer {
   }
   render() {
     const doc=this.frame.contentDocument;
-    doc.querySelectorAll('.section-structure-marker').forEach(e=>e.remove());
-    if(!this.managementVisible)return;
-    for (const divider of sectionDividers(this.sections, section=>this.placementEditor?.get(section.section_id)||section.placement)) {
+    const old=new Map([...doc.querySelectorAll('.section-structure-marker')].map(line=>[line.dataset.markerKey,line]));
+    const wanted=new Set();
+    for (const divider of this.managementVisible ? sectionDividers(this.sections, section=>this.placementEditor?.get(section.section_id)||section.placement) : []) {
       const ending=divider.members.find(m=>m.kind==='end'),starting=divider.members.find(m=>m.kind==='start');
       const pageTransition=ending && starting && ending.placement.end_page<starting.placement.start_page;
       const member=(pageTransition?starting:null) || divider.members.find(m=>m.section.section_id===this.managementSectionId) || ending || divider.members[0];
@@ -63,7 +64,10 @@ export class SectionViewer {
       const geometry=boundaryGeometry(this.application,physical.placement,physical.kind);
       if(!geometry)continue;
       const {view,x,top,dx,dy}=geometry;
-      const line=doc.createElement('span');line.className='section-structure-marker section-management-line';
+      const key=JSON.stringify(divider.members.map(m=>[m.section.section_id,m.kind]));
+      wanted.add(key);
+      const line=old.get(key)||doc.createElement('span');line.className='section-structure-marker section-management-line';
+      line.dataset.markerKey=key;line.hidden=false;
       line.dataset.sectionId=section.section_id;line.dataset.kind=kind;
       line.dataset.members=JSON.stringify(divider.members.map(m=>({id:m.section.section_id,kind:m.kind})));
       line.dataset.shared=String(divider.members.length>1);
@@ -75,9 +79,15 @@ export class SectionViewer {
       line.tabIndex=0;line.setAttribute('role','button');
       line.onkeydown=event=>{if(['Enter',' '].includes(event.key)){event.preventDefault();this.onActivateSection?.(section.section_id,kind);}};
       line.style.left=`${x}px`;line.style.top=`${top}px`;line.style.width=`${Math.hypot(dx,dy)}px`;line.style.transform=`rotate(${Math.atan2(dy,dx)}rad)`;
-      const label=doc.createElement('span');label.className='section-management-label';
+      const label=line.firstElementChild||doc.createElement('span');label.className='section-management-label';
       label.textContent=divider.members.length>1 ? divider.members.map(m=>m.section.name).join(' / ') : `${kind==='start'?'Start':'End'}: ${section.name}`;
-      line.title=label.textContent+(divider.members.length>1?' ? Double-click to separate':'');line.setAttribute('aria-label',label.textContent);line.append(label);view.div.append(line);
+      line.title=label.textContent+(divider.members.length>1?' ? Double-click to separate':'');line.setAttribute('aria-label',label.textContent);
+      if(!label.parentElement)line.append(label);
+      if(line.parentElement!==view.div)view.div.append(line);
+    }
+    for(const [key,line] of old)if(!wanted.has(key)) {
+      if(this.application.reviewPdfTouchActive)line.hidden=true;
+      else line.remove();
     }
   }
 

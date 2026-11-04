@@ -826,10 +826,12 @@ it; Escape closes it.
 Selected comment borders brighten the original poster's review color. Left cards
 realign after comment visibility/filter/layout changes. Section thoughts align
 their bottom near the section end using ordered list insertion. On the PDF
-surface, zoom uses unmodified PDF.js defaults. All custom pinch handlers,
-Safari gesture cancellation, focal corrections, forced pinch options and
-viewer-wide touch-action overrides have been removed. Physical mobile behavior
-is left to PDF.js and the browser. Temporary HTTPS testing is documented in
+surface, PDF.js retains native zoom and gesture calculations. A shared document
+extent makes cards reachable without changing PDF canvas width or centering;
+origin changes preserve the screen position in both axes. Native view state is
+snapshotted before zoom. Scoped Safari gesture handling and touch-target continuity
+support PDF-only pinching; physical iPhone Safari still needs verification.
+See [TRACKPAD_ZOOM_DIAGNOSIS.md](TRACKPAD_ZOOM_DIAGNOSIS.md) and
 [MOBILE_TESTING.md](MOBILE_TESTING.md). Shared account markup lives in `_account_menu.html`.
 New PDF Review server-rendered pages should use the shared application shell,
 tokens and control/menu primitives rather than introducing one-off visual systems.

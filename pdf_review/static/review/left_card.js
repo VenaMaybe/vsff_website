@@ -1,7 +1,7 @@
 import { animateCard, CARD_MOTION_MS } from './card_motion.js';
+import { documentStage } from './document_stage.js';
 
 const cards = new Set();
-const tails = new Map();
 let scheduled = false;
 let focusedCard = null;
 const openers=new Map();
@@ -96,30 +96,24 @@ function layoutCards(animate = false) {
         card.layoutTop = choices.length ? choices.reduce((a,b) => Math.abs(b-card.preferredTop) < Math.abs(a-card.preferredTop) ? b : a) : card.preferredTop;
         occupied.push({top:card.layoutTop, bottom:card.layoutTop+card.element.offsetHeight});
       }
-      // Full-height document cards can extend past the last PDF page. Make
-      // that content reachable with the existing PDF scrollbar, without resizing cards.
-      const attached = group.filter(card => !card.pinned), first = group[0];
-      if (attached.length && first.scroller) {
-        let tail = tails.get(parent);
-        if (!tail) {
-          tail = first.sectionViewer.frame.contentDocument.createElement('div');
-          tail.className = 'review-left-card-tail';
-          tail.style.cssText = 'position:absolute;left:0;width:1px;height:1px;pointer-events:none';
-          first.scroller.append(tail); tails.set(parent, tail);
-        }
-        const contentStart = Math.max(...attached.map(card => Math.max(pageTop,card.documentTop()) + first.scroller.scrollTop));
-        const stack = attached.reduce((sum,card)=>sum+card.element.offsetHeight+8,0);
-        tail.style.top = `${Math.ceil(Math.max(parseFloat(tail.style.top)||0, first.sectionViewer.application.pdfViewer.viewer.offsetHeight, contentStart + stack + 8))}px`;
-      } else { tails.get(parent)?.remove(); tails.delete(parent); }
       for (const card of group) {
         const offset = card.layoutTop-card.preferredTop;
         card.position(animate || (card.lastOffset !== undefined && Math.abs(offset-card.lastOffset)>1));
         card.lastOffset = offset;
       }
+      const scroller=integration.application.pdfViewer.container, frame=integration.frame.getBoundingClientRect();
+      documentStage(integration.application).setBounds('left-cards', group.filter(card=>!card.pinned).map(card=>{
+        const rect=card.element.getBoundingClientRect();
+        return {left:rect.left-frame.left+scroller.scrollLeft-8, right:rect.right-frame.left+scroller.scrollLeft+8,
+          top:card.layoutTop+scroller.scrollTop, bottom:card.layoutTop+card.element.offsetHeight+scroller.scrollTop+8};
+      }));
     }
     queuePersist();
   };
-  if (animate) run(); else { scheduled = true; requestAnimationFrame(run); }
+  if (animate) run(); else {
+    const card=[...cards][0];
+    if(card){scheduled=true;documentStage(card.sectionViewer.application).schedule('left-cards',run);}
+  }
 }
 function clearLeftCardFocus(event) {
   if(event.composedPath().some(node=>node.matches?.('.left-card')))return;
@@ -187,14 +181,13 @@ export class LeftCard {
       doc.addEventListener(type,outside,{capture:true,signal:this.focusEvents.signal});
     }
     this.bus = integration?.application.eventBus;
-    this.root?.style.setProperty('--review-rail-left', '284px');
     this.bus?.dispatch('leftcardchanged', { source: this });
     this.captureAnchor((workspace?.getBoundingClientRect().top || 0) + Math.max(8, ((workspace?.clientHeight || innerHeight)-this.element.offsetHeight)/2));
     this.onScroll = () => this.schedule();
     this.scroller?.addEventListener('scroll', this.onScroll, { passive: true });
     this.resize = new ResizeObserver(this.schedule);
     this.resize.observe(workspace || document.body); this.resize.observe(this.element);
-    for (const event of ['scalechanging', 'rotationchanging', 'spreadmodechanged', 'scrollmodechanged', 'pagerendered', 'reviewlayoutchanged']) this.bus?.on(event, this.schedule);
+    for (const event of ['scalechanging', 'rotationchanging', 'spreadmodechanged', 'scrollmodechanged', 'pagerendered', 'reviewlayoutchanged', 'documentoriginchanged']) this.bus?.on(event, this.schedule);
     layoutCards(true); animateCard(this.element, 4, true);
     this.onVisibility?.(true); this.closeButton.focus({ preventScroll: true });
     return true;
@@ -313,7 +306,10 @@ export class LeftCard {
     const siblings = pdf.scrollMode === 1 ? pdf.viewer.querySelectorAll('.page') : page.closest('.spread')?.querySelectorAll(':scope > .page') || [page];
     const left = Math.min(...[...siblings].map(p => p.getBoundingClientRect().left));
     const x = frame.left + left - workspace.left - this.element.offsetWidth - 12;
-    this.element.style.left = `${this.pinned ? Math.max(8, Math.min(x, workspace.width - this.element.offsetWidth - 8)) : x}px`;
+    // Unpinned tools belong to the document rail at every viewport size.
+    // The shared stage provides scrollable space to their left on mobile too.
+    const overlay = this.pinned;
+    this.element.style.left = `${overlay ? Math.max(8, Math.min(x, workspace.width - this.element.offsetWidth - 8)) : x}px`;
     const top = this.layoutTop ?? 8;
     this.element.style.top = `${top}px`; this.lastTop = top;
     if (animate && Math.abs(visualTop - workspace.top - top) > .5) animateCard(this.element, visualTop - workspace.top - top);
@@ -322,13 +318,13 @@ export class LeftCard {
     if (this.busy) return false;
     this.cancelHeaderDrag?.();this.focusEvents?.abort();
     this.scroller?.removeEventListener('scroll', this.onScroll); this.resize?.disconnect();
-    for (const event of ['scalechanging', 'rotationchanging', 'spreadmodechanged', 'scrollmodechanged', 'pagerendered', 'reviewlayoutchanged']) this.bus?.off(event, this.schedule);
+    for (const event of ['scalechanging', 'rotationchanging', 'spreadmodechanged', 'scrollmodechanged', 'pagerendered', 'reviewlayoutchanged', 'documentoriginchanged']) this.bus?.off(event, this.schedule);
     this.element.getAnimations().forEach(animation => animation.cancel());
     const parent = this.element.parentElement;
     this.element.remove();
     cards.delete(this);
-    if (![...cards].some(card => card.element.parentElement === parent)) { tails.get(parent)?.remove(); tails.delete(parent); } if (focusedCard === this) focusedCard = null;
-    if (![...cards].some(card => card.root === this.root)) this.root?.style.removeProperty('--review-rail-left');
+    if (focusedCard === this) focusedCard = null;
+    if (![...cards].some(card => card.root === this.root)) documentStage(this.sectionViewer.application).setBounds('left-cards', []);
     this.bus?.dispatch('leftcardchanged', { source: this }); layoutCards(true);
     this.onVisibility?.(false);
     if (restoreFocus && this.opener?.isConnected) this.opener.focus({ preventScroll: true });

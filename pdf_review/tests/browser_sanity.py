@@ -50,8 +50,12 @@ def serve(root):
                       "DATA_DIR": str(root), "TESTING": True, "SECRET_KEY": "browser-sanity-only",
                       "GOOGLE_CLIENT_ID": "synthetic-browser-client", "GOOGLE_CLIENT_SECRET": "synthetic-browser-secret"})
     doc = create_document(app.config["DATABASE"], "Browser sanity")
+    pdf_factory = pdf_bytes
+    if os.environ.get('PDF_REVIEW_TEST_ZOOM') == '1':
+        from tests.document_zoom import mixed_pdf
+        pdf_factory = mixed_pdf
     versions = [import_version(app.config["DATABASE"], app.extensions["blob_store"], doc,
-                              io.BytesIO(pdf_bytes(str(index))), f"draft{index}.pdf").version_id for index in [3, 4]]
+                              io.BytesIO(pdf_factory(str(index))), f"draft{index}.pdf").version_id for index in [3, 4]]
     users = [create_user(app.config["DATABASE"], name) for name in ["ReviewerAlpha", "ReviewerBeta"]]
     # Issue signed fixture sessions offline; no login bypass route is exposed.
     from tests.auth_helpers import authenticate
@@ -173,7 +177,8 @@ def run():
         with (root / "server.log").open("w") as log:
             try:
                 server = subprocess.Popen([sys.executable, str(Path(__file__).resolve()), "--server", str(root)],
-                                          stdout=log, stderr=log, creationflags=subprocess.CREATE_NO_WINDOW)
+                                          stdout=log, stderr=log, creationflags=subprocess.CREATE_NO_WINDOW,
+                                          env={**os.environ,'PDF_REVIEW_TEST_ZOOM':'1'} if '--zoom-layout' in sys.argv else None)
                 deadline = time.monotonic() + 15
                 while not (root / "fixture.json").exists():
                     if time.monotonic() > deadline: raise TimeoutError("Fixture server startup")
@@ -204,6 +209,11 @@ def run():
                     cdp.call("Page.navigate", {"url": base + f"/versions/{fixture['versions'][0]}/view"}, session)
                     cdp.wait(session, "document.querySelector('#realtime-status')?.textContent === 'Live'")
                 a, b = sessions
+                if '--zoom-layout' in sys.argv:
+                    from tests.document_zoom import run_zoom
+                    run_zoom(cdp,a,b,fixture,base,mobile_only='--touch-only' in sys.argv)
+                    assert not cdp.exceptions,cdp.exceptions
+                    return
                 if '--palette-ui' in sys.argv:
                     from tests.viewer_acceptance import viewport,screenshot
                     viewport(cdp,a,1440,900)
@@ -346,10 +356,11 @@ def run():
                       const [x1,y1]=v.convertToViewportPoint(r[0],r[1]);
                       const [x2,y2]=v.convertToViewportPoint(r[2],r[3]);
                       const sx=page.div.clientWidth/v.width, sy=page.div.clientHeight/v.height;
-                      return Math.abs(parseFloat(h.style.left)-Math.min(x1,x2)*sx)<1 &&
-                        Math.abs(parseFloat(h.style.top)-Math.min(y1,y2)*sy)<1 &&
-                        Math.abs(parseFloat(h.style.width)-Math.abs(x2-x1)*sx)<1 &&
-                        Math.abs(parseFloat(h.style.height)-Math.abs(y2-y1)*sy)<1;
+                      const box=h.getBoundingClientRect(),bounds=page.div.getBoundingClientRect();
+                      return Math.abs(box.left-bounds.left-page.div.clientLeft-Math.min(x1,x2)*sx)<1 &&
+                        Math.abs(box.top-bounds.top-page.div.clientTop-Math.min(y1,y2)*sy)<1 &&
+                        Math.abs(box.width-Math.abs(x2-x1)*sx)<1 &&
+                        Math.abs(box.height-Math.abs(y2-y1)*sy)<1;
                     })()""")
                 print("PASS highlight geometry at 50/100/150/200 percent and 90-degree rotation", flush=True)
                 # Block only the socket transport; HTTP review actions remain available.
