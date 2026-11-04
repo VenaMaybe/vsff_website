@@ -54,6 +54,15 @@ existing host validation and private/no-store headers. It authorizes no content.
 12. Overlay styling remains in the same-origin external `anchor_overlay.css`; PDF.js's CSP blocks dynamic style text. App code may set dynamic geometry properties on highlight elements.
 13. Centered navigation is required. Navigating to an anchor must bring its first highlighted rectangle into the viewport, not only set the page number.
 
+Highlight rendering deduplicates exact rectangles and omits rectangles fully
+contained by another rectangle in the same anchor segment. Browser range bounds
+can include both text and enclosing-span boxes of slightly different heights;
+painting both makes one phrase darker. This is a display-only normalization in
+`anchor_geometry.js` / `anchor_overlay.js`: canonical geometry, selector data and
+immutable anchors are not rewritten. Disjoint rectangles and separate anchors
+remain distinct, including overlapping conversations on the same text.
+
+
 ## Stable authenticated authorship
 
 14. Every comment has a stable `author_id` from `users` from its first commit.
@@ -476,9 +485,27 @@ After right-rail layout applies visibility, width and stage changes,
 PDF. It does not depend on selecting a card. Existing scrolling, pin independence
 and natural-height collision packing remain in the reusable shell.
 
-Section feedback cards prefer their bottom at the section end. Selected section
-cards keep that bottom anchor, including floating/minimized presentations;
-ordinary collision packing still moves neighboring cards when needed.
+Expanded regular comments keep their document-anchor order and the existing
+selection-pivot packing. Section responses are grouped by section, then inserted
+into that ordered list at the boundary that places the group's bottom closest
+to its section endpoint. Existing natural gaps are used when the whole group
+fits; a dense insertion sits directly after its predecessor and pushes the
+remaining list down with the existing 6px separation. Ties prefer less movement
+of the next card. Multiple sections insert in endpoint order and their responses
+stay contiguous. Ordinary comments never pass one another to fill spare space.
+
+A section group may sit above or below its exact endpoint when that is the
+closest available list insertion. Only section-only or sufficiently sparse
+layouts can guarantee exact bottom alignment. Changes in content height, zoom
+or spreads recompute the insertion using document coordinates; ordinary scrolling
+without a selection change keeps the same positions. Ordinary-only and minimized
+marker packing are unchanged. Floating section cards retain their end anchor.
+
+Section response cards use the normal comment width plus 30px, including floating
+presentations. The expanded right gutter reserves that extra width whenever a
+section card is present; existing horizontal overflow remains reachable. All
+thread controls have zero top margin. Card height observations recompute packing
+when responses or reply forms grow.
 
 Everyone is the person-list submenu itself, alongside Mine. Opening it selects
 Everyone scope, individual checkboxes filter whole root-author conversations,

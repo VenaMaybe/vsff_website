@@ -216,6 +216,16 @@ def run():
                     assert not cdp.exceptions,cdp.exceptions
                     print('PASS Tableau 10 account palette, selected state and color save',flush=True)
                     return
+                if '--highlight-overlap' in sys.argv:
+                    from tests.highlight_overlap import run_highlight_overlap
+                    run_highlight_overlap(cdp,a,fixture)
+                    assert not cdp.exceptions,cdp.exceptions
+                    return
+                if '--section-card-packing' in sys.argv:
+                    from tests.section_card_packing import run_section_card_packing
+                    run_section_card_packing(cdp,a,b,fixture,base)
+                    assert not cdp.exceptions,cdp.exceptions
+                    return
                 if '--download-policy' in sys.argv:
                     from tests.download_policy_acceptance import run_download_policy
                     run_download_policy(cdp,a,b,fixture,base)

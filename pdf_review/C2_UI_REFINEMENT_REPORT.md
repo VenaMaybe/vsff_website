@@ -1,5 +1,125 @@
 # C2 management interaction refinement
 
+## Avoid painting nested highlight rectangles twice
+
+Read-only inspection of the localhost SQLite anchor matching the paragraph-style
+phrase confirmed two rectangles with identical horizontal bounds and slightly
+different vertical bounds. One sits entirely inside the other. The overlay drew
+both translucent fills, making that portion of the same comment look darker.
+
+Rendering now removes exact duplicates and fully contained rectangles within an
+anchor segment before creating highlight elements. The enclosing rectangle keeps
+the full selected coverage. Persisted rectangles and immutable anchors remain
+unchanged; separate overlapping conversations retain their own highlights and
+click targets. No real localhost data was edited or migrated.
+
+Edited files: `static/review/anchor_geometry.js`, `static/review/anchor_overlay.js`,
+new `tests/highlight_overlap.py`, `tests/browser_sanity.py`, `README.md`,
+`ARCHITECTURE.md`, and this report.
+
+Validation uses a disposable browser fixture containing an inner rectangle, its
+enclosing rectangle, an exact duplicate and a disjoint rectangle. It checks
+single coverage, unchanged canonical API geometry, zoom/rotation, click selection
+and independent highlights for a second conversation on the same text. The
+focused browser regression and whitespace checks passed; the rendered fixture
+screenshot was inspected. Work remains
+local and uncommitted; no backend, schema, dependency or vendor changes.
+
+## Restore ordered comments and insert section responses into the list
+
+Removed the closest-fitting-gap placement introduced in the previous refinement.
+Regular comments retain their document-anchor order and existing selection-pivot
+packing. Shorter later comments cannot jump above taller earlier comments.
+
+Each section's responses form one contiguous group. The layout considers the
+insertion boundaries in the existing comment list and selects the one that places
+the group's bottom closest to its section endpoint. A natural gap is used when
+it fits the group; a dense insertion goes directly after its predecessor and
+pushes the later list downward. Equal distances prefer less movement of the next
+comment. Section groups retain endpoint order. This may put a section response
+slightly above or below its endpoint instead of keeping an exact endpoint at the
+cost of reordering ordinary comments or leaving a forced hole.
+
+The 30px section-card width increase and zero thread-controls margin remain.
+Ordinary-only and minimized comment layouts retain their existing behavior.
+
+Edited files: `static/review/viewer_shell.js`, `tests/section_card_packing.py`,
+`README.md`, `ARCHITECTURE.md`, and this report.
+
+Validation: the dense-layout browser regression now asserts preserved ordinary
+comment order with a tall early card, compares section placement against every
+original list insertion boundary, checks response grouping and no overlap, and
+covers scroll stability, selection, reply expansion, zoom, spreads and visibility
+modes. It passed, along with the existing six-viewer refinement regression.
+The ordinary-comment UI regression passed too, including selection, replies,
+edits and mobile anchoring. The ordered-insertion screenshot was inspected
+and the whitespace check passed. No backend, schema, dependency or vendor changes. Work remains local
+and uncommitted. The gap-filling behavior described below has been reverted.
+
+## Fill usable gaps in dense comment rails
+
+The previous section-first pass still inherited each ordinary comment's displaced
+position. If an early tall comment could not fit before a section response, it
+moved below the response and forced every later comment down too, leaving space
+that a shorter comment could have used.
+
+Mixed section/comment rails now use the left-card closest-fitting-gap approach.
+Section response stacks remain reserved near their endpoints. The active ordinary
+card gets placement priority, then other comments are considered in stable anchor
+order. Each ordinary card chooses the available gap closest to its own anchor,
+with a 6px separation. A short later card can fit above a tall earlier card instead
+of inheriting its displacement. Ties prefer downward placement; positions are
+calculated in document coordinates so ordinary scrolling does not reshuffle them.
+Sparse natural anchor gaps remain; this avoids collapsing distant conversations
+into one arbitrary stack. Ordinary-only and minimized layouts are unchanged.
+
+Edited files: `static/review/viewer_shell.js`, `tests/section_card_packing.py`,
+`README.md`, `ARCHITECTURE.md`, and this report.
+
+Validation: extended dense-layout browser checks create distinct nearby anchors,
+one tall early comment and several shorter later comments. They assert that a
+later short comment fills space above the reserved section stack while the tall
+comment sits below, retain endpoint alignment and separation, and verify stable
+positions while scrolling. The focused browser checks passed, including
+selection, reply expansion, zoom, spreads and visibility modes. The existing
+ordinary-comment UI regression passed. The gap-filling screenshot was inspected
+and the whitespace check passed. No backend, schema, dependency or vendor changes.
+Work remains local and uncommitted. Earlier refinement notes below are historical.
+
+## Section response priority and compact controls
+
+Expanded section responses now reserve their positions before regular comments.
+Section responses stack upward toward their section endpoints, with the final
+response bottom aligned to the endpoint. Regular comments retain their document
+order while fitting into free space above or below those stacks; colliding normal
+comments advance downward rather than pushing the section feedback away. Section
+stacks take priority even when a regular comment is selected. Dense neighboring
+section stacks can move earlier section responses upward to avoid overlaps.
+
+Section response cards are 30px wider, with the expanded PDF gutter reserving
+that extra width. Floating section cards also use the wider presentation. Removed
+the 9px top margin from thread controls for all comments. Natural content heights,
+scrolling, compact marker packing and ordinary-only selected-card behavior remain.
+
+Edited files:
+
+- `static/review/viewer_shell.js`: reserve section stacks and interleave regular
+  comments; include the wider section cards in gutter width.
+- `static/styles/viewer.css`: 30px section-card width increase.
+- `static/styles/comments.css`: zero top margin on thread controls.
+- New `tests/section_card_packing.py` and `tests/browser_sanity.py`: focused
+  dense-layout browser regression.
+- `README.md`, `ARCHITECTURE.md`, and this report.
+
+Validation: section-card browser checks passed two real reviewer responses among
+five nearby ordinary comments, section-end alignment, interleaving and no overlap,
+regular-comment selection, reply expansion, 30px width difference, zero controls
+margin, zoom, spread modes and minimized/expanded switching. Existing six-viewer
+refinement checks and the ordinary-comment UI regression passed, including
+selection, replies, edits, click-away and mobile anchoring. The dense-layout
+screenshot was inspected and the whitespace check passed. No backend, schema or dependency
+changes in this refinement. Work remains local and uncommitted.
+
 ## Owner-controlled PDF downloads and printing
 
 Review Settings now offers **PDF downloads: Allowed / Off**, enabled by default.

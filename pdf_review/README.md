@@ -56,6 +56,10 @@ section feedback. See [BETA_C2_REPORT.md](BETA_C2_REPORT.md) for the audit and c
   Section feedback headers show **Section name · Prompt**, falling back to
   **Overall thoughts** for an empty prompt, followed by the response count and
   **Add response**. Existing responses remain visible.
+  Section response cards are 30px wider than regular comments. Regular comments
+  keep their document order. Each section's responses stay together and insert
+  into that list where their bottom is closest to the section end, pushing later
+  comments down when needed. Comment controls have no extra top margin.
   Section prompts, outline import, spread pairs and right-side feedback remain.
   Review Settings and Manage Sections are available in the PDF viewer; their
   document-page buttons have been removed.
@@ -65,7 +69,9 @@ section feedback. See [BETA_C2_REPORT.md](BETA_C2_REPORT.md) for the audit and c
   replies. **Everyone** opens a person checklist with **All** to select everybody;
   the list contains content authors for this exact version, never beta emails.
 - **Account â†’ Review color** selects a fixed palette entry. Highlight and section
-  response accents follow the top-level author. Initials supply presence avatars;
+  response accents follow the top-level author. Duplicate or fully nested highlight
+  rectangles within one anchor are painted once, avoiding darker patches from
+  overlapping text-span bounds. Stored anchor geometry remains unchanged. Initials supply presence avatars;
   the application makes no external avatar requests.
   Colors use [Tableau 10](https://d3js.org/d3-scale-chromatic/categorical#schemeTableau10),
   replacing the original 24 similar muted shades. Migration 9 maps existing choices
@@ -813,7 +819,7 @@ a two-by-two grid with vertically centered checkbox labels. Ctrl/Command+F opens
 it; Escape closes it.
 Selected comment borders brighten the original poster's review color. Left cards
 realign after comment visibility/filter/layout changes. Section thoughts align
-their bottom to the section end, subject to normal collision packing. On the PDF
+their bottom near the section end using ordered list insertion. On the PDF
 surface, two-finger pinch zooms PDF content while one-finger panning remains native. Shared account markup lives in `_account_menu.html`.
 New PDF Review server-rendered pages should use the shared application shell,
 tokens and control/menu primitives rather than introducing one-off visual systems.

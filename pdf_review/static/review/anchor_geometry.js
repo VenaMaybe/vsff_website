@@ -63,6 +63,15 @@ export function deduplicateRectangles(rectangles) {
   });
 }
 
+// Range.getClientRects can include a text span and a taller enclosing span.
+// Paint their shared coverage once; persisted canonical rectangles stay intact.
+export function visibleHighlightRectangles(rectangles) {
+  const unique=deduplicateRectangles(rectangles);
+  return unique.filter((rectangle,index)=>!unique.some((other,otherIndex)=>
+    otherIndex!==index && other[0]<=rectangle[0] && other[1]<=rectangle[1] &&
+    other[2]>=rectangle[2] && other[3]>=rectangle[3]));
+}
+
 export function pdfRectangleToCss(rectangle, viewport, textLayerRect) {
   if (!textLayerRect.width || !textLayerRect.height || !viewport.width || !viewport.height) {
     return null;

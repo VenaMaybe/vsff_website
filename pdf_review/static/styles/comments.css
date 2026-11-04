@@ -49,7 +49,7 @@
 .text-action.danger:hover { color: var(--danger); }
 .inline-edit-form textarea, .thread-reply-form textarea { font-size: .8rem; margin-top: 6px; min-height: 62px; }
 .thread-reply-form { border-top: 1px solid #e5e4df; margin-top: 10px; padding-top: 10px; }
-.thread-controls { align-items: center; display: flex; gap: 6px; margin-top: 9px; }
+.thread-controls { align-items: center; display: flex; gap: 6px; margin-top: 0; }
 .thread-controls > .thread-card-location { margin-right: auto; white-space: nowrap; }
 .thread-controls .reply-control { font-size: .72rem; min-height: 28px; padding: 3px 8px; }
 .thread-controls .resolve-control { font-size: .72rem; min-height: 28px; padding: 3px 8px; }

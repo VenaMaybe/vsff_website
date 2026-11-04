@@ -204,7 +204,7 @@ export class CommentRail {
     const minimized = this.mode === "minimized" || mobile;
     this.panel.classList.toggle("mobile-comments", mobile);
     const styles = getComputedStyle(document.documentElement);
-    const cardWidth = parseFloat(styles.getPropertyValue("--comment-width"));
+    const cardWidth = parseFloat(styles.getPropertyValue("--comment-width")) + (cards.some(card=>card.classList.contains("section-feedback-card")) ? parseFloat(styles.getPropertyValue("--section-comment-extra-width")) || 0 : 0);
     const railWidth = minimized ? parseFloat(styles.getPropertyValue("--comment-marker-width")) : cardWidth + 20;
     // Comments remain beside their page/spread at every viewport and zoom. When
     // the pair is wider than the viewport, the native scrollbar reaches both.
@@ -237,7 +237,7 @@ export class CommentRail {
       if (!geometry) { item.hidden = true; card.hidden = true; continue; }
       const railLeft = this.spreadRight(geometry.pageNumber) + 6;
       const x = (mobile && !thread.section ? Math.min(railLeft, this.scroller.clientWidth - 42) : railLeft) + this.scroller.scrollLeft;
-      items.push({ card: item, page: geometry.pageNumber, bottomAligned:!!thread.section, y: geometry.top + this.scroller.scrollTop - (thread.section&&!minimized?item.offsetHeight:0),
+      items.push({ card: item, page: geometry.pageNumber, sectionId:thread.section?.section_id, bottomAligned:!!thread.section, y: geometry.top + this.scroller.scrollTop - (thread.section&&!minimized?item.offsetHeight:0),
         center: (geometry.top + geometry.bottom) / 2 + this.scroller.scrollTop,
         active: active && !minimized, x, height: item.offsetHeight });
       if (active && minimized) this.floating = { card, geometry, railLeft };
@@ -251,22 +251,61 @@ export class CommentRail {
       center: (composerGeometry.top + composerGeometry.bottom) / 2 + this.scroller.scrollTop,
       active: true, x: this.spreadRight(composerGeometry.pageNumber) + 6 + this.scroller.scrollLeft,
       height: this.composer.container.offsetHeight });
-    items.sort((a, b) => a.page - b.page || a.y - b.y || (a.card.dataset.threadId || "").localeCompare(b.card.dataset.threadId || ""));
-    const pivot = items.findIndex((item) => item.active);
+    const compare=(a,b)=>a.page-b.page || a.y-b.y || (a.card.dataset.threadId||'').localeCompare(b.card.dataset.threadId||'');
+    items.sort(compare);
+    const sections=minimized?[]:items.filter(item=>item.bottomAligned);
+    const normal=sections.length?items.filter(item=>!item.bottomAligned):items;
+    const pivot = normal.findIndex((item) => item.active);
     if (pivot >= 0) {
-      const selected = items[pivot];
+      const selected = normal[pivot];
       selected.top = selected.bottomAligned ? selected.y : Math.max(this.scroller.scrollTop + 8, selected.center - selected.height / 2);
       let top = selected.top;
       for (let i = pivot - 1; i >= 0; i--) {
-        items[i].top = Math.min(items[i].y, top - items[i].height - gap);
-        top = items[i].top;
+        normal[i].top = Math.min(normal[i].y, top - normal[i].height - gap);
+        top = normal[i].top;
       }
     }
-    let bottom = pivot >= 0 ? items[pivot].top + items[pivot].height + gap : 8;
-    for (let i = pivot + 1; i < items.length; i++) {
-      const item = items[i];
+    let bottom = pivot >= 0 ? normal[pivot].top + normal[pivot].height + gap : 8;
+    for (let i = pivot + 1; i < normal.length; i++) {
+      const item = normal[i];
       item.top = Math.max(item.y, bottom);
       bottom = item.top + item.height + gap;
+    }
+    if(sections.length){
+      // Keep the ordinary list intact. Insert each section response group at the
+      // list boundary that puts its bottom closest to the section endpoint.
+      const groups=[];
+      for(const item of [...sections].sort((a,b)=>a.page-b.page||a.center-b.center||compare(a,b))){
+        const last=groups.at(-1);
+        if(last?.[0].sectionId===item.sectionId)last.push(item);else groups.push([item]);
+      }
+      const list=[...normal];
+      let firstSlot=0;
+      for(const group of groups){
+        const height=group.reduce((sum,item)=>sum+item.height,0)+gap*(group.length-1);
+        const target=group[0].center,preferred=target-height;
+        let best=null;
+        for(let index=firstSlot;index<=list.length;index++){
+          const before=list[index-1],after=list[index];
+          const lower=before?before.top+before.height+gap:Math.min(8,list[0]?.top??-Infinity);
+          const upper=after?after.top-gap-height:Infinity;
+          // Use an existing natural gap when it fits. In a dense run, insert
+          // directly after the preceding card and push the remaining list down.
+          const top=upper>=lower?Math.max(lower,Math.min(preferred,upper)):lower;
+          const distance=Math.abs(top+height-target);
+          const shift=after?Math.max(0,top+height+gap-after.top):0;
+          if(!best||distance<best.distance||(distance===best.distance&&shift<best.shift))best={index,top,distance,shift};
+        }
+        let top=best.top;
+        for(const item of group){item.top=top;top+=item.height+gap;}
+        list.splice(best.index,0,...group);
+        firstSlot=best.index+group.length;
+        for(let index=firstSlot;index<list.length;index++){
+          const before=list[index-1],item=list[index];
+          item.top=Math.max(item.top,before.top+before.height+gap);
+        }
+      }
+      bottom=Math.max(...items.map(item=>item.top+item.height+gap));
     }
     for (const item of items) {
       item.card.style.left = `${item.x}px`;

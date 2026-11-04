@@ -1,4 +1,4 @@
-import { pdfRectangleToCss } from "./anchor_geometry.js";
+import { pdfRectangleToCss, visibleHighlightRectangles } from "./anchor_geometry.js";
 
 const STYLE_ID = "pdf-review-anchor-styles";
 const STYLESHEET_URL = new URL("./anchor_overlay.css", import.meta.url).href;
@@ -119,7 +119,7 @@ export class AnchorOverlay {
     overlay.className = "pdf-review-anchor-overlay";
     overlay.dataset.renderKey = renderKey;
     for (const { anchor, segment } of segments) {
-      for (const rectangle of segment.rectangles) {
+      for (const rectangle of visibleHighlightRectangles(segment.rectangles)) {
         const geometry = pdfRectangleToCss(rectangle, viewport, pageBounds);
         if (!geometry || geometry.width <= 0 || geometry.height <= 0) {
           continue;
