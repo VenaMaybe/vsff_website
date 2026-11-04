@@ -52,17 +52,18 @@ def run_six(cdp, a, b, fixture, base):
     wait("document.querySelector('.search-panel #findInput')!==null")
     ev("document.querySelector('.search-panel .dialog-header button:last-child').click()")
     assert ev("!document.querySelector('iframe').contentWindow.PDFViewerApplication.findBar.opened")
-    # Everyone owns its person list; All clears hidden-author filters without closing.
-    ev("document.querySelector('#comments-menu').open=true;document.querySelector('.review-people summary').click()")
-    wait("document.querySelector('.review-people input')!==null")
-    assert ev("document.querySelector('.review-people summary').textContent==='Everyone'")
-    ev("document.querySelector('.review-people input').click()")
+    # The reviewer checklist lives in the reusable left card.
+    ev("document.querySelector('[data-comment-filters]').click()")
+    wait("document.querySelector('.comment-filter-panel')!==null")
+    ev("document.querySelector('.comment-filter-panel input[value=people]').click()")
+    wait("document.querySelector('.filter-reviewers input')!==null")
+    ev("document.querySelector('.filter-reviewers input').click()")
     wait("document.querySelector('#thread-list .thread-card')===null")
-    ev("document.querySelector('.review-people button').click()")
+    ev("document.querySelector('.comment-filter-panel input[value=all]').click()")
     wait("document.querySelector('#thread-list .thread-card')!==null")
-    assert ev("document.querySelector('.review-people').open&&[...document.querySelectorAll('.review-people input')].every(i=>i.checked)")
-    screenshot(cdp,a,'six-everyone-people')
-    ev("document.querySelector('#comments-menu').open=false")
+    assert ev("document.querySelector('.comment-filter-panel input[value=all]').checked")
+    screenshot(cdp,a,'six-comment-filter-card')
+    ev("document.querySelector('.comment-filter-panel .dialog-header button:last-child').click()")
     # Section thoughts use the section end as their bottom anchor, even selected.
     doc, version = fixture['document_id'], fixture['versions'][0]
     sid=request(cdp,a,f'/api/documents/{doc}/sections','POST',{'name':'Bottom-aligned thoughts'})['data']['section_id']
@@ -95,4 +96,4 @@ def run_six(cdp, a, b, fixture, base):
     bounds=ev("(()=>{const r=document.querySelector('.search-panel').getBoundingClientRect();return {left:r.left,right:r.right,width:innerWidth,scroll:scrollX};})()")
     assert bounds['left']>=0 and bounds['right']<=bounds['width'],bounds
     screenshot(cdp,a,'six-mobile-search-card')
-    print('PASS author-color selection, live left-rail alignment, search card, Everyone/All checklist, bottom-aligned section thoughts and real PDF pinch zoom',flush=True)
+    print('PASS author-color selection, live left-rail alignment, search/filter cards, reviewer checklist, bottom-aligned section thoughts and real PDF pinch zoom',flush=True)

@@ -134,11 +134,16 @@ export class AnchorOverlay {
           highlight.classList.add("pdf-review-thread-highlight");
           highlight.classList.toggle("is-active", threadState.threadId === this.selectedThreadId);
           highlight.classList.toggle("is-resolved", threadState.status === "resolved");
-          highlight.title = "Open review thread";
+          highlight.title = "Open review thread; click again to cycle overlapping comments";
           highlight.addEventListener("click", (event) => {
             event.preventDefault();
             event.stopPropagation();
-            this.onThreadSelect?.(threadState.threadId);
+            // Hit-test the actual painted stack, not only the top DOM target.
+            // One conversation may have several rectangles at this point.
+            const hits=event.detail?this.window.document.elementsFromPoint(event.clientX,event.clientY):[];
+            const threads=[...new Set(hits.filter(node=>node.classList?.contains('pdf-review-thread-highlight')&&node.closest('.pdf-review-anchor-overlay')===overlay).map(node=>node.dataset.threadId))];
+            const current=threads.indexOf(this.selectedThreadId);
+            this.onThreadSelect?.(threads.length?threads[(current+1)%threads.length]:threadState.threadId);
           });
         }
         highlight.style.left = `${geometry.left}px`;

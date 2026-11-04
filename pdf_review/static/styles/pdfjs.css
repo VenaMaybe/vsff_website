@@ -19,7 +19,7 @@
 .review-comments-hidden .pdf-review-thread-highlight { visibility: hidden; }
 @media (prefers-reduced-motion: reduce) { * { transition: none; } }
 
-/* Keep two-finger gestures in PDF.js while retaining native one-finger panning. */
+/* App touch handlers own two-finger PDF zoom; native one-finger panning remains. */
 #viewerContainer { touch-action:pan-x pan-y; }
 
 /* Owner policy covers native and attachment exports, including print fallback. */

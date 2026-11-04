@@ -216,6 +216,16 @@ def run():
                     assert not cdp.exceptions,cdp.exceptions
                     print('PASS Tableau 10 account palette, selected state and color save',flush=True)
                     return
+                if '--mobile-pinch' in sys.argv:
+                    from tests.mobile_pinch import run_mobile_pinch
+                    run_mobile_pinch(cdp,a)
+                    assert not cdp.exceptions,cdp.exceptions
+                    return
+                if '--comment-filters' in sys.argv:
+                    from tests.comment_filters_acceptance import run_comment_filters
+                    run_comment_filters(cdp,a,b,fixture,base)
+                    assert not cdp.exceptions,cdp.exceptions
+                    return
                 if '--highlight-overlap' in sys.argv:
                     from tests.highlight_overlap import run_highlight_overlap
                     run_highlight_overlap(cdp,a,fixture)

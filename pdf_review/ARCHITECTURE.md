@@ -62,6 +62,17 @@ painting both makes one phrase darker. This is a display-only normalization in
 immutable anchors are not rewritten. Disjoint rectangles and separate anchors
 remain distinct, including overlapping conversations on the same text.
 
+Pointer clicks on overlapping highlights use the iframe document's actual
+`elementsFromPoint` hit stack, restricted to thread highlights in the clicked
+page overlay. Thread IDs are deduplicated so multiple rectangles from one
+conversation count once. With no selected conversation at the click point,
+selection starts at the topmost hit; otherwise it advances to the next hit and
+wraps around. The current selected thread supplies the cursor across overlay
+rebuilds, without a persisted cycle counter. Only highlights covering that exact
+point participate. Programmatic/keyboard clicks without pointer coordinates keep
+the target highlight's ordinary selection behavior. Existing card selection,
+click-away handling, filtering and canonical anchor data are unchanged.
+
 
 ## Stable authenticated authorship
 
@@ -454,7 +465,7 @@ uses the existing owner-only authorization policy.
 
 The reusable `left_card.js` shell saves minimal UI metadata in browser
 localStorage under `pdf-review:left-cards:v1:<user ID>:<version ID>`. Records
-contain only the registered tool key (Sections, Review Settings or Search),
+contain only the registered tool key (Sections, Review Settings, Search or Filter comments),
 anchor page, normalized document-relative vertical position and pin state.
 No search text, prompts, drafts, review payloads or PDF bytes are cached. This
 is local presentation state, not a private-content cache or mutation outbox.
@@ -507,18 +518,55 @@ section card is present; existing horizontal overflow remains reachable. All
 thread controls have zero top margin. Card height observations recompute packing
 when responses or reply forms grow.
 
-Everyone is the person-list submenu itself, alongside Mine. Opening it selects
-Everyone scope, individual checkboxes filter whole root-author conversations,
-and All clears hidden authors and selects every person. Checklist actions keep
-the submenu open. Existing durable preferences and enforced isolated-review
-policy are unchanged; isolated non-owners cannot open the person list.
+Comment scope and reviewer choices live in `comment_filters.js`, opened from
+Comments > Filter comments... as the reusable Filter comments left card. Native
+radio controls choose All comments, Only mine or Selected reviewers; the latter
+shows a reviewer checklist. All comments saves `scope: all, hidden_reviewers: []`,
+Only mine preserves the hidden-author selection while saving `scope: mine`, and
+reviewer edits save all scope with a hidden-author list. Existing preferences and
+canonical context APIs remain authoritative; no schema or endpoint changes.
 
-Touch-action on the PDF surface permits single-finger pan axes without delegating
-two-finger pinch to browser viewport zoom. The existing PDF.js TouchManager owns
-the pinch and changes PDF scale around the gesture; the toolbar/site scale stays
-unchanged. No vendor modifications or global user-scalable viewport restriction
-are introduced. Chrome touch emulation verifies the gesture; physical Safari/iOS
-acceptance remains separate.
+The card renders current canonical preferences, with a temporary in-memory draft
+while queued saves complete so rapid checkbox changes do not discard one another.
+Existing checkbox nodes are retained across refreshes to preserve keyboard focus.
+All four tool cards register with shared layout restoration and retain dragging,
+single-pin behavior, natural height and saved account/version positions. Only
+minimal card layout metadata is stored locally, never reviewer filters or content.
+The old Everyone/Mine dropdown entries and reviewer submenu are removed; Reset to
+document defaults remains in Comments, separated from the card opener.
+
+Isolated non-owners see Only mine selected, other modes disabled, and no reviewer
+checklist. Existing backend policy still enforces privacy independently of these
+controls. Viewer and reviewer roles can use personal filters where policy allows.
+
+
+Touch-action on the PDF surface retains native one-finger pan axes. The app's
+`pdf_touch.js` integration explicitly owns two-finger scaling through PDF.js
+`updateZoom`, using client-coordinate distances and midpoint/pan offsets. It
+tracks stable touch identifiers and a gesture-start scale so small movements
+accumulate rather than being lost to per-event zoom rounding. It destroys the
+vendored application's TouchManager instance to avoid competing recognizers;
+PDF.js source, rendering, scale limits and focal-point math remain unchanged.
+
+Non-passive capture listeners cancel only owned multi-touch gestures. One-finger
+sequences remain native. Touch end, cancellation, extra fingers and window blur
+reset or rebase tracking. Form controls, section-line dragging, presentation mode
+and active PDF.js dialogs are excluded. Toolbar scale controls still receive the
+existing PDF.js scale events.
+
+Safari GestureEvent start/change/end handlers provide an additional input path
+in the iframe and, when targeted at the PDF iframe, its host document. The first
+stream with actual motion owns scaling for that pinch: a touchstart followed by
+gesture-only movement works, and duplicate touch/gesture streams do not zoom
+twice. Gesture-only input scales around its supplied origin and suppresses site
+zoom only for the PDF gesture. No global user-scalable viewport lock is added.
+Safari's proprietary gesture scale semantics are documented in
+[MDN GestureEvent](https://developer.mozilla.org/en-US/docs/Web/API/GestureEvent).
+
+Automated checks use genuine Chrome touch input plus simulated Safari gesture
+sequences, with in/out zoom, gentle movement, stable site scale and native
+one-finger scrolling. They do not establish physical iPhone/Safari acceptance;
+the user's iPhone Safari is the required real-device retest after a full reload.
 
 ## Review palette refresh (migration 9)
 

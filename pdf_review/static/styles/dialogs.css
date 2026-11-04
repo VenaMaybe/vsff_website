@@ -115,3 +115,12 @@
 .search-panel .review-find-options label { font-size:11px; line-height:16px; margin:0; }
 .search-panel .toolbarHorizontalGroup { display:flex; flex-wrap:wrap; gap:5px; padding:5px 0; }
 .search-panel .review-find-options input { flex:none; width:14px; height:14px; min-height:0; padding:0; margin:0; }
+
+.comment-filter-panel .filter-modes { border:0; padding:0; margin:6px 0; display:grid; gap:6px; }
+.comment-filter-panel legend { font-size:11px; color:var(--muted); padding:0 0 5px; }
+.comment-filter-panel label { display:flex; align-items:center; gap:6px; margin:0; font-size:12px; }
+.comment-filter-panel input { margin:0; flex-shrink:0; }
+.comment-filter-panel .filter-reviewers { border:0; border-top:1px solid var(--line); margin:8px 0 0; padding:8px 0 0; }
+.comment-filter-panel .filter-reviewers > div { display:grid; gap:6px; }
+.comment-filter-panel .filter-reviewers[hidden] { display:none; }
+.comment-filter-panel .comment-filter-policy { margin:8px 0 0; }

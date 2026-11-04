@@ -9,7 +9,7 @@ let storageKey=null, restoring=false, persistTimer=null, savedCards=[];
 export function configureLeftCards(config) {
   storageKey=`pdf-review:left-cards:v1:${config.currentUserId}:${config.versionId}`;
   restoring=true;
-  try{const data=JSON.parse(localStorage.getItem(storageKey)||'[]');savedCards=Array.isArray(data)?data.slice(0,3):[];}catch{savedCards=[];}
+  try{const data=JSON.parse(localStorage.getItem(storageKey)||'[]');savedCards=Array.isArray(data)?data.slice(0,4):[];}catch{savedCards=[];}
 }
 export function registerLeftCard(key,open) {openers.set(key,open);}
 function persistCards() {

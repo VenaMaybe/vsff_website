@@ -3,7 +3,7 @@
 ## BETA C2 â€” review settings and document sections
 
 This local version adds owner-controlled **Shared / Isolated** review, personal
-**Everyone / Mine** filters, persistent document-specific viewer choices,
+**All / Mine / Selected reviewers** filters, persistent document-specific viewer choices,
 a ten-color Tableau 10 Account palette, page/spread presence, logical sections and exact-version
 section feedback. See [BETA_C2_REPORT.md](BETA_C2_REPORT.md) for the audit and checks.
 
@@ -27,7 +27,7 @@ section feedback. See [BETA_C2_REPORT.md](BETA_C2_REPORT.md) for the audit and c
   space and never moves unpinned cards. Pinning another unpins the previous card. **Unpinned** cards attach to the document and move
   up/down to avoid overlap; they scroll with the PDF. Opening a tool or clicking a section marker retrieves an offscreen card
   using the comment selection animation. Reduced motion is respected.
-  Open Sections, Review Settings and Search cards, their document positions and
+  Open Sections, Review Settings, Search and Filter comments cards, their document positions and
   pin state are remembered in this browser for your account and exact PDF version.
   Closed cards stay closed. Search text and unsaved form content are not stored.
 - Sections uses the open PDF version. Mapped sections follow PDF start order;
@@ -66,12 +66,18 @@ section feedback. See [BETA_C2_REPORT.md](BETA_C2_REPORT.md) for the audit and c
 - Isolated non-owners receive only their own top-level conversations and replies
   within them. Owners can inspect all review and apply convenience filters.
   Personal filtering hides whole conversations by top-level author, preserving
-  replies. **Everyone** opens a person checklist with **All** to select everybody;
-  the list contains content authors for this exact version, never beta emails.
+  replies. Open **Comments > Filter comments...** for a left card with **All comments**,
+  **Only mine**, and **Selected reviewers**. Selected reviewers exposes a checklist
+  of content authors for this exact version, never beta emails. All comments clears
+  the checklist restrictions. Changes save immediately; isolated non-owners can
+  only use Only mine. The card supports the same dragging, pinning and saved
+  positions as the other left tools.
 - **Account â†’ Review color** selects a fixed palette entry. Highlight and section
   response accents follow the top-level author. Duplicate or fully nested highlight
   rectangles within one anchor are painted once, avoiding darker patches from
-  overlapping text-span bounds. Stored anchor geometry remains unchanged. Initials supply presence avatars;
+  overlapping text-span bounds. Stored anchor geometry remains unchanged. Repeated
+  clicks where comment highlights overlap cycle through those conversations,
+  wrapping around so comments underneath remain selectable. Initials supply presence avatars;
   the application makes no external avatar requests.
   Colors use [Tableau 10](https://d3js.org/d3-scale-chromatic/categorical#schemeTableau10),
   replacing the original 24 similar muted shades. Migration 9 maps existing choices
@@ -820,7 +826,11 @@ it; Escape closes it.
 Selected comment borders brighten the original poster's review color. Left cards
 realign after comment visibility/filter/layout changes. Section thoughts align
 their bottom near the section end using ordered list insertion. On the PDF
-surface, two-finger pinch zooms PDF content while one-finger panning remains native. Shared account markup lives in `_account_menu.html`.
+surface, app touch handlers route two-finger pinches into PDF.js zoom, with a
+Safari gesture-event fallback; one-finger panning remains native. Automated tests
+cover genuine Chrome touches and simulated Safari gestures. Physical iPhone
+Safari still needs a full-reload retest; the earlier Chrome-only check did not
+prove that behavior on an iPhone. Shared account markup lives in `_account_menu.html`.
 New PDF Review server-rendered pages should use the shared application shell,
 tokens and control/menu primitives rather than introducing one-off visual systems.
 

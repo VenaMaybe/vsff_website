@@ -1,5 +1,112 @@
 # C2 management interaction refinement
 
+## Explicit PDF pinch handling and Safari gesture fallback
+
+The user confirmed the earlier touch-action change blocked website zoom but did
+not make pinch zoom work on iPhone Safari. The earlier Chrome emulation test was
+insufficient evidence for that device; its previous success is historical.
+
+Added `pdf_touch.js` to own PDF multi-touch input and call the existing PDF.js
+updateZoom API. Distances use client coordinates and stable finger identifiers,
+with a gesture-start scale to retain small movements. PDF.js supplies scale
+limits, focal-point adjustment, pan and render scheduling. The application's
+native TouchManager instance is destroyed to avoid a competing recognizer;
+vendored PDF.js is unchanged. Existing pan-axis CSS and one-finger native
+scrolling remain; form controls and section-line dragging are excluded.
+
+Safari's gesturestart/change/end input is also handled in the iframe and for
+PDF-targeted host gestures. The first stream that actually moves owns the pinch,
+so a touchstart followed only by gesturechange still scales the PDF, while
+parallel touch and gesture streams cannot double-apply scaling. End/cancel,
+finger-count changes and blur clear/rebase gesture state. No site-wide viewport
+zoom prohibition is introduced. API references:
+[MDN GestureEvent](https://developer.mozilla.org/en-US/docs/Web/API/GestureEvent),
+[MDN multi-touch interaction](https://developer.mozilla.org/en-US/docs/Web/API/Touch_events/Multi-touch_interaction).
+
+Edited files:
+
+- New `static/review/pdf_touch.js`: direct pinch and Safari gesture handling.
+- `static/review/viewer_shell.js`: install the integration after viewer setup.
+- `static/styles/pdfjs.css`: clarify ownership of existing pan-axis rule.
+- New `tests/mobile_pinch.py`, `tests/browser_sanity.py`: focused browser checks.
+- `README.md`, `ARCHITECTURE.md`, and this report.
+
+Validation: focused browser checks passed genuine pinch-in and pinch-out with
+sequential finger placement, gentle movement with unchanged screen coordinates,
+reordered touch lists, touch cancellation, native one-finger scrolling, stable
+site viewport scale, gesture-only and touchstart-plus-gesture-only Safari paths,
+host-iframe gesture delivery and duplicate-stream suppression. Existing six-viewer
+refinement checks also passed with the final stream-ownership adjustment. The
+whitespace check passed. Physical iPhone/Safari is unavailable
+in this environment and is not claimed as tested. The user should fully reload
+the viewer on their iPhone and retest. Work remains local and uncommitted; no
+backend, schema, dependency or vendor changes.
+
+## Move comment scope and reviewer filters into a left card
+
+Removed Everyone/Mine and the Everyone submenu from the Comments dropdown.
+Comments > Filter comments... now opens a standard left utility card with All
+comments, Only mine, and Selected reviewers. The last option reveals the reviewer
+checklist. All comments selects everyone; Only mine preserves any custom reviewer
+selection for later. Changes use the existing personal preference API immediately.
+Reset to document defaults remains in Comments with its separator.
+
+The new card shares content-sized layout, dragging, single-card pinning, focus
+rules, mobile gutter access and saved open/closed positions. Restoration now
+allows all four known left tools. Reviewer filters stay in server preferences;
+localStorage contains only existing minimal card layout metadata. Queued edits
+retain a temporary draft, and stable checkbox nodes preserve focus during refresh.
+
+Isolated non-owners receive a policy note and Only mine; other modes are disabled
+and the reviewer checklist is hidden. Backend privacy enforcement is unchanged.
+
+Edited files:
+
+- New `static/review/comment_filters.js`: card controls and preference drafts.
+- `static/review/viewer_preferences.js`: Comments opener and canonical updates.
+- `static/review/left_card.js`: restore up to four known utility cards.
+- `static/styles/dialogs.css`, `static/styles/comments.css`: compact card controls
+  and removal of unused reviewer submenu styling.
+- New `tests/comment_filters_acceptance.py`, `tests/browser_sanity.py`: focused
+  filter/card browser regression.
+- `tests/six_refinements.py`, `tests/beta_c2_acceptance.py`: use the moved controls.
+- `README.md`, `ARCHITECTURE.md`, and this report.
+
+Validation: focused browser checks passed All/Mine/custom subsets, rapid checkbox
+changes, saved preferences, all four cards restored with filter pin state,
+isolated review, close/reopen persistence and mobile opening. Existing six-viewer
+refinement checks and the full C2 browser regression passed, including sections,
+shared/isolated review, persistent viewer preferences and responsive layouts.
+Desktop/mobile filter screenshots were inspected and the whitespace check passed. No backend, schema, dependency or vendor changes. Work remains
+local and uncommitted.
+
+## Cycle overlapping comment highlights
+
+Repeated pointer clicks at overlapping comment highlights now cycle through the
+conversations at that exact point, including those beneath the topmost highlight.
+Selection starts with the topmost hit when no participating comment is selected,
+then advances from the selected thread and wraps around. Distinct rectangles of
+one thread count as one choice. Clicking a non-overlapping highlight keeps normal
+selection behavior; programmatic clicks without pointer coordinates retain their
+original target selection.
+
+The overlay uses the iframe's actual elementsFromPoint stack and only includes
+thread highlights belonging to that page overlay. Selection state supplies the
+cycle position across overlay re-rendering; no persistent state or database
+changes are required. Existing selected colors, card focus, click-away behavior
+and contained-rectangle filtering are retained.
+
+Edited files: `static/review/anchor_overlay.js`, `tests/highlight_overlap.py`,
+`README.md`, `ARCHITECTURE.md`, and this report.
+
+Validation extends the disposable highlight browser fixture with three distinct
+conversations, one covering only half of the others. Real pointer input checks
+cycling and wraparound, the two-thread portion, a single-thread portion, and
+repeated selection after zoom and rotation. The focused overlap browser check
+passed, including the previous contained-rectangle and immutable-geometry checks.
+The ordinary-comment UI regression and whitespace check also passed. Work remains local and uncommitted; no backend, schema,
+dependency or vendor changes.
+
 ## Avoid painting nested highlight rectangles twice
 
 Read-only inspection of the localhost SQLite anchor matching the paragraph-style

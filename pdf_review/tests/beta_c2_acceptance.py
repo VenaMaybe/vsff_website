@@ -62,9 +62,9 @@ def run_c2(cdp,a,b,fixture,base):
     cdp.wait(a,"document.body.textContent.includes('Owner text thread')")
     cdp.wait(b,"document.body.textContent.includes('Owner text thread')")
     screenshot(cdp,b,'c2-shared-review')
-    cdp.evaluate(b,"document.querySelector('#comments-menu').open=true;document.querySelector('#comments-menu details').open=true")
+    cdp.evaluate(b,"document.querySelector('[data-comment-filters]').click();document.querySelector('.comment-filter-panel input[value=people]').click()")
     screenshot(cdp,b,'c2-people-filter')
-    cdp.evaluate(b,"document.querySelector('#comments-menu').open=false;document.querySelector('[data-menu-input=review-scope][data-menu-value=mine]').click()")
+    cdp.evaluate(b,"document.querySelector('.comment-filter-panel input[value=mine]').click()")
     cdp.wait(b,"!document.body.textContent.includes('Owner text thread') && document.body.textContent.includes('Section response from Beta')")
     change(cdp,b,'#review-scope','all')
     # Build a second exact-page boundary section without overlapping the first.
@@ -130,7 +130,7 @@ def run_c2(cdp,a,b,fixture,base):
     cdp.wait(a,"document.querySelector('[name=visibility_policy]')!==null")
     screenshot(cdp,a,'c2-owner-settings')
     cdp.evaluate(a,"document.querySelector('[name=visibility_policy]').value='isolated';document.querySelector('.settings-form').requestSubmit()")
-    cdp.wait(b,"document.querySelector('#comments-menu').textContent.includes('Isolated review') && !document.body.textContent.includes('Owner text thread')")
+    cdp.wait(b,"document.querySelector('.comment-filter-policy')?.textContent.includes('Isolated review') && !document.body.textContent.includes('Owner text thread')")
     assert request(cdp,b,f'/api/versions/{version}/threads')['data']['threads']==[]
     screenshot(cdp,b,'c2-isolated-review')
     # Palette UI and immediate presentation refresh.

@@ -1,3 +1,4 @@
+import { installPdfTouch } from './pdf_touch.js';
 import { animateCard, CARD_MOTION_MS } from './card_motion.js';
 import { bindMenuDismissal, syncMenuValues } from "./menus.js";
 import { pdfRectangleToCss } from "./anchor_geometry.js";
@@ -83,6 +84,7 @@ export function installViewerControls(frame, application) {
   new ResizeObserver(() => document.documentElement.style.setProperty('--toolbar-height', `${header.offsetHeight}px`)).observe(header);
   syncMenuValues();
   installSearch(frame, application);
+  installPdfTouch(frame, application);
   bindMenuDismissal(native);
 
 }

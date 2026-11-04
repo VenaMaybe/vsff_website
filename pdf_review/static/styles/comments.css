@@ -95,7 +95,5 @@
 .outline-dialog { max-width:min(620px,90vw); max-height:80vh; padding:12px; border:1px solid #89948c; border-radius:2px; font-size:12px; }
 .outline-candidate { display:flex; gap:6px; margin:5px 0; }
 .outline-candidate input[type=number] { width:65px; }
-.review-people label { display:flex; align-items:center; gap:6px; padding:5px 7px; white-space:nowrap; }
-.review-people input { margin:0; }
 
 #thread-list .thread-card.active { border-left-color:color-mix(in srgb,var(--review-color,var(--accent)) 78%,white); }
