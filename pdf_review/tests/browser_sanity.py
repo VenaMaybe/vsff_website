@@ -51,12 +51,13 @@ def serve(root):
                       "GOOGLE_CLIENT_ID": "synthetic-browser-client", "GOOGLE_CLIENT_SECRET": "synthetic-browser-secret"})
     doc = create_document(app.config["DATABASE"], "Browser sanity")
     pdf_factory = pdf_bytes
-    if os.environ.get('PDF_REVIEW_TEST_ZOOM') == '1':
+    if os.environ.get('PDF_REVIEW_TEST_ZOOM') == '1' or os.environ.get('PDF_REVIEW_TEST_READING') == '1':
         from tests.document_zoom import mixed_pdf
         pdf_factory = mixed_pdf
     versions = [import_version(app.config["DATABASE"], app.extensions["blob_store"], doc,
                               io.BytesIO(pdf_factory(str(index))), f"draft{index}.pdf").version_id for index in [3, 4]]
-    users = [create_user(app.config["DATABASE"], name) for name in ["ReviewerAlpha", "ReviewerBeta"]]
+    names=['Vena','Alice','Miles'] if os.environ.get('PDF_REVIEW_TEST_READING')=='1' else ['ReviewerAlpha','ReviewerBeta']
+    users = [create_user(app.config["DATABASE"], name) for name in names]
     # Issue signed fixture sessions offline; no login bypass route is exposed.
     from tests.auth_helpers import authenticate
     cookies = []
@@ -64,6 +65,9 @@ def serve(root):
         client = app.test_client()
         authenticate(client, user["user_id"])
         cookies.append(client.get_cookie(app.config["SESSION_COOKIE_NAME"]).value)
+    if os.environ.get('PDF_REVIEW_TEST_READING')=='1':
+        from tests.reading_acceptance import seed_reading
+        seed_reading(app,doc,versions[0],users)
     from review import access
     from flask import redirect, url_for
     admin = create_user(app.config['DATABASE'], 'BrowserAdmin')
@@ -178,7 +182,8 @@ def run():
             try:
                 server = subprocess.Popen([sys.executable, str(Path(__file__).resolve()), "--server", str(root)],
                                           stdout=log, stderr=log, creationflags=subprocess.CREATE_NO_WINDOW,
-                                          env={**os.environ,'PDF_REVIEW_TEST_ZOOM':'1'} if '--zoom-layout' in sys.argv else None)
+                                          env=({**os.environ,'PDF_REVIEW_TEST_ZOOM':'1'} if '--zoom-layout' in sys.argv else
+                                               {**os.environ,'PDF_REVIEW_TEST_READING':'1'} if '--reading-ui' in sys.argv else None))
                 deadline = time.monotonic() + 15
                 while not (root / "fixture.json").exists():
                     if time.monotonic() > deadline: raise TimeoutError("Fixture server startup")
@@ -264,6 +269,11 @@ def run():
                 if '--tools-menu' in sys.argv:
                     from tests.tools_menu import run_tools
                     run_tools(cdp,a,b,fixture,base)
+                    assert not cdp.exceptions,cdp.exceptions
+                    return
+                if '--reading-ui' in sys.argv:
+                    from tests.reading_acceptance import run_reading
+                    run_reading(cdp,a,b,fixture,base)
                     assert not cdp.exceptions,cdp.exceptions
                     return
                 if '--management-ui' in sys.argv:

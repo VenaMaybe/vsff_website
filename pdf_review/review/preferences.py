@@ -18,21 +18,37 @@ def validate(values, choices):
 
 
 DEFAULT_CHOICES = dict(visibility_policy=('shared','isolated'), default_scope=('all','mine'),
-                       default_spread=(0,1,2), default_display=('expanded','minimized','hidden'), downloads_allowed=(0,1))
+                       default_spread=(0,1,2), default_display=('expanded','minimized','hidden'), downloads_allowed=(0,1), reading_tracking_enabled=(0,1))
 PERSONAL_CHOICES = dict(scope=('all','mine'), spread=(0,1,2), display=('expanded','minimized','hidden','mobile'))
 
 
-def save_defaults(database, document_id, user_id, values):
+def save_defaults(database, document_id, user_id, values, reader_pauses=None):
     validate(values, DEFAULT_CHOICES)
     with transaction(database) as c:
         authorize_actor(c, user_id, document_id)
         current = settings(c, document_id)
+        pauses_changed = False
+        if reader_pauses is not None:
+            for reader, paused in reader_pauses.items():
+                require_reader(c, document_id, reader)
+                if paused not in (0, 1):
+                    raise PreferenceError('Invalid reader tracking setting.')
+                previous_pause = bool(c.execute('SELECT 1 FROM document_reading_pauses WHERE document_id=? AND user_id=?',(document_id,reader)).fetchone())
+                pauses_changed |= previous_pause != bool(paused)
+                if paused:
+                    c.execute('INSERT OR IGNORE INTO document_reading_pauses VALUES(?,?)',(document_id,reader))
+                else:
+                    c.execute('DELETE FROM document_reading_pauses WHERE document_id=? AND user_id=?',(document_id,reader))
+        policy_changed = ('reading_tracking_enabled' in values and values['reading_tracking_enabled'] != current['reading_tracking_enabled']) or pauses_changed
+        if policy_changed:
+            c.execute('UPDATE reading_consents SET generation=generation+1 WHERE version_id IN (SELECT version_id FROM document_versions WHERE document_id=?)',(document_id,))
+            c.execute('DELETE FROM reading_leases WHERE session_id IN (SELECT s.session_id FROM reading_sessions s JOIN document_versions v USING(version_id) WHERE v.document_id=?)',(document_id,))
         current.update(values)
-        c.execute('''INSERT INTO document_review_settings (document_id,visibility_policy,default_scope,default_spread,default_display,downloads_allowed) VALUES(?,?,?,?,?,?)
+        c.execute('''INSERT INTO document_review_settings (document_id,visibility_policy,default_scope,default_spread,default_display,downloads_allowed,reading_tracking_enabled) VALUES(?,?,?,?,?,?,?)
             ON CONFLICT(document_id) DO UPDATE SET visibility_policy=excluded.visibility_policy,
             default_scope=excluded.default_scope,default_spread=excluded.default_spread,
-            default_display=excluded.default_display,downloads_allowed=excluded.downloads_allowed''', tuple(current[k] for k in
-            ('document_id','visibility_policy','default_scope','default_spread','default_display','downloads_allowed')))
+            default_display=excluded.default_display,downloads_allowed=excluded.downloads_allowed,reading_tracking_enabled=excluded.reading_tracking_enabled''', tuple(current[k] for k in
+            ('document_id','visibility_policy','default_scope','default_spread','default_display','downloads_allowed','reading_tracking_enabled')))
 
 
 def read_preferences(database, document_id, user_id):

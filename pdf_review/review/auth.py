@@ -29,11 +29,13 @@ PROTECTED_ENDPOINTS = {
 ACCOUNT_ENDPOINTS = {'accounts.account', 'accounts.profile', 'review_options.color'}
 OWNER_ENDPOINTS = {'accounts.access_page', 'accounts.access_mutation', 'accounts.shareable'}
 ADMIN_ENDPOINTS = {'accounts.admin', 'accounts.beta_email', 'accounts.site_admin'}
-REVIEW_OWNER_ENDPOINTS = {'review_options.settings_page','review_options.settings_save',
+REVIEW_OWNER_ENDPOINTS = {'review_options.settings_page','review_options.settings_save','reading.consent',
     'review_options.sections_page','review_options.create_section','review_options.section_update',
     'review_options.placement','review_options.shared_boundary','review_options.outline'}
 PROTECTED_ENDPOINTS.update(REVIEW_OWNER_ENDPOINTS | {'review_options.viewer_preferences',
     'review_options.context','review_options.response_create','review_options.response_reply','review_options.response_comment'})
+READING_ENDPOINTS = {'reading.summary', 'reading.consent', 'reading.session', 'reading.batch', 'reading.reader'}
+PROTECTED_ENDPOINTS.update(READING_ENDPOINTS)
 
 
 class IdentityDenied(ValueError):
@@ -314,7 +316,7 @@ def init_auth(app):
             finally:
                 connection.close()
             if request.method in UNSAFE:
-                if role == "viewer" and request.endpoint != 'review_options.viewer_preferences':
+                if role == "viewer" and request.endpoint not in {'review_options.viewer_preferences', *READING_ENDPOINTS}:
                     abort(403)
                 if (request.blueprint == "carry" or request.endpoint in {"core.new_version", "core.verify_version"}) and role != "owner":
                     abort(403)

@@ -252,3 +252,28 @@ def notify_user_presentation_changed(user_id):
                 current_app.extensions['socketio'].emit('review.presence',registry.snapshot(version_id),to=version_room(version_id))
     except Exception:
         current_app.logger.exception('Committed presentation invalidation failed')
+
+
+def notify_reading_changed(version_id, reader_id=None):
+    """Committed reading invalidation to eligible owners and the reader only.
+
+    No reading data travels in the event; canonical HTTP reads recheck access.
+    Policy changes reach everyone in the version so closed tools also stop timing.
+    """
+    try:
+        prune_version(version_id)
+        registry=current_app.extensions['review_presence']
+        c=connect(current_app.config['DATABASE'])
+        try:
+            owners={r[0] for r in c.execute("SELECT a.user_id FROM document_access a JOIN document_versions v USING(document_id) WHERE v.version_id=? AND a.role='owner'",(version_id,))}
+            with registry.lock:
+                recipients=[sid for sid,entry in registry.connections.items()
+                    if entry['version_id']==version_id and
+                    (reader_id is None or entry['user']['user_id']==reader_id or entry['user']['user_id'] in owners)]
+            for sid in recipients:
+                current_app.extensions['socketio'].emit('reading.changed',
+                    {'schema_version':1,'version_id':version_id},to=sid)
+        finally:
+            c.close()
+    except Exception:
+        current_app.logger.exception('Committed reading notification failed for version %s',version_id)

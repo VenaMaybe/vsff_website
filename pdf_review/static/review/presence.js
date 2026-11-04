@@ -1,3 +1,13 @@
+// Shared current-page/spread source for presence and opt-in reading activity.
+// Time allocation and durable progress deliberately remain outside this module.
+export function viewingPages(application, page = application.pdfViewer.currentPageNumber) {
+  const pdf=application.pdfViewer,div=pdf.getPageView(page-1)?.div;
+  const pages=pdf.spreadMode && div?.closest('.spread')
+    ? [...div.closest('.spread').querySelectorAll(':scope > .page')].map(p=>Number(p.dataset.pageNumber)).slice(0,2)
+    : [page];
+  return {page,pages:pages.length?pages:[page]};
+}
+
 export class ReviewPresence {
   constructor(versionId, container, currentUserId) {
     Object.assign(this, { versionId, container,currentUserId });
@@ -57,9 +67,8 @@ export class ReviewPresence {
   }
   sendCurrentPage() {
     if (Number.isInteger(this.page) && this.page > 0) {
-      const pdf=this.application?.pdfViewer,div=pdf?.getPageView(this.page-1)?.div;
-      const pages=pdf?.spreadMode && div?.closest('.spread')?[...div.closest('.spread').querySelectorAll(':scope > .page')].map(p=>Number(p.dataset.pageNumber)).slice(0,2):[this.page];
-      this.send(this.page,pages.length?pages:[this.page]);
+      const {page,pages}=viewingPages(this.application,this.page);
+      this.send(page,pages);
     }
   }
 }

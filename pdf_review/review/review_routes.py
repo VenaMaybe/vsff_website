@@ -42,25 +42,41 @@ def guarded(fn):
 @bp.get('/documents/<document_id>/review-settings')
 @guarded
 def settings_page(document_id):
+    c=connect(database_path())
+    try:
+        from .access import ELIGIBLE
+        readers=[dict(r) for r in c.execute('''SELECT u.user_id,u.display_name,
+            EXISTS(SELECT 1 FROM document_reading_pauses p WHERE p.document_id=? AND p.user_id=u.user_id) paused
+            FROM users u JOIN document_access a ON a.user_id=u.user_id
+            WHERE a.document_id=? AND u.user_id IN (SELECT user_id FROM ('''+ELIGIBLE+''')) ORDER BY u.display_name COLLATE NOCASE,u.user_id''',(document_id,document_id))]
+    finally:
+        c.close()
     return render_template('review_settings.html',document=get_document(database_path(),document_id),
-        settings=preferences.read_preferences(database_path(),document_id,actor())['defaults'])
+        settings=preferences.read_preferences(database_path(),document_id,actor())['defaults'],reading_readers=readers)
 
 
 @bp.post('/documents/<document_id>/review-settings')
 @guarded
 def settings_save(document_id):
-    if set(request.form)-{'csrf_token',*preferences.DEFAULT_CHOICES}:
+    reader_keys={k for k in request.form if k.startswith('tracking_reader_')}
+    if len(reader_keys)>1000 or set(request.form)-{'csrf_token',*preferences.DEFAULT_CHOICES,*reader_keys}:
         abort(400)
     values={k:request.form[k] for k in preferences.DEFAULT_CHOICES if k in request.form}
     try:
-        for key in ('default_spread','downloads_allowed'):
+        for key in ('default_spread','downloads_allowed','reading_tracking_enabled'):
             if key in values:
                 values[key]=int(values[key])
     except ValueError:
         raise preferences.PreferenceError('Invalid numeric setting.')
-    preferences.save_defaults(database_path(),document_id,actor(),values)
+    try:
+        pauses={k.removeprefix('tracking_reader_'):int(request.form[k]) for k in reader_keys}
+    except ValueError:
+        raise preferences.PreferenceError('Invalid reader tracking setting.')
+    preferences.save_defaults(database_path(),document_id,actor(),values,pauses)
     for v in list_versions(database_path(),document_id):
         notify_version_changed(v['version_id'])
+        from .realtime import notify_reading_changed
+        notify_reading_changed(v['version_id'])
     return jsonify(ok=True,settings=preferences.read_preferences(database_path(),document_id,actor())['defaults'])
 
 

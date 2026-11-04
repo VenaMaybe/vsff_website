@@ -5,6 +5,12 @@
 <p class="subtle">Isolated review permits non-owners to read only their own conversations and replies within them. Owners can read all review.</p>
 <label>PDF downloads <select name="downloads_allowed"><option value="1" {{ 'selected' if settings.downloads_allowed }}>Allowed</option><option value="0" {{ 'selected' if not settings.downloads_allowed }}>Off</option></select></label>
 <p class="subtle">Off hides download and print controls and blocks their viewer shortcuts. People who can view the PDF can still capture or save its content outside these controls.</p>
+<h2>Reading activity</h2>
+<label>Tracking <select name="reading_tracking_enabled"><option value="1" {{ 'selected' if settings.reading_tracking_enabled }}>On</option><option value="0" {{ 'selected' if not settings.reading_tracking_enabled }}>Off</option></select></label>
+<p class="subtle">On by default for every reader and PDF version. Records active viewing time and page progress. Only document authors can change tracking. Turning it off keeps existing history.</p>
+<details><summary>Tracking by reader</summary>
+{% for reader in reading_readers %}<label>{{ reader.display_name }} <select name="tracking_reader_{{ reader.user_id }}"><option value="0" {{ 'selected' if not reader.paused }}>On</option><option value="1" {{ 'selected' if reader.paused }}>Paused</option></select></label>{% endfor %}
+<p class="subtle">Reader pauses apply across this document's PDF versions. Document tracking must also be On.</p></details>
 <h2>First-open viewer defaults</h2><p class="subtle">Established personal preferences are retained when defaults change.</p>
 {% for name,label,choices in [('default_scope','Review scope',[('all','Everyone'),('mine','Mine')]),('default_spread','Spreads',[(0,'No spreads'),(1,'Odd spreads'),(2,'Even spreads')]),('default_display','Comments',[('expanded','Expanded'),('minimized','Minimized'),('hidden','Hidden')])] %}
 <label>{{ label }} <select name="{{ name }}">{% for value,title in choices %}<option value="{{ value }}" {{ 'selected' if settings[name]==value }}>{{ title }}</option>{% endfor %}</select></label>

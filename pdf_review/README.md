@@ -7,11 +7,20 @@ This local version adds owner-controlled **Shared / Isolated** review, personal
 a ten-color Tableau 10 Account palette, page/spread presence, logical sections and exact-version
 section feedback. See [BETA_C2_REPORT.md](BETA_C2_REPORT.md) for the audit and checks.
 
-- **Tools** opens Search document and Filter comments left cards; document owners
+- **Tools** opens Search document, Filter comments, Reading progress and Reader
+  analytics left cards; document owners
   also see Review settings and Manage sections. Checkmarks identify open cards;
   selecting an open tool focuses it; selecting the focused tool again closes it.
   **Close all tools** closes the cards together. Tools stays open while choosing
   items and dismisses when you click elsewhere. Cards also retain their X buttons.
+- Reading tracking is **on by default**. Only document authors manage document
+  On/Off and per-reader Pause in **Tools > Review settings**; changes apply across
+  PDF versions and retain past history. Both reading cards are available to readers,
+  who see only their own analytics. Authors can inspect eligible document readers.
+  WebSocket notifications refresh saved activity after each 15-second batch; live
+  positions reuse presence. Completion uses PDF.js word counts at 400 words/minute
+  with a 5-second minimum. Spreads share one measured time budget.
+  See [Reading progress report](READING_PROGRESS_REPORT.md) for the schema and limits.
 - Owners open **Tools → Review settings** in the PDF viewer to set privacy, PDF download access and
   first-open spread/comment/scope defaults. Existing personal choices survive
   later default changes. **Reset to document defaults** is in Comments.
@@ -97,8 +106,10 @@ section feedback. See [BETA_C2_REPORT.md](BETA_C2_REPORT.md) for the audit and c
 - New PDF versions leave section placements unmapped; the owner sets their placements. Outline import previews
   names/start pages and a selectable flat subset; nothing is created until confirmed.
 
-Startup applies migration **10** (document download controls; migration 9 adds the Tableau 10 palette). Back up real SQLite with the existing online
-backup helper before a later approved deployment. No runtime data is migrated
+Startup applies migration **11** (optional exact-version reading activity; migration
+10 adds document download controls). Back up real SQLite before migration/deployment.
+Reading tables start empty; old presence never implies consent or reading history.
+No production database migration or deployment is performed
 by this development task. Existing immutable PDFs and migrations 1â€“7 are unchanged.
 
 Local synthetic verification:
@@ -110,6 +121,7 @@ Local synthetic verification:
 .\.venv\Scripts\python.exe tests/browser_sanity.py --comment-ui
 .\.venv\Scripts\python.exe tests/browser_sanity.py --management-ui
 .\.venv\Scripts\python.exe tests/browser_sanity.py --six-refinements
+.\.venv\Scripts\python.exe tests/browser_sanity.py --reading-ui
 .\.venv\Scripts\python.exe -m pip check
 ```
 

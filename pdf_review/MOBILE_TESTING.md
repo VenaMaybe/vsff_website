@@ -1,5 +1,22 @@
 # Temporary iPhone testing
 
+## Reading tools (migrations 11–12)
+
+The local app currently runs at http://127.0.0.1:5000/ on the laptop; the old public
+tunnel is stopped. Mobile HTTPS testing needs a new explicit tunnel session.
+Reload and open Tools > Reading progress / Reader analytics. Tracking starts on;
+only the author can set document On/Off or per-reader Pause in Review settings.
+Readers can open both cards but see only their own analytics.
+
+Stay focused and active on a page for over 15 seconds; saved time should update
+in open cards via WebSocket notification. Reader positions use live presence.
+Test author Pause/Resume with the reader's viewer already open. Repeat in a spread:
+visible pages share one time budget. Switch apps or lock the phone and return;
+background time must not catch up. Physical iPhone lifecycle behavior is not proven
+by Chrome emulation. See [Reading progress report](READING_PROGRESS_REPORT.md).
+
+## Temporary HTTPS session
+
 The user explicitly approved public Cloudflare forwarding on November 3, 2026,
 after an earlier automatic approval rejection. The launcher successfully started
 the tunnel and local app. Public checks returned HTTP 200 for `/healthz`, a login

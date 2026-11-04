@@ -1,5 +1,18 @@
 # C2 management interaction refinement
 
+## Reading progress spine and reader analytics
+
+Two new opt-in reading tools use the shared card shell and existing live-avatar
+page/spread selection source. Migration 11 adds separate consent, total, page,
+session, lease and visit tables. Measured active viewing and inferred completion
+are distinct; owners inspect consented readers and other roles see only themselves.
+Pause/Resume and explicit history erasure are available in the cards. The spine
+uses proportional section nodes and collision-packed reader labels; analytics
+contains section dwell bars and expandable paged page activity.
+
+See [READING_PROGRESS_REPORT.md](READING_PROGRESS_REPORT.md) for the database
+relationships, timing/lease model, privacy rules, focused checks and limits.
+
 ## Tools menu close actions and persistent selection
 
 Added Close all tools and a separator above the tool list. Tools stays open via
@@ -1267,3 +1280,8 @@ passed; the whitespace check passed. Backend and dependencies are unchanged. The
   and general document pages remain ordinary pages. C2 schema, services,
   authorization, privacy, colors, presence and feedback semantics are unchanged.
   Everything remains local, unstaged and uncommitted; nothing was deployed.
+
+Reading follow-up: tracking defaults on with author-only document/per-reader controls
+in Review settings (migration 12). Targeted WebSocket invalidations refresh activity
+after 15-second commits; live positions reuse presence. Both cards remain available
+to readers with self-only analytics. See READING_PROGRESS_REPORT.md.

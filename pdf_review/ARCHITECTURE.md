@@ -698,3 +698,66 @@ app control. No claim is made to block browser menus, developer tools, screensho
 or raw PDF URL saves. Existing document ACLs and private response headers remain
 the read-access boundary. No new PDF rewriting, caching, or content mutation is
 introduced. Browser storage of left-card state never stores PDF bytes.
+
+## Author-controlled reading activity (migrations 11–12)
+
+Reading activity is a separate optional domain, not an extension of the presence
+registry or review/anchor history. See [READING_PROGRESS_REPORT.md](READING_PROGRESS_REPORT.md)
+for the complete model, schema and measurement limits. Migration 11 adds
+`reading_consents`, `reading_totals`, `reading_pages`, `reading_sessions`,
+`reading_leases` and `reading_visits`. User/version/page foreign keys and identity
+triggers prevent reassignment; lease triggers require a session belonging to the
+same reader. Prior migrations, immutable PDFs and review tables stay unchanged.
+
+Tracking defaults on. Migration 12 adds document-wide `reading_tracking_enabled`
+and `document_reading_pauses` (document/user key), across all versions. Only authors
+can change either in Review settings. Readers cannot opt out, pause or erase.
+The legacy reading_consents table now registers exact-version metadata and policy
+generations; migration 12 resets prior personal states, advances generations and
+releases leases. Policy changes reject stale batches and retain all history.
+Authors inspect eligible document readers; all others see only themselves in both
+shared and isolated review. Automatic personal session/batch endpoints permit even
+read-only viewers without granting owner/comment mutations. The legacy consent
+endpoint is now strictly owner-only. ACLs and CSRF remain enforced server-side.
+
+`presence.js::viewingPages` is now the shared unchanged page/spread selection
+source for live avatars and reading timing. Presence remains ephemeral and does
+not itself persist viewing time. `reading_clock.js` owns monotonic eligible-time allocation;
+`reading_tracker.js` owns visibility/focus/idle/connectivity gates, PDF.js counts
+and batched transport. No zoom, native touch, page layout or gesture code changes.
+One spread shares elapsed time by visible area. Active sampling requires a recent
+interaction, settled scrolling and a user-wide server lease. Timer suspension and
+offline periods never backfill time.
+
+HTTP batches normally arrive every 15 seconds, with sequenced idempotency and a
+single transactional server receipt-time budget bounded at 20 seconds. The global
+25-second reader lease excludes simultaneous full-rate accumulation across tabs,
+versions and devices. Cumulative page/reader totals update incrementally; visit
+rows update per session/visit/page. Client timing, metadata and inferred completion
+remain approximate. Policy is centralized at 400 words/minute and a 5-second page
+minimum; considered-read timestamps are separate from measured time.
+
+The reading summary pages at 100 readers, per-page detail at 50 rows by default
+(100 max). Committed batches send targeted, content-free `reading.changed` WebSocket
+invalidations to authorized authors and the reader. Policy changes reach all
+viewers across versions; live positions reuse presence. A 30-second open-card
+poll and reconnect refresh remain recovery paths; page-only windows
+skip section aggregate work. Section prefix sums and canonical boundary fractions
+avoid repeatedly scanning visits. Consent/reading data is never stored in browser
+layout storage or broadcast to the shared realtime room. History persists through Off/Paused; this slice introduces no automatic retention job or offline cache.
+
+`reading_cards.js` composes exactly two shared `LeftCard` instances, registered as
+`reading` and `analytics`. They inherit Tools focus/toggle, pin/drag, collision
+packing and restoration. Label packing is internal to the proportional spine;
+leaders retain true page positions. Native PDF.js destinations navigate pages and
+in-page section starts. Analytics contains both Sections and expandable Pages,
+not another card. Styles live in `static/styles/reading.css`. Saved layout parsing
+now accepts a bounded 32 records so six tools restore without the former four-card
+truncation. No private activity is saved there.
+
+Reading analytics retains its page/group/statistics nodes during routine realtime
+refreshes and patches values, preserving focus, expanded groups and loaded windows.
+Reader/view/section-structure changes rebuild only the affected view. An account/
+exact-version scoped browser record restores the reader, Pages/Sections tab and
+expanded group identifiers; the authorized roster validates the saved reader.
+Only UI choices, not measured activity, are stored in this record.

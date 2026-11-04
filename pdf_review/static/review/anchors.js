@@ -25,6 +25,7 @@ import { jsonRequest } from './thread_api.js';
 import { SectionViewer } from './section_viewer.js';
 import { ViewerPreferences } from './viewer_preferences.js';
 import { registerManagement } from './management.js';
+import { ReadingCards } from './reading_cards.js';
 
 const config = JSON.parse(document.getElementById("anchor-config").textContent);
 const frame = document.getElementById("pdf-viewer-frame");
@@ -46,13 +47,14 @@ let retryTimer = null;
 let rail = null;
 let sectionViewer = null;
 let viewerPreferences = null;
+let readingCards = null;
 let selectionDismissed = false;
 let selectionActionBeforeComposer = null;
 let restoredSelectionAction = null;
 const presence = new ReviewPresence(config.versionId, document.getElementById("review-presence"),config.currentUserId);
 const threadRefresh = new RefreshCoordinator(
   async () => {const [threads,context]=await Promise.all([fetchThreads(config.threadsUrl),jsonRequest(config.contextUrl)]);return {threads,context};},
-  ({threads,context}) => { state.setThreads(threads); sectionViewer?.update(context);viewerPreferences?.update(context);refreshAll(); migrationUI?.refresh.request(); },
+  ({threads,context}) => { state.setThreads(threads); sectionViewer?.update(context);viewerPreferences?.update(context);readingCards?.sectionsChanged(context.sections);refreshAll(); migrationUI?.refresh.request(); },
   () => {
     realtime?.syncFailed();
     window.clearTimeout(retryTimer);
@@ -452,6 +454,9 @@ async function initialize() {
   sectionViewer=new SectionViewer(frame,application,config,state,()=>threadRefresh.request(),setReviewStatus);
   registerManagement({config,sectionViewer,deselectThread:sidebarActions.deselect,refresh:()=>threadRefresh.request()});
   viewerPreferences=new ViewerPreferences(config,application,()=>threadRefresh.request(),setReviewStatus);
+  readingCards=new ReadingCards(application,frame,{...config,
+    currentDisplayName:state.currentReviewer?.display_name,currentReviewColor:state.currentReviewer?.review_color},()=>!!realtime?.joined);
+  await readingCards.initialize().catch(error=>readingCards.error(error));
   await viewerPreferences.initialize();
   rail = new CommentRail(frame, application, state, composer, positionSelectionButton);
   await threadRefresh.request();
@@ -505,6 +510,7 @@ async function initialize() {
   realtime = new ReviewRealtime(config.versionId, threadRefresh, presence, document.getElementById("realtime-status"), (event) => {
     if (event.migration_id === migrationUI?.run?.migration_id) migrationUI.refresh.request();
   });
+  if(realtime.socket)readingCards?.attachRealtime(realtime.socket);
   presence.watch(viewerApplication, (page,pages) => {
     if (realtime.joined) realtime.socket.emit("review.page", { page,pages });
   });

@@ -381,6 +381,8 @@ MIGRATIONS.append((7, "accounts_sharing_and_site_admins", Path(__file__).with_na
 MIGRATIONS.append((8, "review_policy_preferences_and_sections", Path(__file__).with_name("migration8.sql").read_text(encoding="utf-8")))
 MIGRATIONS.append((9, "tableau_review_palette", Path(__file__).with_name("migration9.sql").read_text(encoding="utf-8")))
 MIGRATIONS.append((10, "document_download_controls", Path(__file__).with_name("migration10.sql").read_text(encoding="utf-8")))
+MIGRATIONS.append((11, "consented_exact_version_reading_activity", Path(__file__).with_name("migration11.sql").read_text(encoding="utf-8")))
+MIGRATIONS.append((12, "author_reading_policy", Path(__file__).with_name("migration12.sql").read_text(encoding="utf-8")))
 
 
 def connect(database_path: Path | str) -> sqlite3.Connection:

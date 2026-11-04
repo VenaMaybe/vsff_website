@@ -17,6 +17,7 @@ from .auth_cli import init_auth_cli
 from .backup import init_backup_cli
 from .account_routes import bp as account_bp
 from .review_routes import bp as review_options_bp
+from .reading_routes import bp as reading_bp
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -64,6 +65,7 @@ def create_app(test_config: dict | None = None) -> Flask:
     app.register_blueprint(migration_bp)
     app.register_blueprint(account_bp)
     app.register_blueprint(review_options_bp)
+    app.register_blueprint(reading_bp)
     init_realtime(app)
 
     @app.get("/healthz", provide_automatic_options=False)
