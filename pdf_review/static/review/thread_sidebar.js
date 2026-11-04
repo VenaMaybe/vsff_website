@@ -22,7 +22,7 @@ function shortDate(value) {
 }
 
 function pageLabel(thread) {
-  if (thread.section) return `${thread.section.name} · Overall thoughts`;
+  if (thread.section) return `${thread.section.name} \u00b7 ${thread.section.prompt?.trim()||'Overall thoughts'}`;
   const segments = thread.targets[0]?.anchor?.segments ?? [];
   if (!segments.length) return "Target unavailable";
   const first = segments[0].page_number;
@@ -170,8 +170,6 @@ function threadCard(thread, selectedThreadId, actions) {
     }
   }
   const comments = element("div", "thread-comments");
-  if (thread.section?.prompt) comments.append(element('p','section-prompt',thread.section.prompt));
-  if (thread.section && !thread.comments.length) comments.append(element('p','subtle','Leave section thoughts…'));
   const expanded = expandedThreads.has(thread.thread_id);
   thread.comments.forEach((comment, index) => {
     const node = commentNode(comment, actions);

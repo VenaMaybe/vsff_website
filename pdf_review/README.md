@@ -3,20 +3,33 @@
 ## BETA C2 â€” review settings and document sections
 
 This local version adds owner-controlled **Shared / Isolated** review, personal
-**Everyone / Mine / People** filters, persistent document-specific viewer choices,
+**Everyone / Mine** filters, persistent document-specific viewer choices,
 a ten-color Tableau 10 Account palette, page/spread presence, logical sections and exact-version
 section feedback. See [BETA_C2_REPORT.md](BETA_C2_REPORT.md) for the audit and checks.
 
-- Owners open **Review settings** in the PDF viewer to set privacy and
+- Owners open **Review settings** in the PDF viewer to set privacy, PDF download access and
   first-open spread/comment/scope defaults. Existing personal choices survive
   later default changes. **Reset to document defaults** is in Comments.
+  **PDF downloads: Off** hides download/print controls and blocks viewer save/print
+  actions and Ctrl/Cmd+S/P where browser events can be intercepted. It applies
+  to everyone viewing any version of this document, including its owner, and
+  updates already-open review viewers. Downloads are allowed by default.
+  This is a viewer restriction: PDF rendering still requires the read endpoint,
+  so browser menus, developer tools or screen capture can still save content.
 - Review Settings and Manage Sections coexist as compact comment-style cards on
   the left of the PDF. New cards open unpinned near the viewport center. Drag a
-  header to move a card vertically. Cards always use their full content height. One card may be
+  header to move a card vertically. Clicking or grabbing an unfocused card keeps
+  its displayed position as the new anchor, including collision displacement.
+  Left cards never extend above the first PDF
+  page; collision packing moves them downward when needed. Cards always use their
+  full content height. One card may be
   **pinned**, snapped to the viewport top as an independent overlay. It reserves no
   space and never moves unpinned cards. Pinning another unpins the previous card. **Unpinned** cards attach to the document and move
   up/down to avoid overlap; they scroll with the PDF. Opening a tool or clicking a section marker retrieves an offscreen card
   using the comment selection animation. Reduced motion is respected.
+  Open Sections, Review Settings and Search cards, their document positions and
+  pin state are remembered in this browser for your account and exact PDF version.
+  Closed cards stay closed. Search text and unsaved form content are not stored.
 - Sections uses the open PDF version. Mapped sections follow PDF start order;
   unmapped sections keep their previous logical display slots. No manual ordering.
   Type Start/End page numbers: Start means before that page, End means after it.
@@ -40,13 +53,17 @@ section feedback. See [BETA_C2_REPORT.md](BETA_C2_REPORT.md) for the audit and c
   Boundary lines are visible only while Sections is open. Clicking the PDF,
   background or a comment clears left-card focus without closing the card.
   Clicking within a left card preserves the selected right-side comment.
+  Section feedback headers show **Section name · Prompt**, falling back to
+  **Overall thoughts** for an empty prompt, followed by the response count and
+  **Add response**. Existing responses remain visible.
   Section prompts, outline import, spread pairs and right-side feedback remain.
   Review Settings and Manage Sections are available in the PDF viewer; their
   document-page buttons have been removed.
 - Isolated non-owners receive only their own top-level conversations and replies
   within them. Owners can inspect all review and apply convenience filters.
   Personal filtering hides whole conversations by top-level author, preserving
-  replies. People lists content authors for this exact version, never beta emails.
+  replies. **Everyone** opens a person checklist with **All** to select everybody;
+  the list contains content authors for this exact version, never beta emails.
 - **Account â†’ Review color** selects a fixed palette entry. Highlight and section
   response accents follow the top-level author. Initials supply presence avatars;
   the application makes no external avatar requests.
@@ -63,7 +80,7 @@ section feedback. See [BETA_C2_REPORT.md](BETA_C2_REPORT.md) for the audit and c
 - New PDF versions leave section placements unmapped; the owner sets their placements. Outline import previews
   names/start pages and a selectable flat subset; nothing is created until confirmed.
 
-Startup applies migration **9** (Tableau 10 palette refresh). Back up real SQLite with the existing online
+Startup applies migration **10** (document download controls; migration 9 adds the Tableau 10 palette). Back up real SQLite with the existing online
 backup helper before a later approved deployment. No runtime data is migrated
 by this development task. Existing immutable PDFs and migrations 1â€“7 are unchanged.
 
@@ -75,6 +92,7 @@ Local synthetic verification:
 .\.venv\Scripts\python.exe tests/browser_sanity.py --beta-c2
 .\.venv\Scripts\python.exe tests/browser_sanity.py --comment-ui
 .\.venv\Scripts\python.exe tests/browser_sanity.py --management-ui
+.\.venv\Scripts\python.exe tests/browser_sanity.py --six-refinements
 .\.venv\Scripts\python.exe -m pip check
 ```
 
@@ -789,8 +807,14 @@ Developer anchor tools are available deliberately with `?debug=anchors`.
 
 View, Comments, identity and management actions share the canonical menu styles
 and `static/review/menus.js` behavior. Scrolling and Spreads are submenus with
-checkmarks. Search keeps native PDF.js inputs/listeners/matching in a compact
-header-attached surface. Shared account markup lives in `_account_menu.html`.
+checkmarks. Search uses the reusable left card with native PDF.js inputs,
+matching, options and navigation. The four search options are always visible in
+a two-by-two grid with vertically centered checkbox labels. Ctrl/Command+F opens
+it; Escape closes it.
+Selected comment borders brighten the original poster's review color. Left cards
+realign after comment visibility/filter/layout changes. Section thoughts align
+their bottom to the section end, subject to normal collision packing. On the PDF
+surface, two-finger pinch zooms PDF content while one-finger panning remains native. Shared account markup lives in `_account_menu.html`.
 New PDF Review server-rendered pages should use the shared application shell,
 tokens and control/menu primitives rather than introducing one-off visual systems.
 

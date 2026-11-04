@@ -53,10 +53,11 @@ def settings_save(document_id):
         abort(400)
     values={k:request.form[k] for k in preferences.DEFAULT_CHOICES if k in request.form}
     try:
-        if 'default_spread' in values:
-            values['default_spread']=int(values['default_spread'])
+        for key in ('default_spread','downloads_allowed'):
+            if key in values:
+                values[key]=int(values[key])
     except ValueError:
-        raise preferences.PreferenceError('Invalid spread mode.')
+        raise preferences.PreferenceError('Invalid numeric setting.')
     preferences.save_defaults(database_path(),document_id,actor(),values)
     for v in list_versions(database_path(),document_id):
         notify_version_changed(v['version_id'])

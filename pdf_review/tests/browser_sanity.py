@@ -216,6 +216,26 @@ def run():
                     assert not cdp.exceptions,cdp.exceptions
                     print('PASS Tableau 10 account palette, selected state and color save',flush=True)
                     return
+                if '--download-policy' in sys.argv:
+                    from tests.download_policy_acceptance import run_download_policy
+                    run_download_policy(cdp,a,b,fixture,base)
+                    assert not cdp.exceptions,cdp.exceptions
+                    return
+                if '--card-state' in sys.argv:
+                    from tests.card_state_acceptance import run_card_state
+                    run_card_state(cdp,a,b,fixture,base)
+                    assert not cdp.exceptions,cdp.exceptions
+                    return
+                if '--left-card-focus' in sys.argv:
+                    from tests.left_card_focus import run_focus
+                    run_focus(cdp,a)
+                    assert not cdp.exceptions,cdp.exceptions
+                    return
+                if '--six-refinements' in sys.argv:
+                    from tests.six_refinements import run_six
+                    run_six(cdp,a,b,fixture,base)
+                    assert not cdp.exceptions,cdp.exceptions
+                    return
                 if '--management-ui' in sys.argv:
                     from tests.management_acceptance import run_management
                     run_management(cdp,a,fixture,base)

@@ -16,7 +16,7 @@ def require_reader(connection, document_id, user_id, *, write=False, owner=False
 def settings(connection, document_id):
     row = connection.execute('SELECT * FROM document_review_settings WHERE document_id=?', (document_id,)).fetchone()
     return dict(row) if row else dict(document_id=document_id, visibility_policy='shared',
-        default_scope='all', default_spread=0, default_display='expanded')
+        default_scope='all', default_spread=0, default_display='expanded', downloads_allowed=1)
 
 
 def author_predicate(connection, document_id, user_id, author_column, *, personal=True):

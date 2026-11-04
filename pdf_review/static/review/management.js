@@ -1,5 +1,5 @@
 import { AppDialog } from './dialogs.js';
-import { LeftCard } from './left_card.js';
+import { LeftCard, registerLeftCard } from './left_card.js';
 import { appFetch } from './http.js';
 import { SectionsWorkspace } from './sections_workspace.js';
 
@@ -8,6 +8,10 @@ let sectionsPanel = null;
 let settingsPanel = null;
 export function registerManagement(context) {
   viewer = context;
+  if(context.config.isOwner){
+    registerLeftCard('settings',()=>openSettings(context.config.documentId,null));
+    registerLeftCard('sections',async()=>(await openSections(context.config.documentId,null)).dialog);
+  }
   context.sectionViewer.onActivateSection = (id, kind) => { context.deselectThread?.(); return openSections(context.config.documentId, null, id, kind); };
   const query = new URLSearchParams(location.search);
   if (context.config.isOwner && query.get('settingsPanel') === '1') openSettings(context.config.documentId, null);
@@ -17,7 +21,7 @@ export function registerManagement(context) {
 export async function openSettings(documentId, opener) {
   if (settingsPanel?.element.isConnected) { settingsPanel.open(); return settingsPanel; }
   if (!viewer && await enterViewer(documentId, 'settingsPanel')) return;
-  const dialog = viewer ? new LeftCard('Review settings', { opener, viewer, className: 'settings-panel' }) : new AppDialog('Review settings', { opener });
+  const dialog = viewer ? new LeftCard('Review settings', { opener, viewer, className: 'settings-panel', stateKey:'settings' }) : new AppDialog('Review settings', { opener });
   settingsPanel = dialog;
   dialog.body.textContent = 'Loading…'; if (dialog.open() === false) return;
   try {

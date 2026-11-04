@@ -12,7 +12,7 @@
   <script type="module" src="{{ url_for('static', filename='review/menus.js') }}"></script>
   <link rel="stylesheet" href="{{ url_for('static',filename='styles/dialogs.css') }}">
 </head>
-<body class="viewer-page">
+<body class="viewer-page" data-downloads-allowed="{{ 'true' if anchor_config.downloadsAllowed else 'false' }}">
   <header class="viewer-shell-bar app-toolbar">
     <a href="{{ url_for('core.document_detail', document_id=version.document_id) }}" aria-label="Back to document"><span class="back-arrow" aria-hidden="true">&larr;</span></a>
     <div class="viewer-title">
@@ -58,8 +58,8 @@
         <button type="button" data-pdf-control="firstPage">First page</button>
         <button type="button" data-pdf-control="lastPage">Last page</button>
         <button type="button" data-pdf-control="presentationMode">Presentation</button>
-        <button type="button" data-pdf-control="printButton">Print</button>
-        <button type="button" data-pdf-control="downloadButton">Download</button>
+        <button type="button" data-pdf-control="printButton" {{ 'hidden disabled' if not anchor_config.downloadsAllowed }}>Print</button>
+        <button type="button" data-pdf-control="downloadButton" {{ 'hidden disabled' if not anchor_config.downloadsAllowed }}>Download</button>
         <button type="button" data-pdf-control="documentProperties">Document properties</button>
       </div>
     </details>

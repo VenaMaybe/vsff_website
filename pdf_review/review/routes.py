@@ -206,8 +206,15 @@ def view_version(version_id: str):
     viewer_base = url_for("static", filename="vendor/pdfjs/web/viewer.html")
     pdf_url = url_for("core.version_pdf", version_id=version_id)
     viewer_url = f"{viewer_base}?file={quote(pdf_url, safe='')}"
+    from .review_policy import settings
+    connection = connect(database_path())
+    try:
+        downloads_allowed = bool(settings(connection, version['document_id'])['downloads_allowed'])
+    finally:
+        connection.close()
     anchor_config = {
         "versionId": version_id,
+        "downloadsAllowed": downloads_allowed,
         "anchorsUrl": url_for("core.version_anchors", version_id=version_id, standalone="1"),
         "deleteUrlTemplate": url_for("core.anchor_item", anchor_id="__ANCHOR_ID__"),
         "threadsUrl": url_for("core.version_threads", version_id=version_id),

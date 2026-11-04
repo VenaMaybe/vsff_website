@@ -1,9 +1,57 @@
-import { animateCard } from './card_motion.js';
+import { animateCard, CARD_MOTION_MS } from './card_motion.js';
 
 const cards = new Set();
 const tails = new Map();
 let scheduled = false;
 let focusedCard = null;
+const openers=new Map();
+let storageKey=null, restoring=false, persistTimer=null, savedCards=[];
+export function configureLeftCards(config) {
+  storageKey=`pdf-review:left-cards:v1:${config.currentUserId}:${config.versionId}`;
+  restoring=true;
+  try{const data=JSON.parse(localStorage.getItem(storageKey)||'[]');savedCards=Array.isArray(data)?data.slice(0,3):[];}catch{savedCards=[];}
+}
+export function registerLeftCard(key,open) {openers.set(key,open);}
+function persistCards() {
+  clearTimeout(persistTimer);
+  if(!storageKey||restoring)return;
+  const state=[];
+  for(const card of cards) {
+    if(!card.stateKey||!card.anchorPage)continue;
+    const page=Number(card.anchorPage.dataset.pageNumber),rect=card.anchorPage.getBoundingClientRect();
+    const fraction=(card.element.getBoundingClientRect().top-card.sectionViewer.frame.getBoundingClientRect().top-rect.top)/rect.height;
+    if(Number.isFinite(fraction))state.push({key:card.stateKey,page,fraction:Math.round(fraction*1e6)/1e6,pinned:card.pinned});
+  }
+  try{const value=JSON.stringify(state);if(localStorage.getItem(storageKey)!==value)localStorage.setItem(storageKey,value);}catch{/* Storage can be unavailable; cards remain usable. */}
+}
+function queuePersist() {if(storageKey&&!restoring){clearTimeout(persistTimer);persistTimer=setTimeout(persistCards,CARD_MOTION_MS+40);}}
+window.addEventListener('pagehide',persistCards);
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')persistCards();});
+export async function restoreLeftCards(pageCount) {
+  const restored=[],seen=new Set();
+  try {
+    for(const record of savedCards) {
+      if(!record||!openers.has(record.key)||seen.has(record.key)||!Number.isInteger(record.page)||record.page<1||record.page>pageCount||!Number.isFinite(record.fraction)||Math.abs(record.fraction)>1e6||typeof record.pinned!=='boolean')continue;
+      seen.add(record.key);
+      try {
+        const card=await openers.get(record.key)();
+        if(card?.element.isConnected)restored.push({card,record});
+      } catch { /* A failed tool must not prevent the viewer from starting. */ }
+    }
+    let pinned=false;
+    for(const {card,record} of restored) {
+      card.openingCentered=false;card.centerRequest=null;
+      card.anchorPage=card.sectionViewer.application.pdfViewer.getPageView(record.page-1).div;
+      card.anchorFraction=record.fraction;card.pinned=record.pinned&&!pinned;pinned ||= card.pinned;card.updatePin();
+      card.element.classList.remove('active');
+    }
+    focusedCard=null;
+    if(restored.some(({card})=>card.element.contains(document.activeElement)))document.activeElement.blur();
+    layoutCards();
+    await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+  } finally {restoring=false;queuePersist();}
+}
+
 function layoutCards(animate = false) {
   if (scheduled && !animate) return;
   const run = () => {
@@ -16,6 +64,9 @@ function layoutCards(animate = false) {
       groups.get(parent).push(card);
     }
     for (const [parent, group] of groups) {
+      const integration=group[0].sectionViewer;
+      const firstPage=integration.application.pdfViewer.getPageView(0)?.div;
+      const pageTop=firstPage ? integration.frame.getBoundingClientRect().top+firstPage.getBoundingClientRect().top-parent.getBoundingClientRect().top : 0;
       for (const card of group) {
         if (card.openingCentered && !card.pinned) card.captureAnchor(parent.getBoundingClientRect().top + Math.max(8, (parent.clientHeight-card.element.offsetHeight)/2));
         if (card.centerRequest) {
@@ -23,16 +74,16 @@ function layoutCards(animate = false) {
           if (!card.pinned && Number.isFinite(center)) card.captureAnchor(parent.getBoundingClientRect().top + Math.max(8, center - parent.getBoundingClientRect().top - card.element.offsetHeight / 2));
           card.centerRequest = null;
         }
-        card.preferredTop = card.pinned ? 8 : card.documentTop();
+        card.preferredTop = card.pinned ? Math.max(8,pageTop) : Math.max(pageTop,card.documentTop());
       }
       // Pinned cards are an independent overlay. Only document-attached cards
       // take part in collision packing and choose a fixed point.
       const occupied = [];
-      for (const card of group) if (card.pinned) card.layoutTop = 8;
+      for (const card of group) if (card.pinned) card.layoutTop = card.preferredTop;
       const order = group.filter(card => !card.pinned).sort((a,b) => (b === focusedCard)-(a === focusedCard));
       for (const card of order) {
         const gaps = [];
-        const min = -Infinity, max = Infinity;
+        const min = pageTop, max = Infinity;
         let start = min;
         for (const box of occupied.sort((a,b) => a.top-b.top)) {
           if (box.bottom + 8 <= min || box.top - 8 >= max) continue;
@@ -56,7 +107,7 @@ function layoutCards(animate = false) {
           tail.style.cssText = 'position:absolute;left:0;width:1px;height:1px;pointer-events:none';
           first.scroller.append(tail); tails.set(parent, tail);
         }
-        const contentStart = Math.max(...attached.map(card => card.documentTop() + first.scroller.scrollTop));
+        const contentStart = Math.max(...attached.map(card => Math.max(pageTop,card.documentTop()) + first.scroller.scrollTop));
         const stack = attached.reduce((sum,card)=>sum+card.element.offsetHeight+8,0);
         tail.style.top = `${Math.ceil(Math.max(parseFloat(tail.style.top)||0, first.sectionViewer.application.pdfViewer.viewer.offsetHeight, contentStart + stack + 8))}px`;
       } else { tails.get(parent)?.remove(); tails.delete(parent); }
@@ -66,6 +117,7 @@ function layoutCards(animate = false) {
         card.lastOffset = offset;
       }
     }
+    queuePersist();
   };
   if (animate) run(); else { scheduled = true; requestAnimationFrame(run); }
 }
@@ -86,8 +138,8 @@ let nextId = 0;
 // Reusable simultaneous utility cards. Callers own content; the shell owns
 // viewport packing, document anchors, pinning, animation and focus.
 export class LeftCard {
-  constructor(title, { opener, viewer, className = '', onVisibility } = {}) {
-    Object.assign(this, { viewer, onVisibility, title });
+  constructor(title, { opener, viewer, className = '', onVisibility, stateKey=null } = {}) {
+    Object.assign(this, { viewer, onVisibility, title, stateKey });
     this.opener = opener?.getClientRects().length ? opener : opener?.closest('.toolbar-menu')?.querySelector('summary');
     this.pinned = false;
     this.element = document.createElement('section');
@@ -142,7 +194,7 @@ export class LeftCard {
     this.scroller?.addEventListener('scroll', this.onScroll, { passive: true });
     this.resize = new ResizeObserver(this.schedule);
     this.resize.observe(workspace || document.body); this.resize.observe(this.element);
-    for (const event of ['scalechanging', 'rotationchanging', 'spreadmodechanged', 'scrollmodechanged', 'pagerendered']) this.bus?.on(event, this.schedule);
+    for (const event of ['scalechanging', 'rotationchanging', 'spreadmodechanged', 'scrollmodechanged', 'pagerendered', 'reviewlayoutchanged']) this.bus?.on(event, this.schedule);
     layoutCards(true); animateCard(this.element, 4, true);
     this.onVisibility?.(true); this.closeButton.focus({ preventScroll: true });
     return true;
@@ -153,7 +205,21 @@ export class LeftCard {
     requestAnimationFrame(()=>requestAnimationFrame(()=>{this.openingCentered=false;}));
   }
   activate() {
-    const changed = !this.pinned && focusedCard !== this; if (!this.pinned) focusedCard = this;
+    const changed = !this.pinned && (focusedCard !== this || !this.element.classList.contains('active'));
+    if(changed && this.element.isConnected && !this.openingCentered) {
+      // Collision displacement becomes the anchor before changing focus priority.
+      // Preserve neighbors too so focusing one card cannot undo their packing.
+      for(const card of cards)if(!card.pinned && card.element.parentElement===this.element.parentElement) {
+        const top=card.element.getBoundingClientRect().top;
+        card.captureAnchor(top);
+        const animations=card.element.getAnimations();
+        if(animations.length){
+          animations.forEach(animation=>animation.cancel());
+          card.element.style.top=`${top-card.element.parentElement.getBoundingClientRect().top}px`;
+        }
+      }
+    }
+    if (!this.pinned) focusedCard = this;
     for (const card of cards) card.element.classList.toggle('active', card === this);
     if (changed) layoutCards(true);
   }
@@ -241,6 +307,8 @@ export class LeftCard {
     const page = !this.pinned ? this.anchorPage : pdf.getPageView(pdf.currentPageNumber - 1)?.div;
     if (!page) return;
     const rect = page.getBoundingClientRect(), frame = integration.frame.getBoundingClientRect();
+    const firstPageTop=frame.top+pdf.getPageView(0).div.getBoundingClientRect().top;
+    if(visualTop<firstPageTop){this.element.getAnimations().forEach(animation=>animation.cancel());visualTop=firstPageTop;}
     const workspace = this.element.parentElement.getBoundingClientRect();
     const siblings = pdf.scrollMode === 1 ? pdf.viewer.querySelectorAll('.page') : page.closest('.spread')?.querySelectorAll(':scope > .page') || [page];
     const left = Math.min(...[...siblings].map(p => p.getBoundingClientRect().left));
@@ -254,7 +322,7 @@ export class LeftCard {
     if (this.busy) return false;
     this.cancelHeaderDrag?.();this.focusEvents?.abort();
     this.scroller?.removeEventListener('scroll', this.onScroll); this.resize?.disconnect();
-    for (const event of ['scalechanging', 'rotationchanging', 'spreadmodechanged', 'scrollmodechanged', 'pagerendered']) this.bus?.off(event, this.schedule);
+    for (const event of ['scalechanging', 'rotationchanging', 'spreadmodechanged', 'scrollmodechanged', 'pagerendered', 'reviewlayoutchanged']) this.bus?.off(event, this.schedule);
     this.element.getAnimations().forEach(animation => animation.cancel());
     const parent = this.element.parentElement;
     this.element.remove();

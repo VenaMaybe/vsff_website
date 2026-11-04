@@ -1,5 +1,194 @@
 # C2 management interaction refinement
 
+## Owner-controlled PDF downloads and printing
+
+Review Settings now offers **PDF downloads: Allowed / Off**, enabled by default.
+Off hides and disables the View menu Download/Print buttons, hides native PDF.js
+export and attachment controls, blocks PDF.js save/download/print actions and
+attachment exports, and intercepts Ctrl/Cmd+S/P in both the host and PDF iframe.
+Print-media content is hidden as a fallback. The document policy applies to all
+roles and versions, updates already-open viewers, survives reopening, and can be
+re-enabled without reloading.
+
+Migration 10 adds a checked boolean integer to document review settings and
+preserves existing defaults. Settings remain owner-only and CSRF-protected;
+personal preferences cannot override this policy. The existing version-room
+notification refresh updates the policy without a new transport or endpoint.
+
+This restricts application export controls, not browser access to renderable
+bytes. The authenticated PDF read/range endpoint must stay available for PDF.js;
+browser menus, raw URLs, developer tools and screen capture cannot be reliably
+blocked. The settings card states this limitation. PDFs and vendor sources are
+unchanged. Only disposable test databases have been migrated during this work.
+
+Files edited for this refinement:
+
+- New `review/migration10.sql` and `review/database.py`: numbered migration.
+- `review/review_policy.py`, `review/preferences.py`: defaults, validation and save.
+- `review/review_routes.py`: parse the owner settings field.
+- `review/routes.py`: initial viewer policy.
+- `templates/review_settings.html`, `templates/viewer.html`: setting and initial controls.
+- `static/review/viewer_bootstrap.js`: early native action and shortcut guards.
+- `static/review/viewer_preferences.js`: canonical live updates.
+- `static/styles/pdfjs.css`, `static/styles/viewer.css`: native controls and print fallback.
+- `tests/test_beta_c2.py`: owner enforcement, invalid values, partial updates,
+  all-version rendering, and idempotent migration from schema 9.
+- New `tests/download_policy_acceptance.py`, `tests/browser_sanity.py`: browser checks.
+- `README.md`, `ARCHITECTURE.md`, and this report.
+
+Validation: the focused C2 server suite passed 31 tests. The download-policy
+browser checks passed owner save, live reviewer updates, hidden controls,
+application/event-bus/attachment guards, Ctrl/Cmd+S/P in both documents, rendering
+after reload, print fallback and re-enabling exports. All 166 server tests and
+the existing settings/sections management browser regression passed. The
+whitespace check passed; the disabled-download viewer screenshot was inspected. Work remains local and uncommitted; no deployment.
+
+## Remember left tools and simplify section feedback
+
+Open Sections, Review Settings and Search cards now restore after reopening this
+PDF viewer in the same browser. The reusable card shell saves open tool keys,
+document-relative page/fraction positions and pin state per signed-in account and
+exact PDF version. Closing a card removes it from the saved layout, including
+when navigating immediately afterward. Restored cards retain natural height,
+page-start bounds, collision packing and the independent single pinned overlay.
+They reopen unfocused. Browser storage failures leave the tools usable; invalid
+records and tools unavailable to the current role are ignored.
+
+Only UI metadata is stored: no search terms, settings drafts, section prompts,
+review content or PDF bytes. Restoration uses existing permission-checked tool
+loads after viewer preferences and canonical review data are ready. Layout is
+browser-local and does not sync across devices.
+
+Section feedback now shows `Section name · Prompt` in one header, with
+`Overall thoughts` for a blank prompt. The separate prompt paragraph and empty
+invitation are removed; the response count, Add response action and existing
+responses remain. Comments has a divider before Reset to document defaults.
+
+Files edited for this refinement:
+
+- `static/review/left_card.js`: shared storage, validation, restore and lifecycle saves.
+- `static/review/anchors.js`: configure and restore after viewer initialization.
+- `static/review/management.js`: register permitted owner tool openers.
+- `static/review/sections_panel.js`: stable Sections persistence key.
+- `static/review/viewer_shell.js`: Search persistence key and opener.
+- `static/review/thread_sidebar.js`: compact section name/prompt header.
+- `static/review/viewer_preferences.js`: Comments menu separator.
+- `tests/card_state_acceptance.py` (new): focused browser regression.
+- `tests/browser_sanity.py`: focused regression entry point.
+- `README.md`, `ARCHITECTURE.md`, and this report.
+
+Validation: focused card-state browser checks passed open/closed restoration,
+real header dragging, normalized document positions, single-pin restoration,
+account/version isolation, omitted search content, corrupt-state recovery,
+prompt/default headers and menu separation. Existing no-jump focus/drag browser
+checks also passed. The C2 browser acceptance suite passed sections, actual
+response submission, shared/isolated review, viewer preferences, outline import,
+presence, zoom/rotation/spreads and responsive layouts. The whitespace check
+passed and the restored-card screenshot was inspected. No backend, schema, dependency or vendor changes. All work remains
+local and uncommitted. Earlier refinement notes below are historical.
+
+## Preserve displayed positions when focusing utility cards
+
+Clicking, grabbing or keyboard-focusing an unfocused left card now adopts its
+rendered position as its document anchor before it takes packing priority. Other
+unpinned cards in the same workspace also retain their rendered positions, so
+focus changes do not undo previous collision displacement. Existing animations
+are flattened to the displayed position instead of applying their offset twice.
+Dragging begins at that displayed position. Pinned cards retain their independent
+behavior; deliberate section-line centering and offscreen tool retrieval remain.
+
+Edited files: `static/review/left_card.js`, `tests/browser_sanity.py`, new focused
+regression `tests/left_card_focus.py`, `README.md`, `ARCHITECTURE.md`, and this report.
+
+Validation: focused activation and management browser checks passed, along with
+the whitespace check. The regression
+creates two cards with the same preferred anchor, confirms that packing displaces
+one, and uses real pointer input to check clicking and dragging from its displayed
+position. Keyboard focus, an already running animation and deliberate centering
+are covered too. No backend, schema or dependency changes. Work remains local
+and uncommitted. Earlier refinement notes below are historical.
+
+## Search option grid and document-start card bound
+
+Search options are now always visible in a two-by-two grid, with each native
+checkbox and its label vertically centered. The Options disclosure is removed.
+Existing checkbox IDs, labels and PDF.js change handlers remain intact.
+
+Left-card collision packing now starts at the first PDF page top in document
+coordinates. Dragging, activation, pinning and animations cannot place a utility
+card above that boundary. Cards retain their full height and use space below when
+an upper gap does not fit. The overflow sentinel includes the bounded stack.
+Right-hand comment packing is unchanged.
+
+The outer workspace now clips overflow without becoming a programmatically
+scrollable container. This prevents focus-driven host scrolling from shifting
+cards a few pixels above the first-page bound; PDF scrolling remains native.
+
+Edited files:
+
+- `static/review/viewer_shell.js`
+- `static/review/left_card.js`
+- `static/styles/dialogs.css`
+- `static/styles/viewer.css`
+- `tests/six_refinements.py`
+- `README.md`, `ARCHITECTURE.md`, and this report.
+
+The focused browser checks passed grid layout, checkbox/label centers and
+first-page bounds through header dragging, packing, pinning and unpinning,
+along with the existing six-refinement behavior. Management and full browser
+acceptance checks passed, including keyboard search and unchanged comment
+scrolling/layout. The whitespace check passed and the search grid screenshot
+was inspected.
+No backend, schema, dependency or vendor changes. Work remains local and
+uncommitted. Earlier refinement notes below are historical.
+
+## Six viewer refinements: color, layout, zoom, thoughts, filters and search
+
+1. Selected right-side comments brighten the original poster's review color,
+   replacing the green selection border. Utility-card accents are unchanged.
+2. Right-rail layout dispatches `reviewlayoutchanged` after stage/gutter changes.
+   Open left cards recalculate against the PDF when comment visibility, filtering
+   or related layout changes, without requiring selection.
+3. The PDF surface keeps native one-finger pan axes while two-finger pinch is
+   handled by the existing PDF.js TouchManager. No global browser zoom restriction
+   or vendor change is needed.
+4. Section overall-thoughts cards prefer their bottom at the section end. Selected
+   and floating section cards retain this anchor; normal collision packing remains.
+5. Everyone now opens the person checklist and selects Everyone scope. All selects
+   every person and clears hidden-author filters. Mine remains separate. Checklist
+   actions keep the menu open; isolation and saved preferences retain their policy.
+6. Search adopts PDF.js's existing controls into the shared LeftCard shell, with
+   pinning, header drag, packing and focus behavior. Matching, navigation, options,
+   Ctrl/Command+F and Escape use the existing engine. Match/status text is rendered
+   by the host, and field focus avoids scrolling the host page. Old floating-find
+   styles were removed.
+
+Edited files:
+
+- `static/review/viewer_shell.js`
+- `static/review/left_card.js`
+- `static/review/viewer_preferences.js`
+- `static/review/menus.js`
+- `static/styles/comments.css`
+- `static/styles/dialogs.css`
+- `static/styles/pdfjs.css`
+- `static/styles/viewer.css`
+- `tests/six_refinements.py` (new focused browser checks)
+- `tests/browser_sanity.py`
+- `tests/viewer_acceptance.py`
+- `README.md`, `ARCHITECTURE.md`, and this report.
+
+Validation: the focused six-feature Chrome checks passed, including real
+CDP two-touch input changing PDF scale while visualViewport scale stays fixed.
+Full existing browser acceptance and C2 privacy/preferences/responsive checks
+passed, along with all 164 unit tests. Desktop search, Everyone checklist and
+mobile pinch/search screenshots were inspected. The final mobile focus/bounds
+check and whitespace check passed. New mobile search opens with its left gutter
+exposed after a pinch-induced horizontal pan, without changing PDF scale. Physical iOS/Safari was not available for testing.
+
+No backend, schema, dependency or vendored PDF.js changes. Work remains local,
+unstaged and uncommitted. Earlier refinement notes below are historical.
+
 ## Inspector-only boundaries, following-page borders and click-away focus
 
 Removed the separate structural end rails/ticks that were visible with Sections

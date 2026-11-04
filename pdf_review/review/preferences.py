@@ -18,7 +18,7 @@ def validate(values, choices):
 
 
 DEFAULT_CHOICES = dict(visibility_policy=('shared','isolated'), default_scope=('all','mine'),
-                       default_spread=(0,1,2), default_display=('expanded','minimized','hidden'))
+                       default_spread=(0,1,2), default_display=('expanded','minimized','hidden'), downloads_allowed=(0,1))
 PERSONAL_CHOICES = dict(scope=('all','mine'), spread=(0,1,2), display=('expanded','minimized','hidden','mobile'))
 
 
@@ -28,11 +28,11 @@ def save_defaults(database, document_id, user_id, values):
         authorize_actor(c, user_id, document_id)
         current = settings(c, document_id)
         current.update(values)
-        c.execute('''INSERT INTO document_review_settings VALUES(?,?,?,?,?)
+        c.execute('''INSERT INTO document_review_settings (document_id,visibility_policy,default_scope,default_spread,default_display,downloads_allowed) VALUES(?,?,?,?,?,?)
             ON CONFLICT(document_id) DO UPDATE SET visibility_policy=excluded.visibility_policy,
             default_scope=excluded.default_scope,default_spread=excluded.default_spread,
-            default_display=excluded.default_display''', tuple(current[k] for k in
-            ('document_id','visibility_policy','default_scope','default_spread','default_display')))
+            default_display=excluded.default_display,downloads_allowed=excluded.downloads_allowed''', tuple(current[k] for k in
+            ('document_id','visibility_policy','default_scope','default_spread','default_display','downloads_allowed')))
 
 
 def read_preferences(database, document_id, user_id):

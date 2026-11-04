@@ -249,8 +249,13 @@ tokens and control/menu primitives rather than introducing one-off visual system
 `base.html` and independent `viewer.html` share `.app-toolbar`, canonical
 `.toolbar-menu` / `.toolbar-popover` styling in `base.css`, `menus.js` behavior,
 and `_account_menu.html`. The viewer retains its special workspace DOM.
-Native find controls/listeners remain in the iframe and are arranged/restyled by
-the app-owned integration. Page borders and both row/spread gaps use the vendored
+Native find controls retain their PDF.js listeners and matching engine, but their
+DOM is adopted into the host document's reusable Search left card. The application
+synchronizes card/native open and close state, match/status text, and prevents
+input focus from scrolling the host website. Four native checkbox/label pairs
+are always visible in a two-column grid, with centered vertical alignment; there
+is no Options disclosure. Ctrl/Command+F and Escape work in
+both documents; original match navigation and option handlers remain intact. Page borders and both row/spread gaps use the vendored
 PDF.js defaults; no app-owned page-spacing override remains.
 See `VIEWER_REFINEMENT_REPORT.md` for the current presentation contract.
 
@@ -327,14 +332,26 @@ there are no viewport/share height limits or internal card/list scrolling. New
 cards open unpinned near the viewport center, then retain their document-relative
 position. Header pointer dragging moves a card vertically; dragging a pinned card
 releases it into document space. Header buttons retain their normal actions.
-At most one card is pinned, snapped 8 px below the workspace top above other cards.
+At most one card is pinned, snapped 8 px below the workspace top above other cards,
+clamped downward to the first page top if that is lower.
 The pinned card is an independent overlay, excluded from collision packing,
 neighbor focus priority and scroll-extent calculations. Its content height and
 activation cannot move unpinned cards. Pinning preserves existing document-card
 positions; pinning a second card unpins the previous one into document flow. Unpinning releases the card downward into document space. Collision
 packing only moves unpinned full-height cards up/down into free intervals; it never
-shrinks them. A pinned card participates only after it is unpinned.
+shrinks them. Packing has a lower bound at the first PDF page top in document
+coordinates, so active or neighboring utility cards cannot move above the document
+start. When no gap fits above a card, packing chooses space below it. Pinning and
+animations respect the same boundary. The overflow sentinel includes the bounded
+stack. Right-hand comment packing retains its existing rules. A pinned card
+participates only after it is unpinned.
 The active unpinned card is the fixed point among document-attached neighbors.
+Before an unfocused card takes that priority, it and its unpinned neighbors
+adopt their rendered positions as document anchors. Activation cannot restore an
+earlier pre-collision position. In-flight motion is flattened to the displayed
+position before repacking. Pointer, header-grab and keyboard focus share this
+rule; deliberate section-line centering and offscreen tool retrieval still move
+the inspector explicitly.
 Outside pointer/click events in either the host document or PDF iframe clear
 left-card focus and blur its controls without closing or moving cards. Events
 inside any left card retain focus; section-line activation may focus Sections.
@@ -347,7 +364,9 @@ and other cards. `card_motion.js` supplies the existing 160 ms ease-out comment
 selection animation; scrolling itself remains immediate and reduced motion is honored.
 
 Left space is padding in the PDF scrollable canvas (`--review-rail-left`), using
-its gray background and native scrollbars. The iframe stays full width. There is
+its gray background and native scrollbars. The outer workspace uses overflow
+clipping so browser focus cannot programmatically scroll that fixed overlay;
+the iframe retains the native PDF scrollbar. The iframe stays full width. There is
 no separate sidebar background. Right-hand comments keep their existing layout.
 `dialogs.js` remains for destructive/outline confirmations and Settings on a
 PDF-less document. The document page has no Review Settings or Manage Sections
@@ -422,6 +441,58 @@ right-side comment. PDF/background clicks retain normal deselection.
 Schema and immutable PDF bytes are unchanged. The shared-boundary operation
 uses the existing owner-only authorization policy.
 
+## Left-card layout persistence
+
+The reusable `left_card.js` shell saves minimal UI metadata in browser
+localStorage under `pdf-review:left-cards:v1:<user ID>:<version ID>`. Records
+contain only the registered tool key (Sections, Review Settings or Search),
+anchor page, normalized document-relative vertical position and pin state.
+No search text, prompts, drafts, review payloads or PDF bytes are cached. This
+is local presentation state, not a private-content cache or mutation outbox.
+
+Layout changes save with a short debounce; pagehide and hidden-document events
+flush current open/closed state. After personal viewer preferences and canonical
+review data load, registered tool openers restore content through existing
+permission-checked fetches, then the shell restores positions together using its
+normal page-start bounds and collision packing. Only one restored card may be
+pinned. Owner-only tool openers are not registered for other reviewers. Unknown
+tools, invalid positions, malformed storage and unavailable storage cannot block
+viewer startup. Account and exact-version keys prevent layout inheritance across
+users or PDF versions; no schema, API or dependency changes are required.
+
+Section feedback uses one header containing the section name and trimmed prompt,
+with `Overall thoughts` as the empty-prompt fallback. A separate prompt paragraph
+and empty response invitation are omitted; existing responses and Add response
+remain. Comments places a separator before Reset to document defaults.
+
+## Viewer interaction refinements
+
+Selected right-hand comments use a brighter mix of the immutable root author's
+review color (78% author color, 22% white). Utility cards keep their existing
+accent. No review identities or palette choices are changed.
+
+After right-rail layout applies visibility, width and stage changes,
+`reviewlayoutchanged` schedules every open left card against the newly positioned
+PDF. It does not depend on selecting a card. Existing scrolling, pin independence
+and natural-height collision packing remain in the reusable shell.
+
+Section feedback cards prefer their bottom at the section end. Selected section
+cards keep that bottom anchor, including floating/minimized presentations;
+ordinary collision packing still moves neighboring cards when needed.
+
+Everyone is the person-list submenu itself, alongside Mine. Opening it selects
+Everyone scope, individual checkboxes filter whole root-author conversations,
+and All clears hidden authors and selects every person. Checklist actions keep
+the submenu open. Existing durable preferences and enforced isolated-review
+policy are unchanged; isolated non-owners cannot open the person list.
+
+Touch-action on the PDF surface permits single-finger pan axes without delegating
+two-finger pinch to browser viewport zoom. The existing PDF.js TouchManager owns
+the pinch and changes PDF scale around the gesture; the toolbar/site scale stays
+unchanged. No vendor modifications or global user-scalable viewport restriction
+are introduced. Chrome touch emulation verifies the gesture; physical Safari/iOS
+acceptance remains separate.
+
 ## Review palette refresh (migration 9)
 
 The selectable palette is now the ten published Tableau 10 categorical colors,
@@ -430,3 +501,29 @@ Migration 9 inserts these entries, maps existing review colors to an approximate
 corresponding hue, then removes the old choices without breaking user foreign keys.
 Names/hover labels identify the swatches. Historical migrations are unchanged;
 new-user random assignment uses the new palette through the existing trigger.
+
+## Document download controls (migration 10)
+
+`document_review_settings.downloads_allowed` is an owner-controlled document
+setting, defaulting to 1 for existing and new documents. Its checked integer
+value is saved through the existing owner-only, CSRF-protected settings service;
+partial settings updates preserve it. It applies to all roles and versions of
+that document. Personal preferences cannot override it. Committed changes use
+the existing version-room notifications and canonical context refresh.
+
+The initial server-rendered viewer hides/disables host print and download buttons
+when restricted. The existing PDF.js pre-run integration wraps application print,
+save and download methods before native event-bus callbacks are bound. After
+initialization, the shared native download manager also guards attachment exports.
+The host and iframe intercept Ctrl/Cmd+S/P, hide native export/attachment controls,
+and suppress page content in print media as a fallback. Live canonical refresh
+updates the same gates, so disabling and enabling work without a reload. Vendor
+sources and immutable PDF bytes remain unchanged.
+
+This is a presentation/export policy, not DRM or a new read-access boundary. The
+existing authenticated PDF GET/range endpoint remains available for rendering;
+viewers can still obtain bytes or capture content using browser features outside
+app control. No claim is made to block browser menus, developer tools, screenshots,
+or raw PDF URL saves. Existing document ACLs and private response headers remain
+the read-access boundary. No new PDF rewriting, caching, or content mutation is
+introduced. Browser storage of left-card state never stores PDF bytes.

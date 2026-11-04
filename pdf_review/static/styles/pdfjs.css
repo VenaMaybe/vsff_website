@@ -14,33 +14,14 @@
 /* The native scrollbar surrounds the document and its adjacent comments. */
 #viewer { box-sizing: content-box; width: calc(100% - var(--review-rail-right) - var(--review-rail-left)); min-width: var(--review-stage-width, 0px); padding-right: var(--review-rail-right); padding-left: var(--review-rail-left); }
 #mainContainer { background: #e4e6e5; }
-#findbar { position: fixed; top: 4px; left: 8px; font-size: 12px; visibility: visible; }
 #viewsManager { position: fixed; top: 4px; left: 8px; max-height: calc(100vh - 12px); visibility: visible; }
 #secondaryToolbar { display: none; }
 .review-comments-hidden .pdf-review-thread-highlight { visibility: hidden; }
 @media (prefers-reduced-motion: reduce) { * { transition: none; } }
 
-/* Existing native find inputs/listeners/state; only structure and presentation change. */
-#findbar { width: min(520px, calc(100vw - 16px)); padding: 6px; border: 1px solid var(--line); border-radius: 3px; background: var(--surface); color: var(--ink); box-shadow: 0 2px 6px #0002; font: 12px system-ui, sans-serif; }
-#findbar::before, #findbar::after { display: none; }
-#findbar, #findbar * { box-sizing: border-box; }
-#findbar:not(.hidden) { display: block; }
-#findbar > .review-find-row { display: flex; align-items: center; gap: 4px; height: auto; min-height: var(--control-height); padding: 0; }
-#findbar > .review-find-options { height: auto; padding: 0; }
-/* Match the native nested toolbar-input specificity without !important. */
-#findbar input#findInput { flex: 1; min-width: 70px; width: auto; height: var(--control-height); padding: 4px 7px; border: 1px solid #b8beba; border-radius: 3px; background: white; color: var(--ink); font: 12px system-ui, sans-serif; }
-#findbar button { flex: 0 0 30px; width: 30px; height: 30px; border: 1px solid transparent; border-radius: 3px; color: var(--ink); background: transparent; font: 18px system-ui; padding: 0; cursor: pointer; }
-#findbar button:hover { background: var(--surface-hover); }
-#findbar button::before { display: none; }
-#findbar #findPreviousButton::after { content: '\2191'; }
-#findbar #findNextButton::after { content: '\2193'; }
-#findbar button span { display: none; }
-#findbar #findResultsCount { flex: 0 1 auto; min-width: 0; margin: 0; padding: 0 4px; color: var(--muted); background: transparent; white-space: nowrap; font: 11px system-ui; }
-#findbar .review-find-options { margin-top: 4px; }
-#findbar .review-find-options summary { padding: 2px; cursor: pointer; color: var(--muted); }
-#findbar .review-find-options .toolbarHorizontalGroup { display: flex; gap: 4px; flex-wrap: wrap; height: auto; padding: 4px 0; }
-#findbar input[type=checkbox] { width: 14px; height: 14px; margin: 0 2px; accent-color: var(--accent); }
-#findbar label { font: 11px system-ui; color: var(--ink); }
-#findbar #findMsg { font: 11px system-ui; margin: 0; }
-#findbar #findMsg:empty { display: none; }
-#findbar :focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+/* Keep two-finger gestures in PDF.js while retaining native one-finger panning. */
+#viewerContainer { touch-action:pan-x pan-y; }
+
+/* Owner policy covers native and attachment exports, including print fallback. */
+:root[data-downloads-allowed="false"] :is(#printButton,#secondaryPrint,#downloadButton,#secondaryDownload,#attachmentsViewMenu,#attachmentsView,.fileAttachmentAnnotation) { display:none !important; }
+@media print { :root[data-downloads-allowed="false"] body { display:none !important; visibility:hidden !important; } }

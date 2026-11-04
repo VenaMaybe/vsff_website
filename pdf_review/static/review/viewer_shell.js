@@ -2,29 +2,36 @@ import { animateCard, CARD_MOTION_MS } from './card_motion.js';
 import { bindMenuDismissal, syncMenuValues } from "./menus.js";
 import { pdfRectangleToCss } from "./anchor_geometry.js";
 import { sectionGeometry } from './section_viewer.js';
+import { LeftCard, registerLeftCard } from './left_card.js';
 
 function installSearch(frame, application) {
   const doc = frame.contentDocument;
   const find = application.findBar;
   const row = doc.createElement("div");
   row.className = "review-find-row";
-  const options = doc.createElement("details");
+  const options = doc.createElement("div");
   options.className = "review-find-options";
-  const summary = doc.createElement("summary");
-  summary.textContent = "Options";
-  options.append(summary);
-  for (const id of ["findbarOptionsOneContainer", "findbarOptionsTwoContainer"]) options.append(doc.getElementById(id));
-  const close = doc.createElement("button");
-  close.type = "button";
-  close.className = "review-find-close";
-  close.setAttribute("aria-label", "Close document search");
-  close.title = "Close document search (Escape)";
-  close.textContent = "\u00d7";
-  close.addEventListener("click", () => { find.close(); document.querySelector('[data-pdf-control="viewFindButton"]').focus(); });
-  find.findField.placeholder = "Search document\u2026";
+  options.setAttribute('role','group');options.setAttribute('aria-label','Search options');
+  for (const id of ["findbarOptionsOneContainer", "findbarOptionsTwoContainer"]) {
+    options.append(...doc.getElementById(id).children);
+  }
+  find.findField.placeholder = "Search document...";
   find.findField.setAttribute("aria-label", "Search document");
-  row.append(find.findField, find.findResultsCount, find.findPreviousButton, find.findNextButton, close);
-  find.bar.replaceChildren(row, options, find.findMsg);
+  row.append(find.findField, find.findPreviousButton, find.findNextButton);
+  find.bar.replaceChildren(row,find.findResultsCount,options,find.findMsg);
+  const opener=document.querySelector('[data-pdf-control="viewFindButton"]');
+  const nativeOpen=find.open.bind(find),nativeClose=find.close.bind(find);
+  const focus=find.findField.focus.bind(find.findField);
+  find.findField.focus=(options={})=>focus({...options,preventScroll:true});
+  const card=new LeftCard('Search document',{opener,viewer:{sectionViewer:{frame,application}},className:'search-panel',stateKey:'search',onVisibility:visible=>{if(!visible)nativeClose();}});
+  card.body.append(find.bar);
+  // Native localization observes the iframe; adopted controls use app-owned text.
+  const count=find.updateResultsCount.bind(find),ui=find.updateUIState.bind(find);
+  find.updateResultsCount=(matches={})=>{count(matches);const {current=0,total=0}=matches;find.findResultsCount.textContent=total?`${current} of ${total}`:'';};
+  find.updateUIState=(state,previous,matches)=>{ui(state,previous,matches);const id=find.findMsg.getAttribute('data-l10n-id');find.findMsg.textContent=id==='pdfjs-find-not-found'?'No matches':id==='pdfjs-find-reached-top'?'Reached top; continuing from bottom':id==='pdfjs-find-reached-bottom'?'Reached bottom; continuing from top':'';};
+  find.open=()=>{const opening=!card.element.isConnected;card.open();if(opening&&innerWidth<750)application.pdfViewer.container.scrollLeft=0;nativeOpen();card.contentReady();find.findField.focus({preventScroll:true});return card;};
+  find.close=()=>{nativeClose();card.close();};
+  registerLeftCard('search',()=>find.open());
   const shortcut = (event) => {
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "f") {
       event.preventDefault(); event.stopImmediatePropagation(); find.open();
@@ -230,7 +237,7 @@ export class CommentRail {
       if (!geometry) { item.hidden = true; card.hidden = true; continue; }
       const railLeft = this.spreadRight(geometry.pageNumber) + 6;
       const x = (mobile && !thread.section ? Math.min(railLeft, this.scroller.clientWidth - 42) : railLeft) + this.scroller.scrollLeft;
-      items.push({ card: item, page: geometry.pageNumber, y: geometry.top + this.scroller.scrollTop,
+      items.push({ card: item, page: geometry.pageNumber, bottomAligned:!!thread.section, y: geometry.top + this.scroller.scrollTop - (thread.section&&!minimized?item.offsetHeight:0),
         center: (geometry.top + geometry.bottom) / 2 + this.scroller.scrollTop,
         active: active && !minimized, x, height: item.offsetHeight });
       if (active && minimized) this.floating = { card, geometry, railLeft };
@@ -248,7 +255,7 @@ export class CommentRail {
     const pivot = items.findIndex((item) => item.active);
     if (pivot >= 0) {
       const selected = items[pivot];
-      selected.top = Math.max(this.scroller.scrollTop + 8, selected.center - selected.height / 2);
+      selected.top = selected.bottomAligned ? selected.y : Math.max(this.scroller.scrollTop + 8, selected.center - selected.height / 2);
       let top = selected.top;
       for (let i = pivot - 1; i >= 0; i--) {
         items[i].top = Math.min(items[i].y, top - items[i].height - gap);
@@ -281,6 +288,7 @@ export class CommentRail {
     this.animateComments(items, composing);
     this.translate();
     this.selectionLayout();
+    this.application.eventBus.dispatch("reviewlayoutchanged",{source:this});
   }
   animateComments(items, composing) {
     const focus = `${this.mode}:${this.state.selectedThreadId || ""}:${composing}`;
@@ -339,7 +347,7 @@ export class CommentRail {
     card.style.removeProperty("max-height");
     const position = mobile ? this.popupPosition(card, geometry) : {
       left: this.spreadRight(geometry.pageNumber) + 48,
-      top: Math.max(8, (geometry.top + geometry.bottom - card.offsetHeight) / 2) };
+      top: thread.section ? geometry.top-card.offsetHeight : Math.max(8, (geometry.top + geometry.bottom - card.offsetHeight) / 2) };
     card.style.left = `${position.left + this.scroller.scrollLeft}px`;
     card.style.top = `${position.top + this.scroller.scrollTop}px`;
   }

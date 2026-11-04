@@ -42,6 +42,49 @@ class BetaC2Tests(unittest.TestCase):
     def defaults(self,**values):
         preferences.save_defaults(self.db,self.doc,self.users[0],values)
 
+    def test_download_policy_owner_validation_and_rendering(self):
+        url=f'/documents/{self.doc}/review-settings'
+        self.assertEqual(self.context(1)['preferences']['defaults']['downloads_allowed'],1)
+        for index in [1,2,3]:
+            self.assertEqual(self.clients[index].post(url,data={'downloads_allowed':'0'}).status_code,403)
+        for value in ['2','true','invalid']:
+            self.assertEqual(self.clients[0].post(url,data={'downloads_allowed':value}).status_code,422)
+        saved=self.clients[0].post(url,data={'downloads_allowed':'0'})
+        self.assertEqual(saved.status_code,200)
+        self.assertEqual(saved.json['settings']['downloads_allowed'],0)
+        self.defaults(default_display='hidden')
+        self.assertEqual(self.context(1)['preferences']['defaults']['downloads_allowed'],0)
+        for version in self.versions:
+            html=self.clients[1].get(f'/versions/{version}/view').get_data(as_text=True)
+            self.assertIn('data-downloads-allowed="false"',html)
+            self.assertIn('data-pdf-control="downloadButton" hidden disabled',html)
+            self.assertIn('data-pdf-control="printButton" hidden disabled',html)
+            response=self.clients[1].get(f'/versions/{version}/pdf')
+            self.assertEqual(response.status_code,200)  # Read endpoint is needed by PDF.js.
+            response.close()
+        self.clients[0].post(url,data={'downloads_allowed':'1'})
+        self.assertEqual(self.context(1)['preferences']['defaults']['downloads_allowed'],1)
+
+    def test_migration10_preserves_defaults_and_enables_existing_documents(self):
+        path=self.root/'before10.sqlite3'
+        c=sqlite3.connect(path)
+        c.execute('CREATE TABLE schema_migrations(version INTEGER PRIMARY KEY,name TEXT UNIQUE,applied_at TEXT)')
+        for version,name,sql in MIGRATIONS[:9]:
+            c.executescript(sql)
+            c.execute('INSERT INTO schema_migrations VALUES(?,?,?)',(version,name,'before'))
+        c.commit();c.close()
+        old_doc=create_document(str(path),'Existing settings')
+        c=connect(path)
+        c.execute("INSERT INTO document_review_settings VALUES(?,'isolated','mine',2,'hidden')",(old_doc,))
+        c.commit();c.close()
+        init_database(path);init_database(path)
+        c=connect(path)
+        try:
+            row=dict(c.execute('SELECT * FROM document_review_settings').fetchone())
+            self.assertEqual((row['visibility_policy'],row['default_scope'],row['default_spread'],row['default_display'],row['downloads_allowed']),('isolated','mine',2,'hidden',1))
+            self.assertEqual(c.execute('SELECT COUNT(*) FROM schema_migrations WHERE version=10').fetchone()[0],1)
+        finally: c.close()
+
     def thread_ids(self,index):
         response=self.clients[index].get(f'/api/versions/{self.versions[0]}/threads')
         self.assertEqual(response.status_code,200,response.data)

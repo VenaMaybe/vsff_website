@@ -99,3 +99,19 @@
 .section-master-item { display:flex; align-items:baseline; justify-content:space-between; gap:10px; }
 .section-list-name { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .section-list-range { flex:none; color:#46584e; font-size:10px; font-variant-numeric:tabular-nums; white-space:nowrap; }
+
+.search-panel #findbar { position:static; width:auto; padding:0; border:0; background:transparent; box-shadow:none; color:inherit; }
+.search-panel #findbar.hidden { display:none; }
+.search-panel .review-find-row { display:flex; gap:4px; align-items:center; }
+.search-panel #findInput { min-width:0; flex:1; width:100%; padding:5px; font:12px system-ui; }
+.search-panel #findbar button { width:26px; min-height:26px; padding:0; background:transparent; color:inherit; }
+.search-panel #findbar button span { display:none; }
+.search-panel #findPreviousButton::after { content:'\2191'; }
+.search-panel #findNextButton::after { content:'\2193'; }
+.search-panel #findResultsCount, .search-panel #findMsg { display:block; font-size:11px; margin:5px 0; }
+.search-panel #findResultsCount:empty, .search-panel #findMsg:empty { display:none; }
+.search-panel .review-find-options { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px 6px; width:100%; margin-top:6px; }
+.search-panel .review-find-options .toggleButton { display:flex; align-items:center; gap:5px; min-width:0; }
+.search-panel .review-find-options label { font-size:11px; line-height:16px; margin:0; }
+.search-panel .toolbarHorizontalGroup { display:flex; flex-wrap:wrap; gap:5px; padding:5px 0; }
+.search-panel .review-find-options input { flex:none; width:14px; height:14px; min-height:0; padding:0; margin:0; }

@@ -64,7 +64,7 @@ document.addEventListener("click", (event) => {
   const action = event.target.closest(".toolbar-popover button, .toolbar-popover a");
   // Keep required confirmation fields visible when browser validation blocks a POST.
   if (action?.form && !action.form.checkValidity()) return;
-  if (action) closeMenus(true);
+  if (action && !action.closest("[data-keep-menu-open]")) closeMenus(true);
 });
 document.addEventListener("change", syncMenuValues);
 document.addEventListener("keydown", (event) => {

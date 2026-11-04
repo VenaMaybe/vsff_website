@@ -1,3 +1,4 @@
+import { configureLeftCards, restoreLeftCards } from './left_card.js';
 import { installViewerControls, anchorGeometry, CommentRail } from "./viewer_shell.js";
 import { syncMenuValues } from "./menus.js";
 import { fetchAnchors, removeAnchor, saveAnchor } from "./anchor_api.js";
@@ -399,6 +400,7 @@ async function initialize() {
   viewerApplication = application;
   state.currentReviewer = reviewerData.current_reviewer;
   overlay = new AnchorOverlay(frame.contentWindow, viewerApplication);
+  configureLeftCards(config);
   installViewerControls(frame, application);
   sectionViewer=new SectionViewer(frame,application,config,state,()=>threadRefresh.request(),setReviewStatus);
   registerManagement({config,sectionViewer,deselectThread:sidebarActions.deselect,refresh:()=>threadRefresh.request()});
@@ -406,6 +408,7 @@ async function initialize() {
   await viewerPreferences.initialize();
   rail = new CommentRail(frame, application, state, composer, positionSelectionButton);
   await threadRefresh.request();
+  await restoreLeftCards(viewerApplication.pdfDocument.numPages);
   new MutationObserver(() => rail.schedule()).observe(composer.container, { attributes: true, attributeFilter: ["hidden"] });
   new ResizeObserver(() => rail.schedule()).observe(composer.container);
   frame.contentDocument.addEventListener("selectionchange", rememberSelection);
