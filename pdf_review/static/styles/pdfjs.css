@@ -19,9 +19,6 @@
 .review-comments-hidden .pdf-review-thread-highlight { visibility: hidden; }
 @media (prefers-reduced-motion: reduce) { * { transition: none; } }
 
-/* App touch handlers own two-finger PDF zoom; native one-finger panning remains. */
-#viewerContainer { touch-action:pan-x pan-y; }
-
 /* Owner policy covers native and attachment exports, including print fallback. */
 :root[data-downloads-allowed="false"] :is(#printButton,#secondaryPrint,#downloadButton,#secondaryDownload,#attachmentsViewMenu,#attachmentsView,.fileAttachmentAnnotation) { display:none !important; }
 @media print { :root[data-downloads-allowed="false"] body { display:none !important; visibility:hidden !important; } }

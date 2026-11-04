@@ -826,11 +826,11 @@ it; Escape closes it.
 Selected comment borders brighten the original poster's review color. Left cards
 realign after comment visibility/filter/layout changes. Section thoughts align
 their bottom near the section end using ordered list insertion. On the PDF
-surface, app touch handlers route two-finger pinches into PDF.js zoom, with a
-Safari gesture-event fallback; one-finger panning remains native. Automated tests
-cover genuine Chrome touches and simulated Safari gestures. Physical iPhone
-Safari still needs a full-reload retest; the earlier Chrome-only check did not
-prove that behavior on an iPhone. Shared account markup lives in `_account_menu.html`.
+surface, zoom uses unmodified PDF.js defaults. All custom pinch handlers,
+Safari gesture cancellation, focal corrections, forced pinch options and
+viewer-wide touch-action overrides have been removed. Physical mobile behavior
+is left to PDF.js and the browser. Temporary HTTPS testing is documented in
+[MOBILE_TESTING.md](MOBILE_TESTING.md). Shared account markup lives in `_account_menu.html`.
 New PDF Review server-rendered pages should use the shared application shell,
 tokens and control/menu primitives rather than introducing one-off visual systems.
 

@@ -75,20 +75,8 @@ def run_six(cdp, a, b, fixture, base):
     time.sleep(.25)
     assert ev("(()=>{const c=document.querySelector('.section-feedback-card').getBoundingClientRect(),f=document.querySelector('iframe').getBoundingClientRect(),p="+PDF+".getPageView(1),r=p.div.getBoundingClientRect(),y=p.viewport.convertToViewportPoint(0,300)[1]*p.div.clientHeight/p.viewport.height;return Math.abs(c.bottom-f.top-r.top-p.div.clientTop-y)<2;})()")
     ev("document.querySelector('.sections-panel .dialog-header button:last-child').click()")
-    # Genuine two-touch input zooms PDF content rather than the top-level viewport.
+    # Search remains usable at a mobile viewport with default PDF.js behavior.
     cdp.call('Emulation.setDeviceMetricsOverride',{'width':390,'height':844,'deviceScaleFactor':1,'mobile':True},a)
-    cdp.call('Emulation.setTouchEmulationEnabled',{'enabled':True,'maxTouchPoints':2},a)
-    ev(PDF+'.currentScale=.5;'+PDF+'.container.scrollTop=0;'+PDF+'.container.scrollLeft=0')
-    time.sleep(.3)
-    before=ev("({pdf:"+PDF+".currentScale,site:visualViewport.scale})")
-    for index in range(7):
-        points=[{'x':120-index*5,'y':350,'id':0},{'x':220+index*5,'y':350,'id':1}]
-        cdp.call('Input.dispatchTouchEvent',{'type':'touchStart' if index==0 else 'touchMove','touchPoints':points},a)
-        time.sleep(.03)
-    cdp.call('Input.dispatchTouchEvent',{'type':'touchEnd','touchPoints':[]},a)
-    wait(PDF+f".currentScale>{before['pdf']*1.1}")
-    assert abs(ev('visualViewport.scale')-before['site'])<.01
-    screenshot(cdp, a, 'six-mobile-pdf-pinch')
     ev("document.querySelector('[data-pdf-control=viewFindButton]').click()")
     wait("document.querySelector('.search-panel #findInput')!==null")
     time.sleep(.2)
@@ -96,4 +84,4 @@ def run_six(cdp, a, b, fixture, base):
     bounds=ev("(()=>{const r=document.querySelector('.search-panel').getBoundingClientRect();return {left:r.left,right:r.right,width:innerWidth,scroll:scrollX};})()")
     assert bounds['left']>=0 and bounds['right']<=bounds['width'],bounds
     screenshot(cdp,a,'six-mobile-search-card')
-    print('PASS author-color selection, live left-rail alignment, search/filter cards, reviewer checklist, bottom-aligned section thoughts and real PDF pinch zoom',flush=True)
+    print('PASS author-color selection, live left-rail alignment, search/filter cards, reviewer checklist, bottom-aligned section thoughts and mobile search',flush=True)

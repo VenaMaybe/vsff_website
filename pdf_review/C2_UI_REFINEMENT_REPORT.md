@@ -1,5 +1,133 @@
 # C2 management interaction refinement
 
+## Revert all custom zoom and touch integration
+
+At the user's request, restored default PDF.js zoom behavior. Removed the
+pdf_zoom_layout.js wrapper and its stage-width refactor, the forced native pinch
+option, Safari gesturestart/gesturechange cancellation in both documents, and
+viewer/iframe touch-action overrides. The earlier pdf_touch.js implementation
+remains removed. PDF.js vendor files are unchanged; default TouchManager and
+browser negotiation now govern pinch behavior.
+
+Removed the experiment-specific mobile_pinch test and its harness entry point,
+and removed the custom pinch assertions from the existing six-refinement check.
+The latter retains its comment, card, section feedback and mobile search checks.
+Unrelated left-card, comment, section and download-policy behavior is preserved.
+The HTTPS tunnel setup is retained. Reloading the viewer is required to discard
+handlers already installed in an open tab. Physical Safari improvement is not
+claimed. Earlier zoom implementation notes below are historical and superseded.
+
+Edited: static/review/viewer_bootstrap.js, static/review/viewer_shell.js,
+static/styles/pdfjs.css, static/styles/viewer.css, tests/browser_sanity.py,
+tests/six_refinements.py; deleted static/review/pdf_zoom_layout.js and
+tests/mobile_pinch.py; updated README.md, ARCHITECTURE.md, MOBILE_TESTING.md,
+MOBILE_ZOOM_ARCHITECTURE_REVIEW.md and this report.
+
+Validation: the remaining six-refinement browser checks passed; whitespace and
+source checks confirm no custom pinch/gesture handler or zoom wrapper remains.
+
+## Mobile zoom architecture review after the second iPhone test
+
+The user reports remaining jitter and occasional upward jumps. Reviewed the
+native gesture lifecycle, app layout and browser touch behavior instead of
+running another broad regression loop. Findings and implementation priorities
+are recorded in [MOBILE_ZOOM_ARCHITECTURE_REVIEW.md](MOBILE_ZOOM_ARCHITECTURE_REVIEW.md).
+
+The strongest new finding is target lifetime: highlight overlays are replaced
+on scale changes, although touch events retain their original targets and can
+stop reaching PDF.js's window listener when those targets are detached. Section
+markers are rebuilt too. The additional focal pan wrapper, repeated rail layout
+and changing overflow sentinels introduce further position/layout work during
+pinches. These are architectural concerns; the particular physical upward jump
+has not been traced to one cause. Existing tests wait for rendering to settle,
+which leaves rapid reversals and target replacement insufficiently covered.
+
+Recommended order: preserve touch targets, introduce a shared presentation pinch
+lifecycle, stabilize app-owned gutters/scroll extents during the gesture, then
+remove redundant focal correction once scale/stage layout is coordinated.
+Retain PDF.js. A preview-transform/commit design is a later option if the simpler
+native integration remains unreliable on physical Safari. This turn changes
+documentation only and does not claim another runtime fix.
+
+## Keep the native zoom focal point stable beside review rails
+
+The user tested the public HTTPS session on an iPhone SE and reported that native
+zoom improved but still drifted toward the upper left. Upstream also tracks iOS
+jumping in [PDF.js #20480](https://github.com/mozilla/pdf.js/issues/20480).
+The vendored build already contains the client-coordinate origin fix discussed
+in [PDF.js #21659](https://github.com/mozilla/pdf.js/pull/21659), so that patch was
+not duplicated.
+
+A fitted-page browser reproduction measured approximately 18 CSS px of drift.
+Our comment rail updated the PDF stage minimum width on a later animation frame,
+after native zoom had calculated its scroll offset. New `pdf_zoom_layout.js`
+preserves the point within the visible page during native focal zoom, updates the
+app stage width immediately, and corrects only the resulting position through
+native `panBy`. The fitted reproduction improved to below 2 CSS px. Scale factors,
+gesture tracking, rendering and toolbar zoom remain native. This is a verified
+integration issue, not a claim that every physical Safari glitch is resolved.
+
+Edited files: new `static/review/pdf_zoom_layout.js`,
+`static/review/viewer_shell.js`, `tests/mobile_pinch.py`, `ARCHITECTURE.md`,
+`MOBILE_TESTING.md`, and this report. Native vendor files remain unchanged.
+
+Validation includes fitted and scrolled pages, zoom in/out, moving finger
+midpoints with simultaneous panning, stable outer-site scale and one-finger
+scrolling. Focal regression tolerance is now 5 CSS px rather than 24 CSS px.
+The existing six-refinement browser check passed. The public session remains
+running; another physical Safari test is required. The earlier native-only
+implementation and validation below describe the previous revision.
+
+## Restore native pinch zoom; prepare HTTPS iPhone testing
+
+Removed the custom `pdf_touch.js` implementation and its installation call, as
+requested. PDF.js now retains its native TouchManager, zoom calculations and
+finger-origin handling. The pre-run hook explicitly enables native pinch zoom.
+A narrow Safari integration only cancels browser-level gesture events over the
+PDF/iframe; it does not swallow native touch events or calculate zoom itself.
+Existing pan-axis CSS and one-finger scrolling remain. Vendor files are unchanged.
+
+The user observed that the custom version behaved better near the top and seemed
+to zoom toward a corner farther down. This is consistent with focal/scroll issues,
+but no exact physical-device cause is claimed. Research found upstream
+[PDF.js #16328](https://github.com/mozilla/pdf.js/issues/16328), where the same
+Safari/iframe symptom is discussed. Automated coverage now measures the content
+under the finger midpoint on a scrolled second page, away from scroll-edge clamps.
+Pinches wait for native canvas/text rendering to settle before the next gesture;
+rapid gestures during canvas replacement and physical Safari remain unverified.
+
+Prepared `mobile_https.ps1` and `MOBILE_TESTING.md` for a temporary Cloudflare HTTPS
+session. The official 2026.10.7 executable was downloaded into ignored runtime
+storage and verified against its release SHA-256. The launcher preserves `.env`,
+uses one loopback app process, HTTPS origin/Secure cookies/one trusted proxy hop,
+and existing Google authentication and document ACLs. It refuses an occupied port
+and validates recorded process identities on stop. Its PowerShell syntax passed,
+and public startup succeeded after explicit user approval on November 3, 2026.
+
+Automatic approval review initially rejected public forwarding. The user then
+explicitly approved it, and the tunnel and single loopback app process started.
+Public `/healthz` returned HTTP 200; `/` redirected to login; `/auth/google`
+redirected to Google with the exact generated HTTPS callback. No Google
+configuration was changed. The user must register that callback manually in the
+existing Google OAuth client before signing in. Physical iPhone testing remains
+pending.
+See [Cloudflare's temporary endpoint documentation](https://developers.cloudflare.com/tunnel/get-started/quick-tunnels/).
+
+Edited files: `static/review/viewer_shell.js`, `static/review/viewer_bootstrap.js`,
+removed `static/review/pdf_touch.js`, `static/styles/pdfjs.css`,
+`tests/mobile_pinch.py`, new `mobile_https.ps1`, new `MOBILE_TESTING.md`,
+`.gitignore`, `README.md`, `ARCHITECTURE.md`, and this report.
+
+Validation: native pinch-in/out checks passed on the first and scrolled second
+pages, including a midpoint check allowing up to 24 CSS px of native drift, stable
+site scale and one-finger scrolling. This is a regression guard against large
+corner jumps, not a pixel-perfect focal guarantee. Tests wait for rendering to
+settle between gestures. The existing six-viewer regression and whitespace check
+passed. The HTTPS launcher also passed public startup and unauthenticated routing
+checks after explicit approval. End-to-end Google sign-in remains unverified.
+No backend, schema, dependency or vendor changes. The earlier custom-pinch notes
+below are historical and their implementation has been reverted.
+
 ## Explicit PDF pinch handling and Safari gesture fallback
 
 The user confirmed the earlier touch-action change blocked website zoom but did

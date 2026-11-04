@@ -540,33 +540,30 @@ checklist. Existing backend policy still enforces privacy independently of these
 controls. Viewer and reviewer roles can use personal filters where policy allows.
 
 
-Touch-action on the PDF surface retains native one-finger pan axes. The app's
-`pdf_touch.js` integration explicitly owns two-finger scaling through PDF.js
-`updateZoom`, using client-coordinate distances and midpoint/pan offsets. It
-tracks stable touch identifiers and a gesture-start scale so small movements
-accumulate rather than being lost to per-event zoom rounding. It destroys the
-vendored application's TouchManager instance to avoid competing recognizers;
-PDF.js source, rendering, scale limits and focal-point math remain unchanged.
+Mobile zoom uses the unmodified vendored PDF.js defaults. The app does not
+install pinch/touch handlers, cancel Safari gesture events, override
+supportsPinchToZoom, wrap updateScale or add a focal-point pan correction.
+The custom pdf_touch.js and pdf_zoom_layout.js modules are removed. Viewer-wide
+and iframe touch-action overrides introduced for pinch zoom are removed too.
+Native PDF.js controls, TouchManager, browser negotiation and vendor CSS govern
+zoom. Existing card dragging and section-boundary touch controls remain local to
+those controls. Comment/section layout and download policy are unchanged.
 
-Non-passive capture listeners cancel only owned multi-touch gestures. One-finger
-sequences remain native. Touch end, cancellation, extra fingers and window blur
-reset or rebase tracking. Form controls, section-line dragging, presentation mode
-and active PDF.js dialogs are excluded. Toolbar scale controls still receive the
-existing PDF.js scale events.
+The user requested this rollback on November 3, 2026 after repeated iPhone
+jitter. [MOBILE_ZOOM_ARCHITECTURE_REVIEW.md](MOBILE_ZOOM_ARCHITECTURE_REVIEW.md)
+is retained as historical research, not an implemented zoom design or evidence
+that default PDF.js will fix every physical Safari issue. Custom focal-drift and
+browser-gesture-cancellation tests were removed with their experiments.
 
-Safari GestureEvent start/change/end handlers provide an additional input path
-in the iframe and, when targeted at the PDF iframe, its host document. The first
-stream with actual motion owns scaling for that pinch: a touchstart followed by
-gesture-only movement works, and duplicate touch/gesture streams do not zoom
-twice. Gesture-only input scales around its supplied origin and suppresses site
-zoom only for the PDF gesture. No global user-scalable viewport lock is added.
-Safari's proprietary gesture scale semantics are documented in
-[MDN GestureEvent](https://developer.mozilla.org/en-US/docs/Web/API/GestureEvent).
-
-Automated checks use genuine Chrome touch input plus simulated Safari gesture
-sequences, with in/out zoom, gentle movement, stable site scale and native
-one-finger scrolling. They do not establish physical iPhone/Safari acceptance;
-the user's iPhone Safari is the required real-device retest after a full reload.
+Temporary HTTPS mobile testing uses `mobile_https.ps1` and
+[MOBILE_TESTING.md](MOBILE_TESTING.md). After an initial automatic approval
+rejection, the user explicitly approved public Cloudflare forwarding on November
+3, 2026. Startup and public health/login redirects were verified. One loopback app
+process uses a generated trusted hostname, HTTPS callbacks, Secure cookies and
+one trusted proxy hop. The normal `.env` is unchanged, and existing Google auth,
+allowlists and document ACLs remain required. A user must register the generated
+callback in their Google Web OAuth client. No VPS, production service, DNS or
+router/firewall configuration is changed.
 
 ## Review palette refresh (migration 9)
 

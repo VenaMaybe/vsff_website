@@ -68,7 +68,6 @@
 }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none; animation: none; scroll-behavior: auto; } }
 
-.viewer-frame-wrap, .viewer-frame { touch-action:pan-x pan-y; }
 
 .viewer-page[data-downloads-allowed="false"] :is([data-pdf-control="downloadButton"],[data-pdf-control="printButton"]) { display:none !important; }
 @media print { .viewer-page[data-downloads-allowed="false"] { display:none !important; visibility:hidden !important; } }
