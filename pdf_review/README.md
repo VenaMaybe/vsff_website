@@ -82,6 +82,10 @@ section feedback. See [BETA_C2_REPORT.md](BETA_C2_REPORT.md) for the audit and c
   updates already-open review viewers. Downloads are allowed by default.
   This is a viewer restriction: PDF rendering still requires the read endpoint,
   so browser menus, developer tools or screen capture can still save content.
+- Below **100% PDF zoom**, left cards and comment cards/markers shrink by the
+  same factor as the PDF (50% zoom gives half-size cards). At 100% and above,
+  they keep their normal size. Packing, rail gaps and dragging use scaled bounds;
+  the toolbar and mobile keyboard composer retain their screen size.
 - Settings and Sections coexist as compact comment-style cards on
   the left of the PDF. New cards open unpinned near the viewport center. Drag a
   header to move a card vertically. Clicking or grabbing an unfocused card keeps

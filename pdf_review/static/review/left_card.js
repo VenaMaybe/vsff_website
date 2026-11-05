@@ -1,3 +1,4 @@
+import { cardScale, cardSize } from './card_scale.js';
 import { animateCard, CARD_MOTION_MS } from './card_motion.js';
 import { documentStage } from './document_stage.js';
 
@@ -83,13 +84,15 @@ function layoutCards(animate = false) {
     }
     for (const [parent, group] of groups) {
       const integration=group[0].sectionViewer;
+      const scale=cardScale(integration.application), spacing=8*scale;
+      const scaling=group.some(card=>card.lastScale!==undefined&&card.lastScale!==scale);
       const firstPage=integration.application.pdfViewer.getPageView(0)?.div;
       const pageTop=firstPage ? integration.frame.getBoundingClientRect().top+firstPage.getBoundingClientRect().top-parent.getBoundingClientRect().top : 0;
       for (const card of group) {
-        if (card.openingCentered && !card.pinned) card.captureAnchor(parent.getBoundingClientRect().top + Math.max(8, (parent.clientHeight-card.element.offsetHeight)/2));
+        if (card.openingCentered && !card.pinned) card.captureAnchor(parent.getBoundingClientRect().top + Math.max(8, (parent.clientHeight-card.height)/2));
         if (card.centerRequest) {
           const center = card.centerRequest();
-          if (!card.pinned && Number.isFinite(center)) card.captureAnchor(parent.getBoundingClientRect().top + Math.max(8, center - parent.getBoundingClientRect().top - card.element.offsetHeight / 2));
+          if (!card.pinned && Number.isFinite(center)) card.captureAnchor(parent.getBoundingClientRect().top + Math.max(8, center - parent.getBoundingClientRect().top - card.height / 2));
           card.centerRequest = null;
         }
         card.preferredTop = card.pinned ? Math.max(8,pageTop) : Math.max(pageTop,card.documentTop());
@@ -104,26 +107,27 @@ function layoutCards(animate = false) {
         const min = pageTop, max = Infinity;
         let start = min;
         for (const box of occupied.sort((a,b) => a.top-b.top)) {
-          if (box.bottom + 8 <= min || box.top - 8 >= max) continue;
-          gaps.push({ start, end: Math.min(max, box.top - 8) });
-          start = Math.max(start, box.bottom + 8);
+          if (box.bottom + spacing <= min || box.top - spacing >= max) continue;
+          gaps.push({ start, end: Math.min(max, box.top - spacing) });
+          start = Math.max(start, box.bottom + spacing);
         }
         gaps.push({ start, end:max });
-        const fitting = gaps.filter(gap => gap.end - gap.start >= card.element.offsetHeight);
-        const choices = fitting.map(gap => Math.max(gap.start, Math.min(card.preferredTop, gap.end - card.element.offsetHeight)));
+        const fitting = gaps.filter(gap => gap.end - gap.start >= card.height);
+        const choices = fitting.map(gap => Math.max(gap.start, Math.min(card.preferredTop, gap.end - card.height)));
         card.layoutTop = choices.length ? choices.reduce((a,b) => Math.abs(b-card.preferredTop) < Math.abs(a-card.preferredTop) ? b : a) : card.preferredTop;
-        occupied.push({top:card.layoutTop, bottom:card.layoutTop+card.element.offsetHeight});
+        occupied.push({top:card.layoutTop, bottom:card.layoutTop+card.height});
       }
       for (const card of group) {
         const offset = card.layoutTop-card.preferredTop;
-        card.position(animate || (card.lastOffset !== undefined && Math.abs(offset-card.lastOffset)>1));
-        card.lastOffset = offset;
+        if(scaling)card.element.getAnimations().forEach(animation=>animation.cancel());
+        card.position(!scaling && (animate || (card.lastOffset !== undefined && Math.abs(offset-card.lastOffset)>1)));
+        card.lastOffset = offset; card.lastScale = scale;
       }
       const scroller=integration.application.pdfViewer.container, frame=integration.frame.getBoundingClientRect();
       documentStage(integration.application).setBounds('left-cards', group.filter(card=>!card.pinned).map(card=>{
         const rect=card.element.getBoundingClientRect();
-        return {left:rect.left-frame.left+scroller.scrollLeft-8, right:rect.right-frame.left+scroller.scrollLeft+8,
-          top:card.layoutTop+scroller.scrollTop, bottom:card.layoutTop+card.element.offsetHeight+scroller.scrollTop+8};
+        return {left:rect.left-frame.left+scroller.scrollLeft-spacing, right:rect.right-frame.left+scroller.scrollLeft+spacing,
+          top:card.layoutTop+scroller.scrollTop, bottom:card.layoutTop+card.height+scroller.scrollTop+spacing};
       }));
     }
     queuePersist();
@@ -184,6 +188,8 @@ export class LeftCard {
       this.scroller.scrollBy(event.deltaX * unit, event.deltaY * unit); event.preventDefault();
     }, { passive: false });
   }
+  get height() { return cardSize(this.element, this.sectionViewer.application).height; }
+  get width() { return cardSize(this.element, this.sectionViewer.application).width; }
   get sectionViewer() { return this.viewer?.sectionViewer; }
   open({focus = true} = {}) {
     if (this.element.isConnected) { this.reveal({focus}); return true; }
@@ -203,7 +209,7 @@ export class LeftCard {
     }
     this.bus = integration?.application.eventBus;
     this.bus?.dispatch('leftcardchanged', { source: this });
-    this.captureAnchor((workspace?.getBoundingClientRect().top || 0) + Math.max(8, ((workspace?.clientHeight || innerHeight)-this.element.offsetHeight)/2));
+    this.captureAnchor((workspace?.getBoundingClientRect().top || 0) + Math.max(8, ((workspace?.clientHeight || innerHeight)-this.height)/2));
     this.onScroll = () => this.schedule();
     this.scroller?.addEventListener('scroll', this.onScroll, { passive: true });
     this.resize = new ResizeObserver(this.schedule);
@@ -326,11 +332,11 @@ export class LeftCard {
     const workspace = this.element.parentElement.getBoundingClientRect();
     const siblings = pdf.scrollMode === 1 ? pdf.viewer.querySelectorAll('.page') : page.closest('.spread')?.querySelectorAll(':scope > .page') || [page];
     const left = Math.min(...[...siblings].map(p => p.getBoundingClientRect().left));
-    const x = frame.left + left - workspace.left - this.element.offsetWidth - 12;
+    const x = frame.left + left - workspace.left - this.width - 12*cardScale(this.sectionViewer.application);
     // Unpinned tools belong to the document rail at every viewport size.
     // The shared stage provides scrollable space to their left on mobile too.
     const overlay = this.pinned;
-    this.element.style.left = `${overlay ? Math.max(8, Math.min(x, workspace.width - this.element.offsetWidth - 8)) : x}px`;
+    this.element.style.left = `${overlay ? Math.max(8, Math.min(x, workspace.width - this.width - 8)) : x}px`;
     const top = this.layoutTop ?? 8;
     this.element.style.top = `${top}px`; this.lastTop = top;
     if (animate && Math.abs(visualTop - workspace.top - top) > .5) animateCard(this.element, visualTop - workspace.top - top);

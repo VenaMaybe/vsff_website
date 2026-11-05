@@ -578,6 +578,17 @@ changing page centering. All
 thread controls have zero top margin. Card height observations recompute packing
 when responses or reply forms grow.
 
+Document-attached UI uses `card_scale.js`: its uniform visual scale is
+`min(1, pdfViewer.currentScale)`. The stage synchronizes a workspace-scoped CSS
+variable on native `scalechanging`; card layout and wrapping remain unscaled.
+Left-card packing, comment packing, endpoint alignment and reachability use scaled
+sizes while all positions and pointer deltas stay in screen CSS pixels. Independent
+CSS translate animations preserve those deltas before card scaling. PDF page
+centering, native scale/focal calculations and gesture handling are unchanged.
+The toolbar and body-level mobile keyboard composer remain viewport controls.
+Focused coverage: `tests/browser_sanity.py --card-scaling`; native focal and touch
+regressions remain in `--zoom-layout`.
+
 Comment scope and reviewer choices live in `comment_filters.js`, opened from
 Comments > Filter comments... as the reusable Filter comments left card. Native
 radio controls choose All comments, Only mine or Selected reviewers; the latter

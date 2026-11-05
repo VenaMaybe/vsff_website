@@ -258,6 +258,11 @@ def run():
                     run_download_policy(cdp,a,b,fixture,base)
                     assert not cdp.exceptions,cdp.exceptions
                     return
+                if '--card-scaling' in sys.argv:
+                    from tests.card_scaling import run_card_scaling
+                    run_card_scaling(cdp,a)
+                    assert not cdp.exceptions,cdp.exceptions
+                    return
                 if '--card-state' in sys.argv:
                     from tests.card_state_acceptance import run_card_state
                     run_card_state(cdp,a,b,fixture,base)

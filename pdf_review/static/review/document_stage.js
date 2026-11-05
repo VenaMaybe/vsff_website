@@ -1,3 +1,5 @@
+import { cardScale } from './card_scale.js';
+
 // PDF layout and UI reachability are independent. Only this coordinator writes
 // the scroll extent/origin; providers report measured document-space boxes.
 export function documentStage(application) {
@@ -9,6 +11,9 @@ class DocumentStage {
     this.application = application;
     this.pdf = application.pdfViewer;
     this.scroller = this.pdf.container;
+    const syncCardScale = () => document.querySelector('.viewer-workspace')?.style.setProperty('--review-card-scale', cardScale(application));
+    syncCardScale();
+    application.eventBus.on('scalechanging', syncCardScale);
     this.origin = 0;
     this.originY = 0;
     this.bounds = new Map();

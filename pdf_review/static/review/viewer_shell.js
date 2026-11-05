@@ -1,3 +1,4 @@
+import { cardScale, cardSize } from './card_scale.js';
 import { animateCard, CARD_MOTION_MS } from './card_motion.js';
 import { bindMenuDismissal, syncMenuValues } from "./menus.js";
 import { pdfRectangleToCss } from "./anchor_geometry.js";
@@ -270,22 +271,22 @@ export class CommentRail {
       if (!this.observed.has(item)) { this.observer.observe(item); this.observed.add(item); }
       if (active && !this.observed.has(card)) { this.observer.observe(card); this.observed.add(card); }
       if (!geometry) { item.hidden = true; card.hidden = true; continue; }
-      const railLeft = this.spreadRight(geometry.pageNumber) + 6;
-      const x = (mobile && !thread.section ? Math.min(railLeft, this.scroller.clientWidth - 42) : railLeft) + this.scroller.scrollLeft;
-      items.push({ card: item, page: geometry.pageNumber, sectionId:thread.section?.section_id, bottomAligned:!!thread.section, y: geometry.top + this.scroller.scrollTop - (thread.section&&!minimized?item.offsetHeight:0),
+      const railLeft = this.spreadRight(geometry.pageNumber) + 6*cardScale(this.application);
+      const x = (mobile && !thread.section ? Math.min(railLeft, this.scroller.clientWidth - 42*cardScale(this.application)) : railLeft) + this.scroller.scrollLeft;
+      items.push({ card: item, page: geometry.pageNumber, sectionId:thread.section?.section_id, bottomAligned:!!thread.section, y: geometry.top + this.scroller.scrollTop - (thread.section&&!minimized?cardSize(item, this.application).height:0),
         center: (geometry.top + geometry.bottom) / 2 + this.scroller.scrollTop,
-        active: active && !minimized, x, height: item.offsetHeight });
+        active: active && !minimized, x, height: cardSize(item, this.application).height });
       if (active && minimized) this.floating = { card, geometry, railLeft };
     }
-    const gap = minimized ? 3 : 6;
+    const gap = (minimized ? 3 : 6) * cardScale(this.application);
     const composerGeometry = composing && anchorGeometry(this.application, this.composer.payload);
     // An active card (or composer) is the fixed point. Pack neighbors backwards
     // and forwards around it, without touching either PDF scroll coordinate.
     if (composerGeometry && !minimized && !viewportComposer) items.push({ card: this.composer.container,
       page: composerGeometry.pageNumber, y: composerGeometry.top + this.scroller.scrollTop,
       center: (composerGeometry.top + composerGeometry.bottom) / 2 + this.scroller.scrollTop,
-      active: true, x: this.spreadRight(composerGeometry.pageNumber) + 6 + this.scroller.scrollLeft,
-      height: this.composer.container.offsetHeight });
+      active: true, x: this.spreadRight(composerGeometry.pageNumber) + 6*cardScale(this.application) + this.scroller.scrollLeft,
+      height: cardSize(this.composer.container, this.application).height });
     const compare=(a,b)=>a.page-b.page || a.y-b.y || (a.card.dataset.threadId||'').localeCompare(b.card.dataset.threadId||'');
     items.sort(compare);
     const sections=minimized?[]:items.filter(item=>item.bottomAligned);
@@ -358,7 +359,7 @@ export class CommentRail {
       return {left:rect.left-frame.left+this.scroller.scrollLeft,
         right:rect.right-frame.left+this.scroller.scrollLeft+10,
         top:Math.min(visualTop,targetTop),
-        bottom:Math.max(visualTop,targetTop)+card.offsetHeight+gap};
+        bottom:Math.max(visualTop,targetTop)+cardSize(card, this.application).height+gap};
     }));
     // Parent-owned cards must never cover the iframe's native scrollbars.
     this.panel.style.clipPath = `inset(0 ${this.scroller.offsetWidth - this.scroller.clientWidth}px ${this.scroller.offsetHeight - this.scroller.clientHeight}px 0)`;
@@ -408,7 +409,7 @@ export class CommentRail {
   popupPosition(box, geometry) {
     const width = Math.min(280, this.scroller.clientWidth - 40);
     box.style.width = `${width}px`;
-    const left = Math.max(8, Math.min(geometry.left, this.scroller.clientWidth - width - 8));
+    const left = Math.max(8, Math.min(geometry.left, this.scroller.clientWidth - cardSize(box, this.application).width - 8));
     const top = geometry.bottom + 8;
     box.style.maxHeight = `${Math.max(120, this.scroller.clientHeight * 0.65)}px`;
     return { left, top };
@@ -423,8 +424,8 @@ export class CommentRail {
     card.style.removeProperty("width");
     card.style.removeProperty("max-height");
     const position = mobile ? this.popupPosition(card, geometry) : {
-      left: this.spreadRight(geometry.pageNumber) + 48,
-      top: thread.section ? geometry.top-card.offsetHeight : Math.max(8, (geometry.top + geometry.bottom - card.offsetHeight) / 2) };
+      left: this.spreadRight(geometry.pageNumber) + 48*cardScale(this.application),
+      top: thread.section ? geometry.top-cardSize(card, this.application).height : Math.max(8, (geometry.top + geometry.bottom - cardSize(card, this.application).height) / 2) };
     card.style.left = `${position.left + this.scroller.scrollLeft}px`;
     card.style.top = `${position.top + this.scroller.scrollTop}px`;
   }
@@ -441,8 +442,8 @@ export class CommentRail {
       // Size to the visible screen, never to their potentially tiny overlap.
       box.style.width = `${Math.max(0, Math.min(280, right - left - 24))}px`;
       box.style.maxHeight = `${Math.max(0, bottom - top - 28)}px`;
-      box.style.left = `${Math.max(left + 12, right - box.offsetWidth - 12)}px`;
-      box.style.top = `${Math.max(top + 12, bottom - box.offsetHeight - 16)}px`;
+      box.style.left = `${Math.max(left + 12, right - cardSize(box, this.application).width - 12)}px`;
+      box.style.top = `${Math.max(top + 12, bottom - cardSize(box, this.application).height - 16)}px`;
       return;
     }
     this.composer.setViewportDocked(false);
@@ -450,7 +451,7 @@ export class CommentRail {
     if (!geometry) return;
     box.style.removeProperty("width");
     box.style.removeProperty("max-height");
-    box.style.left = `${this.spreadRight(geometry.pageNumber) + (this.mode === "minimized" ? 48 : 6)}px`;
-    box.style.top = `${Math.max(8, (geometry.top + geometry.bottom - box.offsetHeight) / 2)}px`;
+    box.style.left = `${this.spreadRight(geometry.pageNumber) + (this.mode === "minimized" ? 48 : 6)*cardScale(this.application)}px`;
+    box.style.top = `${Math.max(8, (geometry.top + geometry.bottom - cardSize(box, this.application).height) / 2)}px`;
   }
 }

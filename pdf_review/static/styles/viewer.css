@@ -36,6 +36,8 @@
 .review-status.error { color: var(--danger); }
 .thread-list { position: absolute; inset: 0; pointer-events: none; }
 .thread-card, .selection-comment-composer { position: absolute; width: var(--comment-width); pointer-events: auto; }
+/* Scale the whole card, preserving line breaks and unscaled document coordinates. */
+.viewer-workspace :is(.thread-card, .thread-marker, .selection-comment-composer) { scale:var(--review-card-scale,1); transform-origin:top left; }
 .thread-card { overflow-wrap: anywhere; }
 .thread-card:not(.active) .thread-reply-form { display: none; }
 .thread-card:not(.active) .inline-edit-form { display: none; }
