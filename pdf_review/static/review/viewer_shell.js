@@ -135,14 +135,15 @@ export function installViewerControls(frame, application) {
 }
 
 // Canonical payloads/anchors share segments. Never retain a DOM Range for layout.
-export function anchorGeometry(application, anchor) {
-  const segment = anchor?.segments?.[0];
+export function anchorGeometry(application, anchor, { end = false } = {}) {
+  const segment = end ? anchor?.segments?.at(-1) : anchor?.segments?.[0];
   const view = segment && application.pdfViewer.getPageView(segment.page_number - 1);
   if (!view?.div?.isConnected || !view.viewport) return null;
   const page = view.div.getBoundingClientRect();
   const content = { left: page.left + view.div.clientLeft, top: page.top + view.div.clientTop,
     width: view.div.clientWidth, height: view.div.clientHeight };
-  const rects = segment.rectangles.map((rectangle) => pdfRectangleToCss(rectangle, view.viewport, content)).filter(Boolean);
+  const rectangles = end ? segment.rectangles.slice(-1) : segment.rectangles;
+  const rects = rectangles.map((rectangle) => pdfRectangleToCss(rectangle, view.viewport, content)).filter(Boolean);
   if (!rects.length) return null;
   return { page, pageNumber: segment.page_number,
     top: content.top + Math.min(...rects.map((rect) => rect.top)),

@@ -54,6 +54,20 @@ function normalizedRotation(rotation) {
   return ((rotation % 360) + 360) % 360;
 }
 
+// Provisional endpoint geometry only: no page-text traversal or persisted selector.
+// Never use this preview as a submission payload; captureTextSelection validates it.
+export function selectionEndpoint(viewerWindow, viewerApplication) {
+  const selection=viewerWindow.getSelection();
+  if(!selection||selection.rangeCount!==1||selection.isCollapsed||!selection.toString().trim())return null;
+  const range=selection.getRangeAt(0),start=textLayerForNode(range.startContainer),end=textLayerForNode(range.endContainer);
+  if(!start||!end)return null;
+  const page=pageNumberForLayer(end),view=page&&viewerApplication.pdfViewer.getPageView(page-1);
+  if(!view?.viewport||!end.isConnected)return null;
+  const last=Array.from(range.getClientRects()).filter(r=>r.width>0&&r.height>0).at(-1);
+  const rectangle=last&&clientRectToPdfRectangle(last,end.getBoundingClientRect(),view.viewport);
+  return rectangle?{segments:[{page_number:page,rectangles:[rectangle]}]}:null;
+}
+
 export function captureTextSelection(viewerWindow, viewerApplication) {
   const document = viewerWindow.document;
   const selection = viewerWindow.getSelection();

@@ -70,3 +70,34 @@ def run_focus(cdp, session):
     assert abs(ev('window.focusFixture.cards[1].element.getBoundingClientRect().top')-before[1]['top'])>20
     ev('window.focusFixture.cards.forEach(c=>c.close(false));delete window.focusFixture')
     print('PASS inactive-card click, header grab/drag and keyboard focus adopt displayed anchors; intentional centering remains',flush=True)
+
+    # First open and reopening use one identical entrance; content-ready must
+    # not replace it with travel from a CSS/default or previously stored top.
+    entrance=ev("""(async()=>{
+      const {LeftCard}=await import('/static/review/left_card.js');
+      const frame=document.querySelector('iframe'),application=frame.contentWindow.PDFViewerApplication;
+      const card=new LeftCard('Entrance fixture',{viewer:{sectionViewer:{frame,application}}});
+      card.element.style.minHeight='320px';
+      let trace=[];const animate=card.element.animate.bind(card.element);
+      card.element.animate=(frames,options)=>{trace.push({frames,options});return animate(frames,options);};
+      const pause=()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+      card.open({focus:false});card.contentReady();await pause();
+      const first=trace;card.close(false);trace=[];
+      card.open({focus:false});card.contentReady();await pause();
+      const second=trace;card.close(false);
+      return {first,second};
+    })()""")
+    assert len(entrance['first'])==1 and entrance['first']==entrance['second'],entrance
+    assert entrance['first'][0]['frames']==[{'translate':'0 4px','opacity':0},{'translate':'0 0','opacity':1}],entrance
+    assert entrance['first'][0]['options']=={'duration':160,'easing':'ease-out'},entrance
+    cdp.call('Emulation.setEmulatedMedia',{'features':[{'name':'prefers-reduced-motion','value':'reduce'}]},session)
+    try:
+        assert ev("""(async()=>{
+          const {LeftCard}=await import('/static/review/left_card.js');
+          const frame=document.querySelector('iframe'),application=frame.contentWindow.PDFViewerApplication;
+          const card=new LeftCard('Reduced motion',{viewer:{sectionViewer:{frame,application}}});
+          let calls=0;card.element.animate=()=>{calls++;};card.open({focus:false});card.contentReady();card.close(false);return calls;
+        })()""")==0
+    finally:
+        cdp.call('Emulation.setEmulatedMedia',{'features':[]},session)
+    print('PASS identical first/reopen 160ms fade and 4px slide, uninterrupted by content-ready; reduced motion respected',flush=True)

@@ -52,13 +52,16 @@ class DocumentStage {
       this.pending = null;
       const jobs = [...this.jobs.values()];
       this.jobs.clear();
-      for (const run of jobs) run();
+      this.flushing=true;
+      try{for (const run of jobs) run();}
+      finally{this.flushing=false;}
       this.commit();
     });
   }
   setBounds(key, boxes) {
     this.bounds.set(key, boxes.filter(box => [box.left,box.right,box.top,box.bottom].every(Number.isFinite)));
-    this.schedule();
+    // Current frame jobs are followed by commit already; bounds need no extra frame.
+    if(!this.flushing)this.schedule();
   }
   commit() {
     const s = this.scroller, viewer = this.pdf.viewer;

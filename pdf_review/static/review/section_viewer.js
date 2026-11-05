@@ -6,6 +6,9 @@ import { AppDialog } from './dialogs.js';
 
 function node(tag,text,className='') { const e=document.createElement(tag); if(text!==undefined)e.textContent=text; e.className=className; return e; }
 
+function attribute(node,key,value) {const text=String(value);if(node.getAttribute(key)!==text)node.setAttribute(key,text);}
+function style(node,key,value) {if(node.style[key]!==value)node.style[key]=value;}
+
 function dividerAnchor(divider) {
   const ending=divider.members.find(m=>m.kind==='end'),starting=divider.members.find(m=>m.kind==='start');
   return ending && starting && ending.placement.end_page<starting.placement.start_page ? starting : ending||divider.members[0];
@@ -53,7 +56,7 @@ export class SectionViewer {
   render() {
     const doc=this.frame.contentDocument;
     const old=new Map([...doc.querySelectorAll('.section-structure-marker')].map(line=>[line.dataset.markerKey,line]));
-    const wanted=new Set();
+    const wanted=new Set(),plans=[];
     for (const divider of this.managementVisible ? sectionDividers(this.sections, section=>this.placementEditor?.get(section.section_id)||section.placement) : []) {
       const ending=divider.members.find(m=>m.kind==='end'),starting=divider.members.find(m=>m.kind==='start');
       const pageTransition=ending && starting && ending.placement.end_page<starting.placement.start_page;
@@ -63,25 +66,34 @@ export class SectionViewer {
       const physical=dividerAnchor(divider);
       const geometry=boundaryGeometry(this.application,physical.placement,physical.kind);
       if(!geometry)continue;
+      plans.push({divider,section,kind,geometry});
+    }
+    // Read every page dimension before changing marker DOM. A long manuscript
+    // must not force a fresh PDF layout between each pair of section dividers.
+    for(const {divider,section,kind,geometry} of plans){
       const {view,x,top,dx,dy}=geometry;
       const key=JSON.stringify(divider.members.map(m=>[m.section.section_id,m.kind]));
       wanted.add(key);
-      const line=old.get(key)||doc.createElement('span');line.className='section-structure-marker section-management-line';
-      line.dataset.markerKey=key;line.hidden=false;
-      line.dataset.sectionId=section.section_id;line.dataset.kind=kind;
-      line.dataset.members=JSON.stringify(divider.members.map(m=>({id:m.section.section_id,kind:m.kind})));
-      line.dataset.shared=String(divider.members.length>1);
-      line.dataset.edge=String(!!geometry.edge);
-      line.dataset.pageEdge=geometry.edge||'';
-      line.dataset.pending=String(divider.members.some(m=>this.placementEditor?.drafts.has(m.section.section_id)));
-      line.dataset.clamped=String(divider.members.some(m=>this.placementEditor?.states.get(m.section.section_id)?.clamped));
-      line.dataset.selected=String(divider.members.some(m=>m.section.section_id===this.managementSectionId));
-      line.tabIndex=0;line.setAttribute('role','button');
-      line.onkeydown=event=>{if(['Enter',' '].includes(event.key)){event.preventDefault();this.onActivateSection?.(section.section_id,kind);}};
-      line.style.left=`${x}px`;line.style.top=`${top}px`;line.style.width=`${Math.hypot(dx,dy)}px`;line.style.transform=`rotate(${Math.atan2(dy,dx)}rad)`;
-      const label=line.firstElementChild||doc.createElement('span');label.className='section-management-label';
-      label.textContent=divider.members.length>1 ? divider.members.map(m=>m.section.name).join(' / ') : `${kind==='start'?'Start':'End'}: ${section.name}`;
-      line.title=label.textContent+(divider.members.length>1?' ? Double-click to separate':'');line.setAttribute('aria-label',label.textContent);
+      const line=old.get(key)||doc.createElement('span');
+      if(!old.has(key)){
+        line.className='section-structure-marker section-management-line';line.dataset.markerKey=key;
+        line.tabIndex=0;line.setAttribute('role','button');
+        line.onkeydown=event=>{if(['Enter',' '].includes(event.key)){event.preventDefault();this.onActivateSection?.(line.dataset.sectionId,line.dataset.kind);}};
+      }
+      if(line.hidden)line.hidden=false;
+      for(const [name,value] of Object.entries({
+        'section-id':section.section_id,kind,
+        members:JSON.stringify(divider.members.map(m=>({id:m.section.section_id,kind:m.kind}))),
+        shared:divider.members.length>1,edge:!!geometry.edge,'page-edge':geometry.edge||'',
+        pending:divider.members.some(m=>this.placementEditor?.drafts.has(m.section.section_id)),
+        clamped:divider.members.some(m=>this.placementEditor?.states.get(m.section.section_id)?.clamped),
+        selected:divider.members.some(m=>m.section.section_id===this.managementSectionId),
+      }))attribute(line,`data-${name}`,value);
+      style(line,'left',`${x}px`);style(line,'top',`${top}px`);style(line,'width',`${Math.hypot(dx,dy)}px`);style(line,'transform',`rotate(${Math.atan2(dy,dx)}rad)`);
+      const label=line.firstElementChild||node('span',undefined,'section-management-label');
+      const text=divider.members.length>1 ? divider.members.map(m=>m.section.name).join(' / ') : `${kind==='start'?'Start':'End'}: ${section.name}`;
+      if(label.textContent!==text)label.textContent=text;
+      attribute(line,'title',text+(divider.members.length>1?' ? Double-click to separate':''));attribute(line,'aria-label',text);
       if(!label.parentElement)line.append(label);
       if(line.parentElement!==view.div)view.div.append(line);
     }

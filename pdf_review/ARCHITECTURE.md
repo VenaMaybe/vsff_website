@@ -68,6 +68,16 @@ accounts and does not affect form-field editing menus. Since Safari can retain
 system selection UI, Add comment is a labelled 44px-minimum action separate from
 the selection, at the bottom of the visible PDF viewport; desktop keeps its
 contextual icon. Placement tracks the visual viewport as well as PDF layout.
+The desktop icon uses the final rectangle of the final selected page segment,
+not the union of all selected lines. It therefore follows the selection's end
+even when an earlier line is longer, selection is reversed, or it crosses pages.
+This uses canonical PDF geometry; no live DOM Range is retained for layout.
+Desktop selection changes immediately refresh a provisional endpoint rectangle
+without traversing page text. The full validated anchor remains debounced by
+80ms, and clicking the action captures it synchronously. Preview geometry is
+never a submission payload, so rapid dragging stays responsive without stale
+selectors or a delayed action button. Mobile docking retains its existing path.
+Focused browser coverage is `tests/browser_sanity.py --selection-action`.
 Mobile Cancel immediately restores the selection action's pre-composer corner.
 That target stays fixed through intermediate keyboard-closing viewport sizes;
 normal placement resumes when viewport height returns or viewport width changes.
@@ -588,6 +598,47 @@ centering, native scale/focal calculations and gesture handling are unchanged.
 The toolbar and body-level mobile keyboard composer remain viewport controls.
 Focused coverage: `tests/browser_sanity.py --card-scaling`; native focal and touch
 regressions remain in `--zoom-layout`.
+
+Left-card layout snapshots each card's size and visual top once, caches page/spread
+geometry for that pass, computes collision packing without DOM reads, then writes
+positions together. Scroll bounds come from those plans, avoiding a second round
+of measurements after writes. `card_packing.js` packs around a placement pivot
+independent of keyboard focus. Opening snapshots the neighbors' displayed document
+positions and captures the viewport midpoint as a document anchor for the new
+card's center. An insertion chooses the nearest internal gap when the midpoint
+falls inside a multi-card stack; outside the stack, an outer gap is allowed.
+The identities on each side are retained through subsequent loading/resizing,
+instead of repartitioning by changing card centers every frame. Opening cancels
+existing movement after capturing displayed tops, preventing an old translation
+from being applied again to the new positions. Later content growth adjusts its
+top around that center; scrolling
+does not recenter it to the viewport. The upper chain moves backward only on
+collision, the lower chain moves forward, and the nearest upper cards spill below
+the pivot when their combined heights cannot fit above page one's limit. The new
+card's center-to-top offset is capped by half the opening viewport height minus
+8px. Oversized cards therefore open with the header visible, including when
+asynchronous content grows beyond the viewport. The cap is attached to the
+opening document anchor, so scrolling afterward still moves the entire card.
+The first-page limit also applies. Focus/click/drag adopts displayed top anchors;
+saved layouts restore top anchors. Pinned cards remain outside packing.
+
+Initial placement skips position-travel animation while `openingCentered` is set.
+After synchronous visibility/focus layout, `open()` starts one shared 160ms
+ease-out fade and 4px slide. `contentReady()` does not cancel or replace it, so a
+fresh element and a reused element have the same entrance. Reduced motion skips
+it. Exact animation traces are covered by `--left-card-focus`.
+
+`--left-card-insertion` checks unequal displacements, first-page spill, delayed
+content growth and focus retention at 100% and 50% zoom, plus fixed-slot retention
+when a tall neighbor shrinks. `--tall-stack-insertion` uses three tall cards, an
+in-progress movement and the real asynchronously loaded Settings card.
+Bounds reported during stage jobs use the current
+frame's commit instead of scheduling an empty extra frame. Section divider layout
+also measures all page geometry before mutating markers and preserves unchanged
+labels, attributes and keyboard handlers. `--left-card-performance` exercises all
+eight tools and a 64-section marker model; it asserts work counts and geometry,
+without machine-dependent timing gates. Firefox long-document coverage supports
+`tests/firefox_reading_cards.py --all-tools`.
 
 Comment scope and reviewer choices live in `comment_filters.js`, opened from
 Comments > Filter comments... as the reusable Filter comments left card. Native

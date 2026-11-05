@@ -5,7 +5,7 @@ import { fetchAnchors, removeAnchor, saveAnchor } from "./anchor_api.js";
 import { CAPTURE_ERROR } from "./anchor_constants.js";
 import { renderAnchorInspector } from "./anchor_debug.js";
 import { AnchorOverlay } from "./anchor_overlay.js";
-import { captureTextSelection } from "./anchor_selection.js";
+import { captureTextSelection, selectionEndpoint } from "./anchor_selection.js";
 import { SelectionCommentComposer } from "./comment_composer.js";
 import { ReviewState } from "./review_state.js";
 import { RefreshCoordinator, ReviewRealtime } from "./realtime.js";
@@ -41,6 +41,7 @@ const state = new ReviewState();
 let viewerApplication = null;
 let overlay = null;
 let pendingSelection = null;
+let selectionPreview = null;
 let captureTimer = null;
 let realtime = null;
 let migrationUI = null;
@@ -265,12 +266,15 @@ function updateSelectionControls(ready) {
 }
 
 function positionSelectionButton() {
-  const geometry = viewerApplication && pendingSelection && anchorGeometry(viewerApplication, pendingSelection);
+  const mobile = matchMedia('(pointer: coarse)').matches;
+  // A multi-line selection's union ends at its longest line, not its last one.
+  const source = !mobile && selectionPreview ? selectionPreview : pendingSelection;
+  const geometry = viewerApplication && source && anchorGeometry(viewerApplication, source, {end: !mobile});
   const bounds = frame.getBoundingClientRect();
   const visible = geometry && geometry.bottom > 0 && geometry.top < bounds.height && geometry.right > 0 && geometry.left < bounds.width;
   commentButton.hidden = !visible || !config.canMutate || selectionDismissed || !composer.container.hidden;
   if (commentButton.hidden) return;
-  if (matchMedia('(pointer: coarse)').matches) {
+  if (mobile) {
     // iOS can retain its system selection menu despite callout cancellation.
     // Keep the comment action separate from the selected text and its handles.
     const viewport = window.visualViewport;
@@ -300,11 +304,23 @@ function positionSelectionButton() {
 
 function rememberSelection() {
   window.clearTimeout(captureTimer);
+  // Follow selectionchange directly, without waiting for the heavier selector
+  // capture debounce. Keep only PDF geometry, never the live Range or text layer.
+  selectionPreview = viewerApplication && config.canMutate && !matchMedia('(pointer: coarse)').matches
+    ? selectionEndpoint(frame.contentWindow, viewerApplication) : null;
+  if(selectionPreview){
+    pendingSelection=null;
+    restoredSelectionAction=null;selectionDismissed=false;
+    commentButton.disabled=false;positionSelectionButton();
+  }else if(!matchMedia('(pointer: coarse)').matches){
+    commentButton.hidden=true;
+  }
   captureTimer = window.setTimeout(() => {
+    captureTimer=null;selectionPreview=null;
     try {
       const selection = frame.contentWindow.getSelection();
       if (!selection || selection.isCollapsed) {
-        pendingSelection = null;
+        pendingSelection = null; selectionPreview = null;
         updateSelectionControls(false);
         setAnchorStatus("Select PDF text to create a test anchor.");
         return;
@@ -315,7 +331,7 @@ function rememberSelection() {
       updateSelectionControls(true);
       setAnchorStatus("Selection ready.");
     } catch (_error) {
-      pendingSelection = null;
+      pendingSelection = null; selectionPreview = null;
       updateSelectionControls(false);
     }
   }, 80);
@@ -344,7 +360,7 @@ const composer = new SelectionCommentComposer(
     try {
       const thread = await createThread(config.threadsUrl, anchorPayload, body);
       frame.contentWindow.getSelection()?.removeAllRanges();
-      pendingSelection = null;
+      pendingSelection = null; selectionPreview = null;
       composer.setBusy(false);
       composer.close();
       threadRefresh.invalidate();
@@ -412,7 +428,7 @@ saveButton.addEventListener("click", async () => {
   try {
     await saveAnchor(config.anchorsUrl, payload);
     frame.contentWindow.getSelection()?.removeAllRanges();
-    pendingSelection = null;
+    pendingSelection = null; selectionPreview = null;
     await loadAnchors();
     refreshAll();
     setAnchorStatus("Test anchor saved.", "success");
@@ -488,7 +504,7 @@ async function initialize() {
         commentButton.hidden = true;
         if (!composer.container.hidden && !composer.busy) composer.close();
         sidebarActions.deselect();
-        pendingSelection = null;
+        pendingSelection = null; selectionPreview = null;
         updateSelectionControls(false);
       }
       const editing = event.target.closest?.("input, textarea, select, button, summary, a, [contenteditable=true]");

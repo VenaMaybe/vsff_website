@@ -86,10 +86,22 @@ section feedback. See [BETA_C2_REPORT.md](BETA_C2_REPORT.md) for the audit and c
   same factor as the PDF (50% zoom gives half-size cards). At 100% and above,
   they keep their normal size. Packing, rail gaps and dragging use scaled bounds;
   the toolbar and mobile keyboard composer retain their screen size.
+  Layout measures each open card once per pass and batches position updates;
+  section dividers likewise batch measurements and retain unchanged labels.
 - Settings and Sections coexist as compact comment-style cards on
   the left of the PDF. New cards open unpinned near the viewport center. Drag a
   header to move a card vertically. Clicking or grabbing an unfocused card keeps
   its displayed position as the new anchor, including collision displacement.
+  New cards insert at the viewport midpoint: upper neighbors push upward and lower
+  neighbors push downward only as needed. If the first-page limit leaves too little
+  room above, the nearest upper cards move below the new card instead. The new
+  card stays centered as its initial content loads, without taking focus from Tools.
+  Cards taller than the viewer open 8px below its top so their header stays visible;
+  after opening, they scroll with the document normally.
+  First opening and reopening use the same short fade and 4px slide; initial
+  positioning and content-ready layout do not replace that entrance animation.
+  Opening within a tall stack chooses an internal gap and retains that split
+  through loading/resizing; it first stops existing movement at displayed positions.
   Left cards never extend above the first PDF
   page; collision packing moves them downward when needed. Cards always use their
   full content height. One card may be

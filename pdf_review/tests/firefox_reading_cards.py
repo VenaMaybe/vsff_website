@@ -43,6 +43,11 @@ with tempfile.TemporaryDirectory(prefix='pdf-review-firefox-',ignore_cleanup_err
    })()""")
    client.ev("document.querySelector('[data-left-card=reading]').click()")
    client.wait("document.querySelectorAll('.reading-spine-label.section').length===25")
+   if '--all-tools' in sys.argv:
+    client.ev("document.querySelector('#review-tools-menu > summary').dispatchEvent(new MouseEvent('dblclick',{bubbles:true}))")
+    for tool in ['search','filters','analytics','properties','settings','sections']:
+     client.ev(f"document.querySelector('.tools-panel [data-left-card={tool}]').click()")
+    client.wait("document.querySelectorAll('.left-card').length===8&&document.querySelector('.settings-panel form')!==null")
    result=client.ev("""(async()=>{
     const spine=document.querySelector('.reading-spine'),content=spine.parentElement,label=document.querySelector('.reading-spine-label');
     let mutations=0,removedElements=0;const observer=new MutationObserver(changes=>{mutations+=changes.length;for(const change of changes)for(const removed of change.removedNodes)if(removed.nodeType===1)removedElements+=1+removed.querySelectorAll('*').length;});observer.observe(content,{subtree:true,childList:true,attributes:true});

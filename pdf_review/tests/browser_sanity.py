@@ -258,6 +258,26 @@ def run():
                     run_download_policy(cdp,a,b,fixture,base)
                     assert not cdp.exceptions,cdp.exceptions
                     return
+                if '--selection-action' in sys.argv:
+                    from tests.selection_action import run_selection_action
+                    run_selection_action(cdp,a)
+                    assert not cdp.exceptions,cdp.exceptions
+                    return
+                if '--tall-stack-insertion' in sys.argv:
+                    from tests.left_card_insertion import run_tall_stack
+                    run_tall_stack(cdp,a)
+                    assert not cdp.exceptions,cdp.exceptions
+                    return
+                if '--left-card-insertion' in sys.argv:
+                    from tests.left_card_insertion import run_left_card_insertion
+                    run_left_card_insertion(cdp,a)
+                    assert not cdp.exceptions,cdp.exceptions
+                    return
+                if '--left-card-performance' in sys.argv:
+                    from tests.left_card_performance import run_left_card_performance
+                    run_left_card_performance(cdp,a)
+                    assert not cdp.exceptions,cdp.exceptions
+                    return
                 if '--card-scaling' in sys.argv:
                     from tests.card_scaling import run_card_scaling
                     run_card_scaling(cdp,a)
