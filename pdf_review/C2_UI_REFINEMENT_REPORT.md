@@ -1285,3 +1285,11 @@ Reading follow-up: tracking defaults on with author-only document/per-reader con
 in Review settings (migration 12). Targeted WebSocket invalidations refresh activity
 after 15-second commits; live positions reuse presence. Both cards remain available
 to readers with self-only analytics. See READING_PROGRESS_REPORT.md.
+
+Page Properties: added the shared left tool with Words / Read time / Images /
+Density histogram, section brackets, metadata caching and stable metric switching.
+See PAGE_PROPERTIES_REPORT.md for definitions, limits and focused verification.
+
+Version deletion: owner-only per-version Delete with confirmation, live viewer
+retirement, active-version read filtering and append-only migration 13 ledger.
+Stored PDFs/history are preserved; see VERSION_DELETION_REPORT.md.

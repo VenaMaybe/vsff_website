@@ -761,3 +761,84 @@ Reader/view/section-structure changes rebuild only the affected view. An account
 exact-version scoped browser record restores the reader, Pages/Sections tab and
 expanded group identifiers; the authorized roster validates the saved reader.
 Only UI choices, not measured activity, are stored in this record.
+
+## Version statistics metadata and histogram
+
+Version statistics retains the shared LeftCard/Tools registration (`properties`),
+available to everyone who can view the PDF. It uses the existing pin, drag, focus,
+collision, checkmark and account/version card-restoration paths. No new route,
+server table, migration, chart dependency or PDF.js/vendor modification is needed.
+`page_properties_card.js` maintains stable SVG bars across metric switches;
+Pages/Sections changes the row layer; axis and section brackets update independently.
+`version_statistics.js` aggregates canonical placements and authorized messages.
+Page/spread highlighting
+uses the same `viewingPages` helper as presence and reading analytics.
+
+`page_properties_data.js` owns one metadata store per loaded PDFDocumentProxy.
+It shares word-count extraction with ReadingTracker, deduplicates concurrent
+requests, scans at two pages at a time with event-loop yields, and builds the chart
+only when opened. Images scan only when selected. Persistent aggregate metadata
+is keyed by account, immutable version, PDF fingerprint, page count and calculation
+schema in browser IndexedDB, retaining at most 12 recent version records. Calculation
+schema 2 also caches numeric count/vertical-position pairs for text runs and artwork
+so partial-page section totals can be computed without re-extraction. No raw
+PDF bytes, page text, reader activity or extracted image data is stored. Storage
+failure falls back to the per-document memory cache. The existing server ACL read
+endpoint is still required before a viewer can construct/use the store.
+
+Words use PDF.js text runs and word segmentation. ERT uses the existing server
+reading policy (400 WPM / 5-second minimum), independently of measured dwell time.
+Density has been replaced by Comments: stacked author-color counts of non-deleted
+messages/replies, including resolved conversations and section feedback. Canonical
+thread/context refreshes enforce existing privacy and reviewer filters; websocket
+invalidations update the card. Each message serializes its actual author's existing
+review color. Comments are never put in the immutable PDF cache. Multi-page targets
+count once at their first segment; section feedback stays with its own section/end.
+Images include supported raster placements/repeats/groups/masks and outer tagged
+Figures containing vector paths or raster painting. A nested illustration counts
+once; untagged vector decorations and annotations are excluded. Unsupported patterns
+or failed extraction are unavailable, never fabricated zeroes. Section word/image
+ownership uses vertical text-run/illustration centers; integer ERT allocation shares
+the existing page budget. Unsectioned gaps retain totals. Full details and checks:
+VERSION_STATISTICS_REPORT.md; the original implementation is PAGE_PROPERTIES_REPORT.md.
+
+Page Properties follow-up: count/time axes and page ticks are integer-only; gridlines
+are unconditional. Rendering skips unchanged metadata/metric/section revisions and
+patches only changed SVG attributes. Word segmentation yields in bounded work slices;
+no per-page full segment array is materialized. Cached scans skip completed pages.
+IndexedDB version 2 adds a timestamp index for key-only eviction, preserving metric
+cache keys and numeric metadata. Firefox checks use isolated Marionette profiles.
+
+## Version deletion / withdrawal (migration 13)
+
+Owners may delete one version through the document page's explicit confirmation.
+This is application withdrawal, not physical PDF/history erasure. Migration 13 adds
+an append-only version_deletions ledger (version FK, deleting user FK, timestamp)
+and active_document_versions view. Original version metadata, byte identity, PDF
+blobs, immutable anchors/targets, comment revisions, section feedback, reading
+history and migration runs remain untouched. Existing deduplicated blob references
+remain authoritative, including withdrawn versions. There is no restore/purge UI.
+
+`database.version_table(connection)` selects the active-version view at runtime;
+it falls back to the original table only for trusted pre-migration offline import
+compatibility. Lists, counts, resource authorization, version reads and transactional
+review/reading/section/migration services use that scope. Source/target migrations
+involving deleted versions are unavailable in normal UI, but their records remain.
+Threads with a live projection retain their comments on surviving versions; their
+deleted-version anchors/target entries are excluded from ordinary reads. Threads
+with no live target and section conversations on withdrawn versions become
+unavailable. Existing immutable identity/revision triggers are unchanged.
+
+The delete service rechecks authenticated eligible ownership inside the same write
+transaction as the deletion ledger, version.delete access audit, and release of
+only this version's active reading leases. Confirmation must name the exact route
+version. HTTP GET only displays confirmation; POST is owner-only and CSRF protected.
+Deleting the final version keeps the logical document ready for another upload.
+Re-importing identical bytes creates a new active version identity without undoing
+the old deletion. No source file or shared blob is moved, rewritten or unlinked.
+
+After commit, a content-free review.version_deleted event reaches eligible viewers
+of that exact version. Clients disconnect and navigate back to the document; the
+server retires room presence and denies subsequent joins/reads/writes. Previously
+received PDF bytes cannot be recalled. Existing generic broadcasts also prune
+withdrawn versions. Backup/storage verification retains the full historical ledger.

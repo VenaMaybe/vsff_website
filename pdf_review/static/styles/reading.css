@@ -13,8 +13,8 @@
 .reading-spine-label { position:absolute; left:32px; right:0; width:calc(100% - 32px); min-height:0; padding:2px 5px; color:var(--ink); border:0; text-align:left; justify-content:flex-start; font-size:11px; overflow:hidden; }
 .reading-spine-label.section { background:transparent; display:flex; flex-direction:column; align-items:flex-start; line-height:1.2; font-weight:600; }
 .reading-spine-label.section small { color:var(--muted); font-weight:400; font-size:10px; }
-.reading-spine-label.reader { background:color-mix(in srgb,var(--reader-color) 15%,var(--surface)); white-space:nowrap; text-overflow:ellipsis; display:block; }
-.reading-spine-label.reader:hover { background:color-mix(in srgb,var(--reader-color) 25%,var(--surface)); color:var(--ink); }
+.reading-spine-label.reader { background:color-mix(in srgb,var(--reader-color) 28%,transparent); white-space:nowrap; text-overflow:ellipsis; display:block; }
+.reading-spine-label.reader:hover { background:color-mix(in srgb,var(--reader-color) 38%,transparent); color:var(--ink); }
 .reading-legend { border-top:1px solid var(--line); padding-top:6px; }
 .reading-legend-row { display:grid; grid-template-columns:minmax(0,1fr) auto 32px; gap:6px; width:100%; min-height:23px; padding:2px; color:var(--ink); background:transparent; border:0; font-size:10px; text-align:left; }
 .reading-legend-row > span:first-child { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }

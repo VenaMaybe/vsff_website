@@ -5,7 +5,7 @@ import math
 from uuid import uuid4
 
 from .access import authorize_actor
-from .database import connect, transaction
+from .database import version_table, connect, transaction
 from .documents import now_utc
 
 
@@ -37,9 +37,9 @@ def sections_in_connection(c,document_id,version_id=None,*,archived=False):
         if item['placement']:
             for key in ('start_view_box','end_view_box'):
                 item['placement'][key]=json.loads(item['placement'][key])
-        item['previous_placements']=[dict(r) for r in c.execute('''SELECT p.version_id,v.version_label,
+        item['previous_placements']=[dict(r) for r in c.execute(f'''SELECT p.version_id,v.version_label,
             p.start_page,p.start_y,p.end_page,p.end_y FROM section_placements p
-            JOIN document_versions v ON v.version_id=p.version_id WHERE p.section_id=? AND p.version_id!=?
+            JOIN {version_table(c)} v ON v.version_id=p.version_id WHERE p.section_id=? AND p.version_id!=?
             ORDER BY v.imported_at DESC''',(row['section_id'],version_id or ''))]
         result.append(item)
     return result
@@ -120,7 +120,7 @@ def _place(c,section_id,version_id,actor,payload):
     if set(payload)!=expected:
         raise SectionError('Placement requires canonical start/end and expected_revision.')
     section=c.execute('SELECT * FROM sections WHERE section_id=? AND archived_at IS NULL',(section_id,)).fetchone()
-    version=c.execute('SELECT document_id FROM document_versions WHERE version_id=?',(version_id,)).fetchone()
+    version=c.execute(f'SELECT document_id FROM {version_table(c)} WHERE version_id=?',(version_id,)).fetchone()
     if not section or not version or section['document_id']!=version[0]:
         raise SectionError('Section and version must belong to the same document.')
     authorize_actor(c,actor,section['document_id'])
@@ -163,7 +163,7 @@ def save_shared_boundary(database,version_id,actor,payload):
     if 'edited_id' in payload and (payload['edited_id'] not in (before_id,after_id) or payload.get('split')):
         raise SectionError('Invalid edited section.')
     with transaction(database) as c:
-        version=c.execute('SELECT document_id FROM document_versions WHERE version_id=?',(version_id,)).fetchone()
+        version=c.execute(f'SELECT document_id FROM {version_table(c)} WHERE version_id=?',(version_id,)).fetchone()
         if not version:
             raise SectionError('Version not found.')
         authorize_actor(c,actor,version[0])

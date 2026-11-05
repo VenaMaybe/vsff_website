@@ -3,7 +3,7 @@
 from uuid import uuid4
 
 from .anchors import get_anchor, insert_validated_anchor, validate_anchor_payload
-from .database import connect, transaction
+from .database import version_table, connect, transaction
 from .documents import now_utc
 from .threads import get_thread
 from .users import require_active_user
@@ -26,11 +26,11 @@ class MigrationConflictError(MigrationError):
 
 def _run(connection, migration_id):
     row = connection.execute(
-        """SELECT r.*, s.version_label AS source_label, s.original_filename AS source_filename,
+        f"""SELECT r.*, s.version_label AS source_label, s.original_filename AS source_filename,
                   d.version_label AS target_label, d.original_filename AS target_filename,
                   u.display_name AS creator_name, cu.display_name AS completer_name
-           FROM migration_runs r JOIN document_versions s ON s.version_id = r.source_version_id
-           JOIN document_versions d ON d.version_id = r.target_version_id
+           FROM migration_runs r JOIN {version_table(connection)} s ON s.version_id = r.source_version_id
+           JOIN {version_table(connection)} d ON d.version_id = r.target_version_id
            JOIN users u ON u.user_id = r.created_by_user_id
            LEFT JOIN users cu ON cu.user_id = r.completed_by_user_id WHERE r.migration_id = ?""", (migration_id,)
     ).fetchone()
@@ -91,7 +91,7 @@ def list_migrations(database_path, document_id):
         if connection.execute("SELECT 1 FROM documents WHERE document_id = ?", (document_id,)).fetchone() is None:
             raise MigrationNotFoundError("The logical document does not exist.")
         rows = connection.execute(
-            "SELECT migration_id FROM migration_runs WHERE document_id = ? ORDER BY created_at DESC, migration_id",
+            f"SELECT migration_id FROM migration_runs r WHERE document_id = ? AND source_version_id IN (SELECT version_id FROM {version_table(connection)}) AND target_version_id IN (SELECT version_id FROM {version_table(connection)}) ORDER BY created_at DESC, migration_id",
             (document_id,),
         ).fetchall()
         result = []
@@ -119,7 +119,7 @@ def create_migration(database_path, document_id, source_version_id, target_versi
         if connection.execute("SELECT 1 FROM documents WHERE document_id = ?", (document_id,)).fetchone() is None:
             raise MigrationNotFoundError("The logical document does not exist.")
         for version_id in [source_version_id, target_version_id]:
-            version = connection.execute("SELECT document_id FROM document_versions WHERE version_id = ?", (version_id,)).fetchone()
+            version = connection.execute(f"SELECT document_id FROM {version_table(connection)} WHERE version_id = ?", (version_id,)).fetchone()
             if version is None:
                 raise MigrationNotFoundError("The selected version does not exist.")
             if version["document_id"] != document_id:

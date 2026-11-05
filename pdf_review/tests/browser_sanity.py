@@ -54,6 +54,9 @@ def serve(root):
     if os.environ.get('PDF_REVIEW_TEST_ZOOM') == '1' or os.environ.get('PDF_REVIEW_TEST_READING') == '1':
         from tests.document_zoom import mixed_pdf
         pdf_factory = mixed_pdf
+    if os.environ.get('PDF_REVIEW_TEST_PROPERTIES')=='1':
+        from tests.page_properties_acceptance import properties_pdf
+        pdf_factory=properties_pdf
     versions = [import_version(app.config["DATABASE"], app.extensions["blob_store"], doc,
                               io.BytesIO(pdf_factory(str(index))), f"draft{index}.pdf").version_id for index in [3, 4]]
     names=['Vena','Alice','Miles'] if os.environ.get('PDF_REVIEW_TEST_READING')=='1' else ['ReviewerAlpha','ReviewerBeta']
@@ -68,6 +71,9 @@ def serve(root):
     if os.environ.get('PDF_REVIEW_TEST_READING')=='1':
         from tests.reading_acceptance import seed_reading
         seed_reading(app,doc,versions[0],users)
+    if os.environ.get('PDF_REVIEW_TEST_PROPERTIES')=='1':
+        from tests.page_properties_acceptance import seed_properties
+        seed_properties(app,doc,versions[0],users[0])
     from review import access
     from flask import redirect, url_for
     admin = create_user(app.config['DATABASE'], 'BrowserAdmin')
@@ -183,7 +189,8 @@ def run():
                 server = subprocess.Popen([sys.executable, str(Path(__file__).resolve()), "--server", str(root)],
                                           stdout=log, stderr=log, creationflags=subprocess.CREATE_NO_WINDOW,
                                           env=({**os.environ,'PDF_REVIEW_TEST_ZOOM':'1'} if '--zoom-layout' in sys.argv else
-                                               {**os.environ,'PDF_REVIEW_TEST_READING':'1'} if '--reading-ui' in sys.argv else None))
+                                               {**os.environ,'PDF_REVIEW_TEST_READING':'1'} if '--reading-ui' in sys.argv else
+                                               {**os.environ,'PDF_REVIEW_TEST_PROPERTIES':'1'} if '--page-properties' in sys.argv else None))
                 deadline = time.monotonic() + 15
                 while not (root / "fixture.json").exists():
                     if time.monotonic() > deadline: raise TimeoutError("Fixture server startup")
@@ -269,6 +276,16 @@ def run():
                 if '--tools-menu' in sys.argv:
                     from tests.tools_menu import run_tools
                     run_tools(cdp,a,b,fixture,base)
+                    assert not cdp.exceptions,cdp.exceptions
+                    return
+                if '--version-delete' in sys.argv:
+                    from tests.version_deletion_acceptance import run_version_delete
+                    run_version_delete(cdp,a,b,fixture,base)
+                    assert not cdp.exceptions,cdp.exceptions
+                    return
+                if '--page-properties' in sys.argv:
+                    from tests.page_properties_acceptance import run_properties
+                    run_properties(cdp,a,b,fixture,base)
                     assert not cdp.exceptions,cdp.exceptions
                     return
                 if '--reading-ui' in sys.argv:

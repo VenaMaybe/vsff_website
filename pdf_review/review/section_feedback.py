@@ -3,14 +3,14 @@
 from uuid import uuid4
 
 from . import comment_lifecycle
-from .database import connect,transaction
+from .database import version_table, connect,transaction
 from .documents import now_utc
 from .review_policy import author_predicate,require_reader
 from .sections import SectionError
 
 
 def permitted(c,response_id,user_id,*,write=False):
-    row=c.execute('''SELECT r.*,s.document_id FROM section_responses r JOIN sections s USING(section_id)
+    row=c.execute(f'''SELECT r.*,s.document_id FROM section_responses r JOIN sections s USING(section_id) JOIN {version_table(c)} v ON v.version_id=r.version_id
                      WHERE response_id=?''',(response_id,)).fetchone()
     if row is None:
         return None
@@ -25,7 +25,7 @@ def list_responses(database,version_id,user_id):
     c=connect(database)
     try:
         c.execute('BEGIN')
-        version=c.execute('SELECT document_id FROM document_versions WHERE version_id=?',(version_id,)).fetchone()
+        version=c.execute(f'SELECT document_id FROM {version_table(c)} WHERE version_id=?',(version_id,)).fetchone()
         if not version:
             raise SectionError('Version not found.')
         clause,args=author_predicate(c,version[0],user_id,'r.author_id')
@@ -34,7 +34,7 @@ def list_responses(database,version_id,user_id):
                 JOIN users u ON u.user_id=r.author_id WHERE r.version_id=? AND {clause}
                 ORDER BY r.created_at,r.response_id''',[version_id,*args]).fetchall():
             response=dict(row)
-            response['comments']=[dict(v) for v in c.execute('''SELECT c.*,u.display_name,
+            response['comments']=[dict(v) for v in c.execute('''SELECT c.*,u.display_name,u.review_color,
                 (SELECT MAX(revision_number) FROM section_comment_revisions WHERE comment_id=c.comment_id) current_revision
                 FROM section_comments c JOIN users u ON u.user_id=c.author_id
                 WHERE c.response_id=? ORDER BY c.created_at,c.comment_id''',(row['response_id'],))]
@@ -50,7 +50,7 @@ def create_response(database,section_id,version_id,user_id,body):
         if not row:
             raise SectionError('Section not found.')
         require_reader(c,row[0],user_id,write=True)
-        if not c.execute('SELECT 1 FROM section_placements WHERE section_id=? AND version_id=?',(section_id,version_id)).fetchone():
+        if not c.execute(f'SELECT 1 FROM section_placements p JOIN {version_table(c)} v USING(version_id) WHERE p.section_id=? AND p.version_id=?',(section_id,version_id)).fetchone():
             raise SectionError('Section must be mapped on this version.')
         if c.execute('SELECT 1 FROM section_responses WHERE section_id=? AND version_id=? AND author_id=?',
                      (section_id,version_id,user_id)).fetchone():

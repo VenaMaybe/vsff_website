@@ -1,12 +1,14 @@
 import { jsonRequest } from './thread_api.js';
 import { viewingPages } from './presence.js';
 import { ReadingClock } from './reading_clock.js';
+import { pagePropertiesFor } from './page_properties_data.js';
 
 export class ReadingTracker extends EventTarget {
   constructor(application,frame,config,connected) {
     super();Object.assign(this,{application,frame,config,connected});
     this.url=`/api/versions/${encodeURIComponent(config.versionId)}/reading`;
-    this.clock=new ReadingClock();this.words=new Map();this.extracting=new Map();
+    this.clock=new ReadingClock();this.words=new Map();
+    this.properties=pagePropertiesFor(application.pdfDocument,config,frame.contentWindow.pdfjsLib?.OPS);
     this.tracking={status:'off'};this.policy={idle_seconds:60,batch_seconds:15,lease_seconds:25};
     this.lastInput=performance.now();this.lastScroll=0;this.lastFlush=0;this.granted=false;
     const input=()=>{this.lastInput=performance.now();};
@@ -53,22 +55,9 @@ export class ReadingTracker extends EventTarget {
     return {page,pages:visible};
   }
   async wordCount(page) {
-    if(this.words.has(page))return this.words.get(page);
-    if(this.extracting.has(page))return this.extracting.get(page);
-    const pending=(async()=>{
-      try {
-        const pdfPage=await this.application.pdfDocument.getPage(page);
-        const content=await pdfPage.getTextContent();
-        // Approximate PDF.js text runs; only counts, never text, reach the API.
-        const text=content.items.filter(i=>typeof i.str==='string').map(i=>i.str).join(' ');
-        const count=typeof Intl.Segmenter==='function'
-          ? [...new Intl.Segmenter(undefined,{granularity:'word'}).segment(text)].filter(w=>w.isWordLike).length
-          : (text.match(/\S+/gu)||[]).length;
-        const words=Math.min(100000,count);this.words.set(page,words);return words;
-      } catch {return null;} // Extraction failure is unknown, not a blank page.
-      finally {this.extracting.delete(page);}
-    })();
-    this.extracting.set(page,pending);return pending;
+    const words=await this.properties.wordCount(page);
+    if(words!==null)this.words.set(page,Math.min(100000,words));
+    return words;
   }
   tick() {
     if(this.tracking.status!=='active'){this.clock.clear();return;}

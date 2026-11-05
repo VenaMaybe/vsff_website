@@ -13,7 +13,7 @@ from .anchors import (
     insert_validated_anchor,
     validate_anchor_payload,
 )
-from .database import connect, transaction
+from .database import version_table, connect, transaction
 from .documents import now_utc
 from .users import UserNotFoundError, require_active_user
 
@@ -73,9 +73,10 @@ def _user_summary(row: sqlite3.Row, prefix: str) -> dict[str, Any] | None:
 
 
 def _comment_rows(connection: sqlite3.Connection, thread_id: str) -> list[dict[str, Any]]:
+    color = 'u.review_color' if any(r['name'] == 'review_color' for r in connection.execute('PRAGMA table_info(users)')) else "'#c66b54'"
     rows = connection.execute(
-        """
-        SELECT c.*, u.display_name AS author_display_name,
+        f"""
+        SELECT c.*, u.display_name AS author_display_name, {color} AS author_review_color,
                du.display_name AS deleted_by_display_name,
                COUNT(r.revision_id) AS revision_count,
                MAX(r.revision_number) AS current_revision
@@ -96,6 +97,7 @@ def _comment_rows(connection: sqlite3.Connection, thread_id: str) -> list[dict[s
             "author": {
                 "user_id": row["author_id"],
                 "display_name": row["author_display_name"],
+                "review_color": row["author_review_color"],
             },
             "body": None if row["deleted_at"] is not None else row["body"],
             "created_at": row["created_at"],
@@ -131,6 +133,7 @@ def _target_rows(
         FROM thread_target_heads h
         JOIN thread_targets tt ON tt.thread_target_id = h.thread_target_id
         JOIN anchor_instances a ON a.anchor_id = tt.anchor_id
+        JOIN {version_table(connection)} v ON v.version_id=a.document_version_id
         WHERE tt.thread_id = ? {version_clause}
         ORDER BY CASE tt.role WHEN 'origin' THEN 0 WHEN 'projection' THEN 1 ELSE 2 END,
                  tt.created_at ASC, tt.thread_target_id ASC
@@ -151,7 +154,7 @@ def _thread_row(connection: sqlite3.Connection, thread_id: str) -> sqlite3.Row:
         FROM threads t
         JOIN users creator ON creator.user_id = t.created_by_user_id
         LEFT JOIN users resolver ON resolver.user_id = t.resolved_by_user_id
-        WHERE t.thread_id = ?
+        WHERE t.thread_id = ? AND EXISTS(SELECT 1 FROM thread_target_heads h JOIN {version_table(connection)} v ON v.version_id=h.document_version_id WHERE h.thread_id=t.thread_id)
         """,
         (thread_id,),
     ).fetchone()
@@ -213,7 +216,7 @@ def list_threads(database_path: Path | str, version_id: str, user_id=None) -> li
     connection = connect(database_path)
     try:
         version = connection.execute(
-            "SELECT document_id FROM document_versions WHERE version_id = ?", (version_id,)
+            f"SELECT document_id FROM {version_table(connection)} WHERE version_id = ?", (version_id,)
         ).fetchone()
         if version is None:
             raise AnchorVersionNotFoundError("The document version does not exist.")
@@ -278,7 +281,7 @@ def create_thread(
     with transaction(database_path) as connection:
         require_active_user(connection, author_id)
         version = connection.execute(
-            "SELECT document_id FROM document_versions WHERE version_id = ?",
+            f"SELECT document_id FROM {version_table(connection)} WHERE version_id = ?",
             (version_id,),
         ).fetchone()
         if version is None:

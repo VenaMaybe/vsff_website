@@ -319,6 +319,21 @@ class BetaC2Tests(unittest.TestCase):
         other=section_feedback.create_response(self.db,sid,self.versions[1],self.users[1],'New draft thoughts')
         self.assertNotEqual(rid,other)
 
+    def test_statistics_receive_each_message_authors_color_without_expanding_access(self):
+        preferences.save_color(self.db,self.users[0],'#4e79a7')
+        preferences.save_color(self.db,self.users[1],'#f28e2c')
+        threads=self.clients[0].get(f'/api/versions/{self.versions[0]}/threads').json['threads']
+        alice=next(t for t in threads if t['created_by']['user_id']==self.users[1])
+        colors={c['author']['user_id']:c['author']['review_color'] for c in alice['comments']}
+        self.assertEqual(colors,{self.users[1]:'#f28e2c',self.users[0]:'#4e79a7'})
+        sid=self.section();self.place(sid)
+        rid=section_feedback.create_response(self.db,sid,self.versions[0],self.users[1],'Thoughts')
+        section_feedback.reply(self.db,rid,self.users[0],'Reply')
+        self.assertEqual({c['author_id']:c['review_color'] for c in self.context(1)['responses'][0]['comments']},colors)
+        self.defaults(visibility_policy='isolated')
+        self.assertEqual(self.context(2)['responses'],[])
+        self.assertNotIn(self.threads[0]['thread_id'],self.thread_ids(2))
+
     def test_feedback_conflict_revision_ownership_and_tombstone(self):
         sid=self.section();self.place(sid)
         rid=section_feedback.create_response(self.db,sid,self.versions[0],self.users[1],'Original')

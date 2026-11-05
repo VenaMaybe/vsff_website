@@ -33,7 +33,7 @@ export class RefreshCoordinator {
 }
 
 export class ReviewRealtime {
-  constructor(versionId, refresh, presence, status, onMigrationChanged = () => {}) {
+  constructor(versionId, refresh, presence, status, onMigrationChanged = () => {}, onVersionDeleted = () => window.location.reload()) {
     Object.assign(this, { versionId, refresh, presence, status });
     this.joined = false;
     if (typeof window.io !== "function") {
@@ -56,6 +56,9 @@ export class ReviewRealtime {
     this.socket.on("review.changed", (event) => {
       if (event?.schema_version === 1 && event.version_id === versionId &&
           typeof event.thread_id === "string" && typeof event.kind === "string") this.refresh.request();
+    });
+    this.socket.on('review.version_deleted',event=>{
+      if(event?.schema_version===1&&event.version_id===versionId){this.joined=false;this.socket.disconnect();onVersionDeleted();}
     });
     this.socket.on("review.presence", (event) => this.presence.render(event));
     this.socket.on('review.invalidated',event=>{if(event?.schema_version===1 && event.version_id===versionId)this.refresh.request();});

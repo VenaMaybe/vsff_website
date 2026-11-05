@@ -383,6 +383,7 @@ MIGRATIONS.append((9, "tableau_review_palette", Path(__file__).with_name("migrat
 MIGRATIONS.append((10, "document_download_controls", Path(__file__).with_name("migration10.sql").read_text(encoding="utf-8")))
 MIGRATIONS.append((11, "consented_exact_version_reading_activity", Path(__file__).with_name("migration11.sql").read_text(encoding="utf-8")))
 MIGRATIONS.append((12, "author_reading_policy", Path(__file__).with_name("migration12.sql").read_text(encoding="utf-8")))
+MIGRATIONS.append((13, "version_deletion_ledger", Path(__file__).with_name("migration13.sql").read_text(encoding="utf-8-sig")))
 
 
 def connect(database_path: Path | str) -> sqlite3.Connection:
@@ -393,6 +394,13 @@ def connect(database_path: Path | str) -> sqlite3.Connection:
     connection.execute("PRAGMA busy_timeout = 30000")
     connection.execute("PRAGMA journal_mode = WAL")
     return connection
+
+
+def version_table(connection):
+    """Use the live-version view; retain pre-migration offline import compatibility."""
+    return 'active_document_versions' if connection.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='view' AND name='active_document_versions'"
+    ).fetchone() else 'document_versions'
 
 
 def init_database(database_path: Path | str) -> None:

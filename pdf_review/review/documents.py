@@ -10,7 +10,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import BinaryIO
 
-from .database import connect, transaction
+from .database import version_table, connect, transaction
 from .storage import BlobStore, StoredBlob
 
 
@@ -85,11 +85,11 @@ def list_documents(database_path: Path | str) -> list[sqlite3.Row]:
     connection = connect(database_path)
     try:
         return connection.execute(
-            """
+            f"""
             SELECT d.*, COUNT(v.version_id) AS version_count,
                    MAX(v.imported_at) AS last_imported_at
             FROM documents d
-            LEFT JOIN document_versions v ON v.document_id = d.document_id
+            LEFT JOIN {version_table(connection)} v ON v.document_id = d.document_id
             GROUP BY d.document_id
             ORDER BY d.created_at DESC, d.document_id DESC
             """
@@ -112,8 +112,8 @@ def list_versions(database_path: Path | str, document_id: str) -> list[sqlite3.R
     connection = connect(database_path)
     try:
         return connection.execute(
-            """
-            SELECT * FROM document_versions
+            f"""
+            SELECT * FROM {version_table(connection)}
             WHERE document_id = ?
             ORDER BY imported_at DESC, version_id DESC
             """,
@@ -127,9 +127,9 @@ def get_version(database_path: Path | str, version_id: str) -> sqlite3.Row | Non
     connection = connect(database_path)
     try:
         return connection.execute(
-            """
+            f"""
             SELECT v.*, d.title AS document_title
-            FROM document_versions v
+            FROM {version_table(connection)} v
             JOIN documents d ON d.document_id = v.document_id
             WHERE v.version_id = ?
             """,
@@ -200,3 +200,23 @@ def import_version(
                     path.unlink(missing_ok=True)
             raise
     return ImportResult(version_id, blob)
+
+
+def delete_version(database_path, version_id, user_id, confirmation):
+    """Withdraw exactly one version; preserve immutable bytes and review history."""
+    from .access import AccessDenied, authorize_actor, audit
+    if not isinstance(user_id,str) or not user_id:
+        raise AccessDenied('An authenticated document owner is required.')
+    with transaction(database_path) as connection:
+        version=connection.execute('SELECT * FROM document_versions WHERE version_id=?',(version_id,)).fetchone()
+        if version is None:
+            raise VersionNotFoundError('The version does not exist.')
+        authorize_actor(connection,user_id,version['document_id'])
+        if confirmation!=version_id:
+            raise DocumentError('Confirm the exact version to delete.')
+        if connection.execute('SELECT 1 FROM version_deletions WHERE version_id=?',(version_id,)).fetchone():
+            return version['document_id']
+        connection.execute('INSERT INTO version_deletions VALUES(?,?,?)',(version_id,user_id,now_utc()))
+        connection.execute('DELETE FROM reading_leases WHERE session_id IN (SELECT session_id FROM reading_sessions WHERE version_id=?)',(version_id,))
+        audit(connection,user_id,'version.delete','version',version_id,document_id=version['document_id'])
+        return version['document_id']

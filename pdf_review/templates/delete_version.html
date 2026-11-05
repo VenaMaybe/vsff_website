@@ -1,0 +1,21 @@
+﻿{% extends "base.html" %}
+{% block title %}Delete version · PDF Review{% endblock %}
+{% block content %}
+<nav class="breadcrumbs"><a href="{{ url_for('core.document_detail',document_id=version.document_id) }}">{{ version.document_title }}</a> / Delete version</nav>
+<section class="panel version-delete-confirmation">
+  <h1>Delete this version?</h1>
+  <p><strong>{{ version.version_label or 'Unlabeled version' }}</strong> · {{ version.original_filename }}</p>
+  <p class="subtle">Imported {{ version.imported_at|replace('T',' ')|replace('Z',' UTC') }}</p>
+  <p>This version will disappear from the document and its PDF links will stop working. Open viewers of this version will return to the document page.</p>
+  <p>Other versions and their feedback stay available. Existing review history and the stored PDF are retained for integrity; this does not erase the uploaded bytes from storage.</p>
+  {% if error %}<p class="message error" role="alert">{{ error }}</p>{% endif %}
+  <form method="post" action="{{ url_for('core.delete_version',version_id=version.version_id) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="confirm_version_id" value="{{ version.version_id }}">
+    <div class="dialog-actions">
+      <a class="button quiet" href="{{ url_for('core.document_detail',document_id=version.document_id) }}">Cancel</a>
+      <button class="danger" type="submit">Delete this version</button>
+    </div>
+  </form>
+</section>
+{% endblock %}

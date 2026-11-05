@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from .database import connect, transaction
+from .database import version_table, connect, transaction
 from .documents import get_version, now_utc
 
 
@@ -356,7 +356,7 @@ def insert_validated_anchor(
     and root comment share one all-or-nothing database commit.
     """
     version_exists = connection.execute(
-        "SELECT 1 FROM document_versions WHERE version_id = ?", (version_id,)
+        f"SELECT 1 FROM {version_table(connection)} WHERE version_id = ?", (version_id,)
     ).fetchone()
     if version_exists is None:
         raise AnchorVersionNotFoundError("The document version does not exist.")
@@ -432,7 +432,7 @@ def get_anchor(database_path: Path | str, anchor_id: str) -> dict[str, Any]:
     connection = connect(database_path)
     try:
         anchor = connection.execute(
-            "SELECT * FROM anchor_instances WHERE anchor_id = ?", (anchor_id,)
+            f"SELECT a.* FROM anchor_instances a JOIN {version_table(connection)} v ON v.version_id=a.document_version_id WHERE anchor_id = ?", (anchor_id,)
         ).fetchone()
         if anchor is None:
             raise AnchorNotFoundError("The anchor does not exist.")

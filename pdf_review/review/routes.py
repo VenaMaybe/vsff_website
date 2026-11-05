@@ -37,6 +37,8 @@ from .documents import (
     DocumentError,
     create_document,
     get_document,
+    delete_version as withdraw_version,
+    VersionNotFoundError,
     get_version,
     import_version,
     list_documents,
@@ -187,6 +189,29 @@ def new_version(document_id: str):
         message = "Version imported; identical stored bytes were safely deduplicated."
     flash(message, "success")
     return redirect(url_for("core.document_detail", document_id=document_id)), 303
+
+
+@bp.route('/versions/<version_id>/delete',methods=['GET','POST'])
+def delete_version(version_id):
+    version=get_version(database_path(),version_id)
+    if version is None:
+        abort(404)
+    if request.method=='GET':
+        return render_template('delete_version.html',version=version)
+    if set(request.form)-{'csrf_token','confirm_version_id'}:
+        abort(400)
+    try:
+        document_id=withdraw_version(database_path(),version_id,current_reviewer_id(),request.form.get('confirm_version_id'))
+    except AccessDenied:
+        abort(403)
+    except VersionNotFoundError:
+        abort(404)
+    except DocumentError as error:
+        return render_template('delete_version.html',version=version,error=str(error)),400
+    from .realtime import notify_version_deleted
+    notify_version_deleted(version_id)
+    flash('Version deleted. Other versions are unchanged.','success')
+    return redirect(url_for('core.document_detail',document_id=document_id)),303
 
 
 @bp.get("/versions/<version_id>/view")

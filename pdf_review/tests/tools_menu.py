@@ -8,9 +8,9 @@ def run_tools(cdp, a, b, fixture, base):
     def ev(script): return cdp.evaluate(a, script)
     def wait(script): return cdp.wait(a, script)
     viewport(cdp, a, 1440, 1000)
-    assert ev("[...document.querySelectorAll('#review-tools-menu [data-left-card]')].map(x=>x.dataset.leftCard).join(',')==='search,filters,reading,analytics,settings,sections'")
+    assert ev("[...document.querySelectorAll('#review-tools-menu [data-left-card]')].map(x=>x.dataset.leftCard).join(',')==='search,filters,reading,analytics,properties,settings,sections'")
     assert ev("!document.querySelector('#review-view-menu [data-review-settings],#review-view-menu [data-sections],#comments-menu [data-comment-filters]')")
-    for tool, panel in [('search', '.search-panel'), ('filters', '.comment-filter-panel'), ('settings', '.settings-panel'), ('sections', '.sections-panel')]:
+    for tool, panel in [('properties', '.page-properties-card'), ('search', '.search-panel'), ('filters', '.comment-filter-panel'), ('settings', '.settings-panel'), ('sections', '.sections-panel')]:
         selector=f'#review-tools-menu [data-left-card={tool}]'
         assert ev(f"document.querySelector({json.dumps(selector)}).getAttribute('aria-checked')==='false'")
         if not ev("document.querySelector('#review-tools-menu').open"):
@@ -69,5 +69,5 @@ def run_tools(cdp, a, b, fixture, base):
     payload=json.dumps({'csrf_token':ev("document.querySelector('meta[name=csrf-token]').content"),'user_id':fixture['users'][1]['user_id'],'role':'reviewer','action':'grant'})
     ev(f"(async()=>{{const r=await fetch('/documents/{doc}/access',{{method:'POST',body:new URLSearchParams({payload})}});if(!r.ok)throw new Error('Fixture role change failed')}})()")
     navigate(cdp,b,base+f"/versions/{fixture['versions'][0]}/view",True)
-    assert cdp.evaluate(b,"[...document.querySelectorAll('#review-tools-menu [data-left-card]')].map(x=>x.dataset.leftCard).join(',')==='search,filters,reading,analytics'&&!document.querySelector('[data-review-settings],[data-sections]')")
+    assert cdp.evaluate(b,"[...document.querySelectorAll('#review-tools-menu [data-left-card]')].map(x=>x.dataset.leftCard).join(',')==='search,filters,reading,analytics,properties'&&!document.querySelector('[data-review-settings],[data-sections]')")
     print('PASS Tools menu reuse, reopen without duplicates, live checkmarks, native search, keyboard/mobile menus and owner-only actions',flush=True)

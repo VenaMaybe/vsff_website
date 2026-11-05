@@ -96,3 +96,9 @@ summary { cursor: pointer; }
  .slice-label { display: none; }
 }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none; scroll-behavior: auto; } }
+
+.version-actions .danger, .version-delete-confirmation .danger { color:var(--danger); }
+
+.version-delete-confirmation .dialog-actions { display:flex; align-items:center; gap:8px; margin-top:14px; }
+
+.version-delete-confirmation button.danger { background:var(--danger); border-color:var(--danger); color:white; }

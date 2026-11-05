@@ -62,6 +62,7 @@
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <button class="button quiet" type="submit">Verify integrity</button>
         </form>
+        <a class="button quiet danger" href="{{ url_for('core.delete_version',version_id=version.version_id) }}">Delete version</a>
         {% endif %}
       </div>
     </article>

@@ -7,12 +7,25 @@ This local version adds owner-controlled **Shared / Isolated** review, personal
 a ten-color Tableau 10 Account palette, page/spread presence, logical sections and exact-version
 section feedback. See [BETA_C2_REPORT.md](BETA_C2_REPORT.md) for the audit and checks.
 
-- **Tools** opens Search document, Filter comments, Reading progress and Reader
-  analytics left cards; document owners
+- Document owners can **Delete version** from an individual version on the document
+  page. A confirmation identifies the exact filename/version; Cancel changes nothing.
+  Deletion removes that version from lists and blocks its PDF/review links, including
+  open viewer sessions. Other versions and carried feedback stay available. Immutable
+  PDF bytes and historical review records are retained internally; this is not a
+  storage purge. See [Version deletion report](VERSION_DELETION_REPORT.md).
+- **Tools** opens Search document, Filter comments, Reading progress, Reader
+  analytics and Version statistics left cards; document owners
   also see Review settings and Manage sections. Checkmarks identify open cards;
   selecting an open tool focuses it; selecting the focused tool again closes it.
   **Close all tools** closes the cards together. Tools stays open while choosing
   items and dismisses when you click elsewhere. Cards also retain their X buttons.
+- **Version statistics** switches between Pages and Sections for Words, estimated
+  Read time, Images and Comments. Comment bars are stacked in the actual message
+  authors' colors and update live, following the existing access/reviewer filters.
+  Images include raster placements and tagged vector figures such as chapter art.
+  Bars navigate to pages and mark the current page/spread. Immutable PDF metrics
+  share a version-scoped browser metadata cache with reader analytics; comments
+  are never stored in that cache. See [Version statistics report](VERSION_STATISTICS_REPORT.md).
 - Reading tracking is **on by default**. Only document authors manage document
   On/Off and per-reader Pause in **Tools > Review settings**; changes apply across
   PDF versions and retain past history. Both reading cards are available to readers,

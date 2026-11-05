@@ -1,6 +1,7 @@
 """Review confidentiality and presentation filtering, applied before content reads."""
 
 from .access import AccessDenied, ELIGIBLE
+from .database import version_table
 
 
 def require_reader(connection, document_id, user_id, *, write=False, owner=False):
@@ -39,5 +40,5 @@ def thread_permitted(connection, thread_id, user_id):
     if not row:
         return False
     predicate, args = author_predicate(connection, row['document_id'], user_id, 't.created_by_user_id', personal=False)
-    return bool(connection.execute(f'SELECT 1 FROM threads t WHERE t.thread_id=? AND {predicate}',
+    return bool(connection.execute(f'SELECT 1 FROM threads t WHERE t.thread_id=? AND {predicate} AND EXISTS(SELECT 1 FROM thread_target_heads h JOIN {version_table(connection)} v ON v.version_id=h.document_version_id WHERE h.thread_id=t.thread_id)',
                                   [thread_id, *args]).fetchone())

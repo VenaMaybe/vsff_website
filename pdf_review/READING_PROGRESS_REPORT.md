@@ -11,6 +11,8 @@ clustered dots retain their true vertical positions with small horizontal offset
 Its legend distinguishes position from estimated completion. Reader clicks
 select/focus the one analytics card; section clicks use native PDF.js destinations,
 including in-page starts. Backward navigation never reduces completed progress.
+Reader-position label backgrounds match PDF comment highlights: the reader's
+review color at 28% opacity normally and 38% on hover, mixed with transparent.
 
 Analytics shows position, furthest visited page, measured active viewing time,
 considered-read pages, activity date and estimated section completion. Section

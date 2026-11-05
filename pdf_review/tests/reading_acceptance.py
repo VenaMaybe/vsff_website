@@ -122,7 +122,7 @@ def run_reading(cdp,a,b,fixture,base):
     wait("document.querySelector('.reading-tabs [aria-pressed=true]')?.textContent==='Pages'")
     wait("document.querySelector('.reading-page-group')?.open&&document.querySelector('.reading-page')!==null")
     assert ev("!document.querySelector('.reading-page-group:last-child').open")
-    assert ev("[...document.querySelectorAll('[data-left-card]')].every(e=>e.getAttribute('aria-checked')==='true')")
+    assert ev("[...document.querySelectorAll('[data-left-card]')].every(e=>e.getAttribute('aria-checked')===String(e.dataset.leftCard!=='properties'))")
     ev("document.querySelector('[data-close-all-tools]').click()")
     wait("document.querySelectorAll('.left-card').length===0")
     print('PASS default-on reading, real active timing/author pause, inactive/suspended clock, weighted spreads, clustered spine, reader selection/pages and six-card restoration',flush=True)

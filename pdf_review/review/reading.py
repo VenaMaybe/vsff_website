@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 from uuid import uuid4
 
 from .access import AccessDenied, ELIGIBLE
-from .database import connect, transaction
+from .database import version_table, connect, transaction
 from .documents import now_utc
 from .review_policy import require_reader
 
@@ -42,7 +42,7 @@ def integer(value, low, high):
 
 
 def version_reader(c, version_id, user_id):
-    version = c.execute('SELECT document_id FROM document_versions WHERE version_id=?', (version_id,)).fetchone()
+    version = c.execute(f'SELECT document_id FROM {version_table(c)} WHERE version_id=?', (version_id,)).fetchone()
     if not version:
         raise LookupError()
     return version['document_id'], require_reader(c, version['document_id'], user_id)
@@ -51,7 +51,9 @@ def version_reader(c, version_id, user_id):
 def consent(c, version_id, user_id):
     row = c.execute('SELECT * FROM reading_consents WHERE version_id=? AND user_id=?', (version_id, user_id)).fetchone()
     state = dict(row) if row else dict(generation=1, consented_at=None, page_count=None)
-    document = c.execute('SELECT document_id FROM document_versions WHERE version_id=?',(version_id,)).fetchone()[0]
+    version = c.execute(f'SELECT document_id FROM {version_table(c)} WHERE version_id=?',(version_id,)).fetchone()
+    if not version:raise LookupError()
+    document=version[0]
     from .review_policy import settings
     enabled = settings(c, document)['reading_tracking_enabled']
     paused = c.execute('SELECT 1 FROM document_reading_pauses WHERE document_id=? AND user_id=?',(document,user_id)).fetchone()
@@ -218,13 +220,13 @@ def reading_summary(database, version_id, user_id, offset=0):
         own = consent(c, version_id, user_id)
         # Reading analytics are stricter than shared review: other readers are
         # never disclosed to non-owners, regardless of personal comment filters.
-        rows = c.execute('''SELECT u.user_id,u.display_name,u.review_color,CASE WHEN coalesce(ds.reading_tracking_enabled,1)=0 THEN 'off' WHEN rp.user_id IS NOT NULL THEN 'paused' ELSE 'active' END status,r.page_count,
+        rows = c.execute(f'''SELECT u.user_id,u.display_name,u.review_color,CASE WHEN coalesce(ds.reading_tracking_enabled,1)=0 THEN 'off' WHEN rp.user_id IS NOT NULL THEN 'paused' ELSE 'active' END status,r.page_count,
             coalesce(t.active_ms,0) active_ms,coalesce(t.pages_read,0) pages_read,
             coalesce(t.pages_visited,0) pages_visited,coalesce(t.furthest_page,0) furthest_page,
             t.last_page,t.last_activity,l.current_page,
             (l.expires_at>? AND rs.version_id=? AND r.status='active') online
             FROM reading_consents r JOIN users u USING(user_id)
-            JOIN document_access a ON a.user_id=u.user_id AND a.document_id=(SELECT document_id FROM document_versions WHERE version_id=?)
+            JOIN document_access a ON a.user_id=u.user_id AND a.document_id=(SELECT document_id FROM {version_table(c)} WHERE version_id=?)
             LEFT JOIN document_review_settings ds ON ds.document_id=a.document_id
             LEFT JOIN document_reading_pauses rp ON rp.document_id=a.document_id AND rp.user_id=r.user_id
             LEFT JOIN reading_totals t ON t.version_id=r.version_id AND t.user_id=r.user_id

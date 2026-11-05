@@ -11,7 +11,7 @@ from authlib.integrations.flask_client import OAuth
 from flask import Blueprint, abort, current_app, g, jsonify, redirect, render_template, request, session, url_for
 from werkzeug.middleware.proxy_fix import ProxyFix
 
-from .database import connect, transaction
+from .database import version_table, connect, transaction
 from .documents import now_utc
 
 bp = Blueprint("auth", __name__, url_prefix="/auth")
@@ -19,7 +19,7 @@ SESSION_KEY = "authenticated_user_id"
 UNSAFE = {"POST", "PUT", "PATCH", "DELETE"}
 PROTECTED_ENDPOINTS = {
     "core.dashboard", "core.new_document", "core.document_detail", "core.new_version",
-    "core.view_version", "core.version_pdf", "core.verify_version", "core.version_anchors",
+    "core.view_version", "core.version_pdf", "core.verify_version", "core.delete_version", "core.version_anchors",
     "core.create_version_anchor", "core.reviewers", "core.version_threads", "core.create_version_thread",
     "core.thread_comments", "core.comment_item_patch", "core.comment_item", "core.resolve_thread",
     "core.reopen_thread", "core.anchor_item", "carry.migration_page", "carry.document_migrations",
@@ -29,7 +29,7 @@ PROTECTED_ENDPOINTS = {
 ACCOUNT_ENDPOINTS = {'accounts.account', 'accounts.profile', 'review_options.color'}
 OWNER_ENDPOINTS = {'accounts.access_page', 'accounts.access_mutation', 'accounts.shareable'}
 ADMIN_ENDPOINTS = {'accounts.admin', 'accounts.beta_email', 'accounts.site_admin'}
-REVIEW_OWNER_ENDPOINTS = {'review_options.settings_page','review_options.settings_save','reading.consent',
+REVIEW_OWNER_ENDPOINTS = {'core.delete_version','review_options.settings_page','review_options.settings_save','reading.consent',
     'review_options.sections_page','review_options.create_section','review_options.section_update',
     'review_options.placement','review_options.shared_boundary','review_options.outline'}
 PROTECTED_ENDPOINTS.update(REVIEW_OWNER_ENDPOINTS | {'review_options.viewer_preferences',
@@ -90,24 +90,25 @@ def document_role(user, document_id):
 
 
 def resource_document(arguments):
-    """Resolve only resource ownership, before reading content or touching blobs."""
-    if "document_id" in arguments:
-        return arguments["document_id"]
-    queries = {
-        "version_id": "SELECT document_id FROM document_versions WHERE version_id = ?",
-        "thread_id": "SELECT document_id FROM threads WHERE thread_id = ?",
-        "comment_id": "SELECT t.document_id FROM comments c JOIN threads t ON t.thread_id = c.thread_id WHERE c.comment_id = ?",
-        "anchor_id": "SELECT v.document_id FROM anchor_instances a JOIN document_versions v ON v.version_id = a.document_version_id WHERE a.anchor_id = ?",
-        "migration_id": "SELECT document_id FROM migration_runs WHERE migration_id = ?",
-        "section_id": "SELECT document_id FROM sections WHERE section_id = ?",
-        "response_id": "SELECT s.document_id FROM section_responses r JOIN sections s USING(section_id) WHERE response_id=?",
-        "section_comment_id": "SELECT s.document_id FROM section_comments c JOIN section_responses r USING(response_id) JOIN sections s USING(section_id) WHERE c.comment_id=?",
-    }
-    connection = connect(current_app.config["DATABASE"])
+    """Resolve ownership and live version scope before reading content or blobs."""
+    if 'document_id' in arguments:
+        return arguments['document_id']
+    connection=connect(current_app.config['DATABASE'])
     try:
-        for key, query in queries.items():
+        live=version_table(connection)
+        queries={
+            'version_id':f'SELECT document_id FROM {live} WHERE version_id=?',
+            'thread_id':'SELECT document_id FROM threads WHERE thread_id=?',
+            'comment_id':'SELECT t.document_id FROM comments c JOIN threads t USING(thread_id) WHERE c.comment_id=?',
+            'anchor_id':f'SELECT v.document_id FROM anchor_instances a JOIN {live} v ON v.version_id=a.document_version_id WHERE a.anchor_id=?',
+            'migration_id':f'SELECT r.document_id FROM migration_runs r JOIN {live} s ON s.version_id=r.source_version_id JOIN {live} t ON t.version_id=r.target_version_id WHERE r.migration_id=?',
+            'section_id':'SELECT document_id FROM sections WHERE section_id=?',
+            'response_id':f'SELECT s.document_id FROM section_responses r JOIN sections s USING(section_id) JOIN {live} v ON v.version_id=r.version_id WHERE r.response_id=?',
+            'section_comment_id':f'SELECT s.document_id FROM section_comments c JOIN section_responses r USING(response_id) JOIN sections s USING(section_id) JOIN {live} v ON v.version_id=r.version_id WHERE c.comment_id=?',
+        }
+        for key,query in queries.items():
             if key in arguments:
-                row = connection.execute(query, (arguments[key],)).fetchone()
+                row=connection.execute(query,(arguments[key],)).fetchone()
                 return row[0] if row else None
     finally:
         connection.close()
@@ -318,7 +319,7 @@ def init_auth(app):
             if request.method in UNSAFE:
                 if role == "viewer" and request.endpoint not in {'review_options.viewer_preferences', *READING_ENDPOINTS}:
                     abort(403)
-                if (request.blueprint == "carry" or request.endpoint in {"core.new_version", "core.verify_version"}) and role != "owner":
+                if (request.blueprint == "carry" or request.endpoint in {"core.new_version", "core.verify_version", "core.delete_version"}) and role != "owner":
                     abort(403)
         elif request.endpoint not in {"core.dashboard", "core.new_document", "core.reviewers"}:
             abort(404)

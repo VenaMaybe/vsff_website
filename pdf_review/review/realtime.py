@@ -7,7 +7,7 @@ from flask import current_app, request
 from flask_socketio import SocketIO, join_room, leave_room
 
 from .auth import current_user, document_role, resource_document
-from .database import connect
+from .database import version_table, connect
 from .documents import get_version, now_utc
 
 
@@ -25,10 +25,10 @@ def prune_version(version_id):
             for sid,entry in list(registry.connections.items()):
                 if entry['version_id']!=version_id:
                     continue
-                user=c.execute('''SELECT u.* FROM users u
+                user=c.execute(f'''SELECT u.* FROM users u
                     JOIN allowed_emails e ON e.normalized_email=u.normalized_email AND e.enabled=1
                     JOIN document_access a ON a.user_id=u.user_id
-                    JOIN document_versions v ON v.document_id=a.document_id
+                    JOIN {version_table(c)} v ON v.document_id=a.document_id
                     WHERE u.user_id=? AND u.is_active=1 AND u.email_verified=1
                     AND u.google_subject IS NOT NULL AND v.version_id=?''',
                     (entry['user']['user_id'],version_id)).fetchone()
@@ -238,7 +238,7 @@ def notify_user_presentation_changed(user_id):
         c=connect(current_app.config['DATABASE'])
         try:
             user=dict(c.execute('SELECT * FROM users WHERE user_id=?',(user_id,)).fetchone())
-            versions=[r[0] for r in c.execute('''SELECT DISTINCT v.version_id FROM document_versions v
+            versions=[r[0] for r in c.execute(f'''SELECT DISTINCT v.version_id FROM {version_table(c)} v
                 JOIN document_access a USING(document_id) WHERE a.user_id=?''',(user_id,))]
         finally:
             c.close()
@@ -265,7 +265,7 @@ def notify_reading_changed(version_id, reader_id=None):
         registry=current_app.extensions['review_presence']
         c=connect(current_app.config['DATABASE'])
         try:
-            owners={r[0] for r in c.execute("SELECT a.user_id FROM document_access a JOIN document_versions v USING(document_id) WHERE v.version_id=? AND a.role='owner'",(version_id,))}
+            owners={r[0] for r in c.execute(f"SELECT a.user_id FROM document_access a JOIN {version_table(c)} v USING(document_id) WHERE v.version_id=? AND a.role='owner'",(version_id,))}
             with registry.lock:
                 recipients=[sid for sid,entry in registry.connections.items()
                     if entry['version_id']==version_id and
@@ -277,3 +277,22 @@ def notify_reading_changed(version_id, reader_id=None):
             c.close()
     except Exception:
         current_app.logger.exception('Committed reading notification failed for version %s',version_id)
+
+
+def notify_version_deleted(version_id):
+    """After commit, retire the room and send eligible viewers back to the document."""
+    try:
+        from .access import ELIGIBLE
+        registry=current_app.extensions['review_presence'];io=current_app.extensions['socketio']
+        c=connect(current_app.config['DATABASE'])
+        try:
+            with registry.lock:
+                recipients=[sid for sid,entry in registry.connections.items() if entry['version_id']==version_id and
+                    c.execute(ELIGIBLE+" AND u.user_id=? AND EXISTS(SELECT 1 FROM document_access a JOIN document_versions v USING(document_id) WHERE a.user_id=u.user_id AND v.version_id=?)",(entry['user']['user_id'],version_id)).fetchone()]
+                for sid in recipients:
+                    io.emit('review.version_deleted',{'schema_version':1,'version_id':version_id},to=sid)
+                prune_version(version_id)
+        finally:
+            c.close()
+    except Exception:
+        current_app.logger.exception('Committed version deletion notification failed for %s',version_id)

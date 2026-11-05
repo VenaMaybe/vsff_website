@@ -1,7 +1,7 @@
 """Historical immutable targets and their current effective heads."""
 
 from .anchors import get_anchor
-from .database import connect
+from .database import version_table, connect
 from .threads import ThreadNotFoundError
 
 
@@ -12,13 +12,13 @@ def target_history(database_path, thread_id):
         if connection.execute("SELECT 1 FROM threads WHERE thread_id = ?", (thread_id,)).fetchone() is None:
             raise ThreadNotFoundError("The review thread does not exist.")
         rows = connection.execute(
-            """SELECT tt.*, v.version_id, v.version_label, v.original_filename,
+            f"""SELECT tt.*, v.version_id, v.version_label, v.original_filename,
                       h.thread_target_id AS effective_id,
                       p.source_thread_target_id, p.migration_run_id, p.supersedes_thread_target_id,
                       p.method, p.confidence, p.algorithm_version, p.created_by_user_id,
                       u.display_name
                FROM thread_targets tt JOIN anchor_instances a ON a.anchor_id = tt.anchor_id
-               JOIN document_versions v ON v.version_id = a.document_version_id
+               JOIN {version_table(connection)} v ON v.version_id = a.document_version_id
                LEFT JOIN thread_target_heads h ON h.thread_id = tt.thread_id AND h.document_version_id = v.version_id
                LEFT JOIN thread_target_provenance p ON p.thread_target_id = tt.thread_target_id
                LEFT JOIN users u ON u.user_id = p.created_by_user_id
