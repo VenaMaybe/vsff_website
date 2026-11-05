@@ -40,28 +40,28 @@ section feedback. See [BETA_C2_REPORT.md](BETA_C2_REPORT.md) for the audit and c
   open viewer sessions. Other versions and carried feedback stay available. Immutable
   PDF bytes and historical review records are retained internally; this is not a
   storage purge. See [Version deletion report](VERSION_DELETION_REPORT.md).
-- **Tools** opens Search document, Filter comments, Reading progress, Reader
-  analytics and Version statistics left cards; document owners
-  also see Review settings and Manage sections. Checkmarks identify open cards;
+- **Tools** opens Search, Comment filter, Reading progress, Time
+  tracker and Statistics left cards; document owners
+  also see Settings and Sections. Checkmarks identify open cards;
   selecting an open tool focuses it; selecting the focused tool again closes it.
   **Close all tools** closes the cards together. Tools stays open while choosing
   items and dismisses when you click elsewhere. Cards also retain their X buttons.
-- **Version statistics** switches between Pages and Sections for Words, estimated
+- **Statistics** switches between Pages and Sections for Words, estimated
   Read time, Images and Comments. Comment bars are stacked in the actual message
   authors' colors and update live, following the existing access/reviewer filters.
   Images include raster placements and tagged vector figures such as chapter art.
   Bars navigate to pages and mark the current page/spread. Immutable PDF metrics
   share a version-scoped browser metadata cache with reader analytics; comments
-  are never stored in that cache. See [Version statistics report](VERSION_STATISTICS_REPORT.md).
+  are never stored in that cache. See [Statistics report](VERSION_STATISTICS_REPORT.md).
 - Reading tracking is **on by default**. Only document authors manage document
-  On/Off and per-reader Pause in **Tools > Review settings**; changes apply across
+  On/Off and per-reader Pause in **Tools > Settings**; changes apply across
   PDF versions and retain past history. Both reading cards are available to readers,
   who see only their own analytics. Authors can inspect eligible document readers.
   WebSocket notifications refresh saved activity after each 15-second batch; live
   positions reuse presence. Completion uses PDF.js word counts at 400 words/minute
   with a 5-second minimum. Spreads share one measured time budget.
   See [Reading progress report](READING_PROGRESS_REPORT.md) for the schema and limits.
-- Owners open **Tools → Review settings** in the PDF viewer to set privacy, PDF download access and
+- Owners open **Tools → Settings** in the PDF viewer to set privacy, PDF download access and
   first-open spread/comment/scope defaults. Existing personal choices survive
   later default changes. **Reset to document defaults** is in Comments.
   **PDF downloads: Off** hides download/print controls and blocks viewer save/print
@@ -70,7 +70,7 @@ section feedback. See [BETA_C2_REPORT.md](BETA_C2_REPORT.md) for the audit and c
   updates already-open review viewers. Downloads are allowed by default.
   This is a viewer restriction: PDF rendering still requires the read endpoint,
   so browser menus, developer tools or screen capture can still save content.
-- Review Settings and Manage Sections coexist as compact comment-style cards on
+- Settings and Sections coexist as compact comment-style cards on
   the left of the PDF. New cards open unpinned near the viewport center. Drag a
   header to move a card vertically. Clicking or grabbing an unfocused card keeps
   its displayed position as the new anchor, including collision displacement.
@@ -81,7 +81,7 @@ section feedback. See [BETA_C2_REPORT.md](BETA_C2_REPORT.md) for the audit and c
   space and never moves unpinned cards. Pinning another unpins the previous card. **Unpinned** cards attach to the document and move
   up/down to avoid overlap; they scroll with the PDF. Opening a tool or clicking a section marker retrieves an offscreen card
   using the comment selection animation. Reduced motion is respected.
-  Open Sections, Review Settings, Search and Filter comments cards, their document positions and
+  Open Sections, Settings, Search and Comment filter cards, their document positions and
   pin state are remembered in this browser for your account and exact PDF version.
   Closed cards stay closed. Search text and unsaved form content are not stored.
 - Sections uses the open PDF version. Mapped sections follow PDF start order;
@@ -115,12 +115,12 @@ section feedback. See [BETA_C2_REPORT.md](BETA_C2_REPORT.md) for the audit and c
   into that list where their bottom is closest to the section end, pushing later
   comments down when needed. Comment controls have no extra top margin.
   Section prompts, outline import, spread pairs and right-side feedback remain.
-  Review Settings and Manage Sections are available in the PDF viewer; their
+  Settings and Sections are available in the PDF viewer; their
   document-page buttons have been removed.
 - Isolated non-owners receive only their own top-level conversations and replies
   within them. Owners can inspect all review and apply convenience filters.
   Personal filtering hides whole conversations by top-level author, preserving
-  replies. Open **Comments > Filter comments...** for a left card with **All comments**,
+  replies. Open **Comments > Comment filter...** for a left card with **All comments**,
   **Only mine**, and **Selected reviewers**. Selected reviewers exposes a checklist
   of content authors for this exact version, never beta emails. All comments clears
   the checklist restrictions. Changes save immediately; isolated non-owners can
@@ -136,9 +136,9 @@ section feedback. See [BETA_C2_REPORT.md](BETA_C2_REPORT.md) for the audit and c
   Colors use [Tableau 10](https://d3js.org/d3-scale-chromatic/categorical#schemeTableau10),
   replacing the original 24 similar muted shades. Migration 9 maps existing choices
   to a corresponding hue when the app starts; historical review identities stay intact.
-- Owners use **Manage sections** to add, rename, prompt or archive sections.
+- Owners use **Sections** to add, rename, prompt or archive sections.
   Use **Import outline** or the inline Start/End controls to place sections.
-  In the viewer, Manage sections opens the inspector. Enter pages and drag the
+  In the viewer, Sections opens the inspector. Enter pages and drag the
   resulting lines to refine boundaries; changes save automatically.
 - While Sections is open, its boundaries render inside each page and preserve
   spread membership. Closing Sections hides all boundary overlays. Feedback stays on the right and supports one response per reviewer,

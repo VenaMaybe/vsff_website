@@ -1,6 +1,7 @@
 # Reading progress and reader analytics — BETA C2
 
-Tools now includes Reading progress (the Manuscript spine) and Reader analytics.
+Tools now includes Reading progress (the Manuscript spine) and Time tracker
+(previously Reader analytics). The selected reader's name remains the card heading.
 Both use `LeftCard`: existing pinning, dragging, collision packing, focus/toggle
 and account/exact-version restoration. The previous four-card restore cap is
 replaced by a bounded 32-record input limit, allowing all six tools together.

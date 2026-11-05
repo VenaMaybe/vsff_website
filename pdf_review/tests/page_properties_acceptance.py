@@ -95,7 +95,7 @@ def run_properties(cdp,a,b,fixture,base):
     assert ev("document.querySelector('[data-page=\"61\"]').dataset.current==='true'")
     ev("document.querySelector('[data-metric=comments]').click();document.querySelector('[data-grouping=sections]').click()")
     assert ev("document.querySelectorAll('.properties-bar').length===5&&document.querySelector('.properties-bar title').textContent.includes('6 comments')")
-    assert ev("document.querySelector('.left-card h2').textContent==='Version statistics'&&!document.querySelector('[data-metric=density]')")
+    assert ev("document.querySelector('.left-card h2').textContent==='Statistics'&&!document.querySelector('[data-metric=density]')")
     assert ev("document.querySelectorAll('.properties-grid').length>0")
     assert ev("!document.querySelector('.properties-options')")
     screenshot(cdp,a,'version-statistics-section-comments')

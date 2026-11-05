@@ -21,12 +21,12 @@ export function registerManagement(context) {
 export async function openSettings(documentId, opener) {
   if (settingsPanel?.element.isConnected) { settingsPanel.open(); return settingsPanel; }
   if (!viewer && await enterViewer(documentId, 'settingsPanel')) return;
-  const dialog = viewer ? new LeftCard('Review settings', { opener, viewer, className: 'settings-panel', stateKey:'settings' }) : new AppDialog('Review settings', { opener });
+  const dialog = viewer ? new LeftCard('Settings', { opener, viewer, className: 'settings-panel', stateKey:'settings' }) : new AppDialog('Settings', { opener });
   settingsPanel = dialog;
   dialog.body.textContent = 'Loading…'; if (dialog.open() === false) return;
   try {
     const response = await appFetch(`/documents/${documentId}/review-settings`);
-    if (!response.ok) throw new Error('Review settings could not be loaded.');
+    if (!response.ok) throw new Error('Settings could not be loaded.');
     dialog.body.innerHTML = await response.text();
     dialog.contentReady?.();
     const form = dialog.body.querySelector('form');

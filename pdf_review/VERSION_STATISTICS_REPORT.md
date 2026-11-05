@@ -1,6 +1,10 @@
 # Version statistics — BETA C2
 
-Tools > Version statistics reuses the existing `properties` LeftCard identity so
+The tool is now named **Statistics** (previously Version statistics). Its comment
+bar segments match PDF highlight opacity: 28% normally, 38% on hover and 44% for
+the current or keyboard-focused bar, while retaining each author's own color.
+
+Tools > Statistics reuses the existing `properties` LeftCard identity so
 saved card positions, open/pinned state, Tools checkmarks and close behavior survive
 the rename. Pages/Sections and metric choices are remembered per account/version.
 Density is replaced by Comments. The four metrics are Words, Read time, Images

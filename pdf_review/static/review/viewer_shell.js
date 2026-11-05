@@ -25,7 +25,7 @@ function installSearch(frame, application) {
   const nativeOpen=find.open.bind(find),nativeClose=find.close.bind(find);
   const focus=find.findField.focus.bind(find.findField);
   find.findField.focus=(options={})=>focus({...options,preventScroll:true});
-  const card=new LeftCard('Search document',{opener,viewer:{sectionViewer:{frame,application}},className:'search-panel',stateKey:'search',onVisibility:visible=>{if(!visible)nativeClose();}});
+  const card=new LeftCard('Search',{opener,viewer:{sectionViewer:{frame,application}},className:'search-panel',stateKey:'search',onVisibility:visible=>{if(!visible)nativeClose();}});
   card.body.append(find.bar);
   // Native localization observes the iframe; adopted controls use app-owned text.
   const count=find.updateResultsCount.bind(find),ui=find.updateUIState.bind(find);

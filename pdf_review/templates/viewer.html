@@ -71,14 +71,14 @@
       <div class="toolbar-popover" role="menu" aria-label="Tools" data-keep-menu-open>
         <button type="button" data-close-all-tools>Close all tools</button>
         <hr>
-        <button type="button" role="menuitemcheckbox" aria-checked="false" data-left-card="search" data-pdf-control="viewFindButton">Search document</button>
-        <button type="button" role="menuitemcheckbox" aria-checked="false" data-left-card="filters" data-comment-filters>Filter comments</button>
+        <button type="button" role="menuitemcheckbox" aria-checked="false" data-left-card="search" data-pdf-control="viewFindButton">Search</button>
+        <button type="button" role="menuitemcheckbox" aria-checked="false" data-left-card="filters" data-comment-filters>Comment filter</button>
         <button type="button" role="menuitemcheckbox" aria-checked="false" data-left-card="reading">Reading progress</button>
-        <button type="button" role="menuitemcheckbox" aria-checked="false" data-left-card="analytics">Reader analytics</button>
-        <button type="button" role="menuitemcheckbox" aria-checked="false" data-left-card="properties">Version statistics</button>
+        <button type="button" role="menuitemcheckbox" aria-checked="false" data-left-card="analytics">Time tracker</button>
+        <button type="button" role="menuitemcheckbox" aria-checked="false" data-left-card="properties">Statistics</button>
         {% if anchor_config.isOwner %}
-        <button type="button" role="menuitemcheckbox" aria-checked="false" data-left-card="settings" data-review-settings="{{ version.document_id }}">Review settings</button>
-        <button type="button" role="menuitemcheckbox" aria-checked="false" data-left-card="sections" data-sections="{{ version.document_id }}">Manage sections</button>
+        <button type="button" role="menuitemcheckbox" aria-checked="false" data-left-card="settings" data-review-settings="{{ version.document_id }}">Settings</button>
+        <button type="button" role="menuitemcheckbox" aria-checked="false" data-left-card="sections" data-sections="{{ version.document_id }}">Sections</button>
         {% endif %}
       </div>
     </details>

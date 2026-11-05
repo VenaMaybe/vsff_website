@@ -19,7 +19,7 @@ export class ReadingCards {
     this.tracker=new ReadingTracker(application,frame,config,connected);
     const viewer={sectionViewer:{application,frame}};
     this.spine=new LeftCard('Manuscript',{viewer,opener:document.querySelector('[data-left-card=reading]'),stateKey:'reading',className:'reading-spine-card'});
-    this.analytics=new LeftCard('Reader analytics',{viewer,opener:document.querySelector('[data-left-card=analytics]'),stateKey:'analytics',className:'reader-analytics-card'});
+    this.analytics=new LeftCard('Time tracker',{viewer,opener:document.querySelector('[data-left-card=analytics]'),stateKey:'analytics',className:'reader-analytics-card'});
     this.selected=config.currentUserId;this.view='sections';this.windows=new Map();this.expanded=new Set();
     this.viewStateKey=`pdf-review:reading-view:v1:${config.currentUserId}:${config.versionId}`;
     try {
@@ -33,7 +33,7 @@ export class ReadingCards {
     this.stats=node('div',undefined,'reading-stats');this.sectionViews=node('div',undefined,'reading-section-views');
     const label=node('label','Reader');label.htmlFor=this.selector.id;
     this.analyticsControls=node('div',undefined,'reading-consent');
-    this.analytics.body.append(node('p','Reader analytics','reading-subtitle'),label,this.selector,this.stats,this.sectionViews,this.analyticsControls);
+    this.analytics.body.append(node('p','Time tracker','reading-subtitle'),label,this.selector,this.stats,this.sectionViews,this.analyticsControls);
     this.spineControls=node('div',undefined,'reading-consent');this.spineContent=node('div');
     this.spine.body.append(node('p','Reading progress','reading-subtitle'),this.spineContent,this.spineControls);
     this.spineError=node('p','', 'reading-error');this.analyticsError=node('p','', 'reading-error');
@@ -86,7 +86,7 @@ export class ReadingCards {
     if(container.dataset.status===status)return;
     container.dataset.status=status;
     container.replaceChildren(node('small',status==='active'
-      ? 'Reading activity is recorded while this document is actively viewed. Authors manage tracking in Review settings.'
+      ? 'Reading activity is recorded while this document is actively viewed. Authors manage tracking in Settings.'
       : status==='paused'?'Reading tracking is paused by the document author.'
       : 'Reading tracking is off for this document. Existing history is retained.','reading-note'));
   }
@@ -139,7 +139,7 @@ export class ReadingCards {
     this.selector.value=this.selected;
     const reader=readers.find(r=>r.user_id===this.selected);
     this.analytics.element.style.setProperty('--reader-color',color(reader));
-    this.analytics.element.querySelector('h2').textContent=reader?.display_name||'Reader analytics';
+    this.analytics.element.querySelector('h2').textContent=reader?.display_name||'Time tracker';
     this.renderStats(reader);this.renderSections();
     this.analytics.contentReady();
   }

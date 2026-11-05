@@ -5,7 +5,7 @@ function element(tag,text){const node=document.createElement(tag);if(text!==unde
 export class CommentFilters {
   constructor(application,opener,save){
     this.save=save;this.mode=null;this.rows=new Map();this.pending=0;
-    this.card=new LeftCard('Filter comments',{opener,stateKey:'filters',className:'comment-filter-panel',viewer:{sectionViewer:{frame:document.getElementById('pdf-viewer-frame'),application}}});
+    this.card=new LeftCard('Comment filter',{opener,stateKey:'filters',className:'comment-filter-panel',viewer:{sectionViewer:{frame:document.getElementById('pdf-viewer-frame'),application}}});
     this.modes=element('fieldset');this.modes.className='filter-modes';this.modes.append(element('legend','Show'));
     this.inputs=new Map();
     for(const [value,text] of [['all','All comments'],['mine','Only mine'],['people','Selected reviewers']]){

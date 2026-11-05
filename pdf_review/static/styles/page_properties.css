@@ -20,6 +20,11 @@
 .properties-chart[data-metric=comments] .properties-bar[data-current=true],
 .properties-chart[data-metric=comments] .properties-bar:hover,
 .properties-chart[data-metric=comments] .properties-bar:focus { stroke:var(--accent); stroke-width:1; }
+/* Match PDF highlights while retaining each segment's actual reviewer color. */
+.properties-chart[data-metric=comments] .properties-bar + g rect { fill-opacity:.28; }
+.properties-chart[data-metric=comments] .properties-bar:hover + g rect { fill-opacity:.38; }
+.properties-chart[data-metric=comments] .properties-bar[data-current=true] + g rect,
+.properties-chart[data-metric=comments] .properties-bar:focus + g rect { fill-opacity:.44; }
 .properties-legend { display:flex; flex-wrap:wrap; gap:4px 9px; font-size:9px; margin-top:5px; color:var(--muted); }
 .properties-legend:empty { display:none; }
 .properties-legend span { display:inline-flex; align-items:center; gap:4px; }

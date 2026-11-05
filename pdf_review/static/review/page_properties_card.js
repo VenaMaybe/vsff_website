@@ -16,7 +16,7 @@ export class PagePropertiesCard {
     this.preferenceKey=`pdf-review:page-properties-ui:v1:${config.currentUserId}:${config.versionId}`;
     try{const saved=JSON.parse(localStorage.getItem(this.preferenceKey)||'null');if(Object.hasOwn(METRICS,saved?.metric))this.metric=saved.metric;if(saved?.grouping==='sections')this.grouping='sections';}catch{/* Use Words when storage is unavailable. */}
     this.data=pagePropertiesFor(application.pdfDocument,config,frame.contentWindow.pdfjsLib?.OPS);
-    this.card=new LeftCard('Version statistics',{viewer:{sectionViewer:{application,frame}},opener:document.querySelector('[data-left-card=properties]'),stateKey:'properties',className:'page-properties-card'});
+    this.card=new LeftCard('Statistics',{viewer:{sectionViewer:{application,frame}},opener:document.querySelector('[data-left-card=properties]'),stateKey:'properties',className:'page-properties-card'});
     this.groups=node('div',undefined,'properties-tabs properties-groups');this.groups.setAttribute('role','group');this.groups.setAttribute('aria-label','Group version statistics');
     for(const key of ['pages','sections']){const b=node('button',key==='pages'?'Pages':'Sections');b.type='button';b.dataset.grouping=key;b.onclick=()=>{this.grouping=key;this.save();this.start();};this.groups.append(b);}
     this.tabs=node('div',undefined,'properties-tabs');this.tabs.setAttribute('role','group');this.tabs.setAttribute('aria-label','Version metric');
@@ -24,7 +24,7 @@ export class PagePropertiesCard {
       const b=node('button',label);b.type='button';b.dataset.metric=key;b.onclick=()=>{this.metric=key;this.save();this.start();};this.tabs.append(b);
     }
     this.info=node('div',undefined,'properties-info');this.label=node('span');this.total=node('strong');this.info.append(this.label,this.total);
-    this.chart=svg('svg',{class:'properties-chart',role:'group','aria-label':'Version statistics histogram'});
+    this.chart=svg('svg',{class:'properties-chart',role:'group','aria-label':'Statistics histogram'});
     this.axis=svg('g');this.gridLines=svg('g');this.tickLabels=svg('g');this.bars=svg('g');this.brackets=svg('g');
     this.chart.append(this.axis,this.gridLines,this.tickLabels,this.bars,this.brackets);
     this.rows=[];
