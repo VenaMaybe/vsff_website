@@ -33,7 +33,7 @@ export class PagePropertiesCard {
     this.summary=node('div',undefined,'properties-summary');this.summary.append(node('h3','Summary'));
     this.summaryRows=Array.from({length:4},()=>{const row=node('div');row.append(node('span'),node('strong'));this.summary.append(row);return row;});
     this.status=node('p','', 'properties-status');this.card.body.append(this.groups,this.tabs,this.info,this.chart,this.legend,this.hover,this.summary,this.status);
-    registerLeftCard('properties',()=>this.open());
+    registerLeftCard('properties',options=>this.open(options));
     this.data.addEventListener('change',()=>this.schedule());
     for(const event of ['pagechanging','spreadmodechanged'])application.eventBus.on(event,()=>this.currentPages());
     this.render();
@@ -53,7 +53,7 @@ export class PagePropertiesCard {
     });
   }
   save(){try{localStorage.setItem(this.preferenceKey,JSON.stringify({metric:this.metric,grouping:this.grouping}));}catch{}}
-  open(){this.card.open();this.start();return this.card;}
+  open(options){this.card.open(options);this.start();return this.card;}
   async start(){
     this.render();if(this.metric!=='comments')await this.data.scan(this.metric==='images'?'images':'text');
     clearTimeout(this.renderTimer);this.scheduled=false;this.render();

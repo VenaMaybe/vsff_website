@@ -19,7 +19,7 @@ export class SectionsWorkspace {
       else {this.editor?.listeners.delete(this.onPlacement);this.editor?.detach();for(const id of this.metadata.keys())this.flushMetadata(id);}
     },viewer);
   }
-  async open(){this.dialog.open();if(!this.sections)this.dialog.body.textContent='Loading...';await this.load();return this;}
+  async open(options){this.dialog.open(options);if(!this.sections)this.dialog.body.textContent='Loading...';await this.load();return this;}
   async load(){
     try{
       const data=await jsonRequest(`/documents/${this.documentId}/sections${this.versionId?'?version='+encodeURIComponent(this.versionId):''}`);

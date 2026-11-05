@@ -46,6 +46,18 @@ section feedback. See [BETA_C2_REPORT.md](BETA_C2_REPORT.md) for the audit and c
   selecting an open tool focuses it; selecting the focused tool again closes it.
   **Close all tools** closes the cards together. Tools stays open while choosing
   items and dismisses when you click elsewhere. Cards also retain their X buttons.
+  Double-click **Tools** (or press Shift+Enter on it) to open the same controls in
+  a Tools left card. It shares normal pin/drag/position restoration. The header
+  dropdown remains available while the card is open; both share the same actions
+  and live tool checkmarks.
+  Clicking a tool in this card toggles it open or closed and keeps Tools focused;
+  the header dropdown still focuses the selected tool.
+- Pages, Search, Text selection and Hand form a compact four-icon row at the top
+  of Tools, keeping the top toolbar focused on page navigation and zoom. The row
+  stays open while choosing tools; Search uses the existing left card. Text
+  selection and Hand reuse PDF.js cursor tools and follow native selected state.
+  Icons use matching outline weights, with smaller cursor icons for optical balance.
+  Their license is retained in `static/vendor/lucide/LICENSE`.
 - **Statistics** switches between Pages and Sections for Words, estimated
   Read time, Images and Comments. Comment bars are stacked in the actual message
   authors' colors and update live, following the existing access/reviewer filters.

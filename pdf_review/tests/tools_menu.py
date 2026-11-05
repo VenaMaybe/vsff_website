@@ -8,6 +8,12 @@ def run_tools(cdp, a, b, fixture, base):
     def ev(script): return cdp.evaluate(a, script)
     def wait(script): return cdp.wait(a, script)
     viewport(cdp, a, 1440, 1000)
+    assert ev("!document.querySelector('#review-view-menu [data-pdf-control=cursorSelectTool],#review-view-menu [data-pdf-control=cursorHandTool]')")
+    click(cdp,a,'#review-tools-menu > summary')
+    click(cdp,a,'.tools-icon-grid [data-pdf-control=cursorHandTool]')
+    wait("document.querySelector('iframe').contentWindow.PDFViewerApplication.pdfCursorTools.activeTool===1&&document.querySelector('[data-pdf-control=cursorHandTool]').getAttribute('aria-pressed')==='true'")
+    ev("document.querySelector('iframe').contentWindow.PDFViewerApplication.pdfCursorTools.switchTool(0)")
+    wait("document.querySelector('[data-pdf-control=cursorSelectTool]').getAttribute('aria-pressed')==='true'&&document.querySelector('[data-pdf-control=cursorHandTool]').getAttribute('aria-pressed')==='false'")
     assert ev("[...document.querySelectorAll('#review-tools-menu [data-left-card]')].map(x=>x.dataset.leftCard).join(',')==='search,filters,reading,analytics,properties,settings,sections'")
     assert ev("!document.querySelector('#review-view-menu [data-review-settings],#review-view-menu [data-sections],#comments-menu [data-comment-filters]')")
     for tool, panel in [('properties', '.page-properties-card'), ('search', '.search-panel'), ('filters', '.comment-filter-panel'), ('settings', '.settings-panel'), ('sections', '.sections-panel')]:
@@ -53,11 +59,64 @@ def run_tools(cdp, a, b, fixture, base):
     wait("document.querySelector('[data-left-card=search]').getAttribute('aria-checked')==='true'")
     key(cdp, a, 'Escape', 27)
     wait("document.querySelector('[data-left-card=search]').getAttribute('aria-checked')==='false'")
+    # The Tools card reuses the same control markup and delegated actions.
+    ev("window.originalToolsContent=document.querySelector('#review-tools-menu > .toolbar-popover')")
+    point=ev("(()=>{const r=document.querySelector('#review-tools-menu > summary').getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2};})()")
+    for count in [1,2]:
+        for kind in ['mousePressed','mouseReleased']:
+            cdp.call('Input.dispatchMouseEvent',{'type':kind,'button':'left','clickCount':count,**point},a)
+    wait("document.querySelectorAll('.tools-panel').length===1&&!document.querySelector('#review-tools-menu').open")
+    assert ev("document.querySelector('#review-tools-menu > .toolbar-popover')===originalToolsContent&&document.querySelectorAll('.tools-panel .tools-icon-grid').length===1")
+    ev("document.querySelector('.tools-panel .left-card-pin').click()")
+    assert ev("document.querySelector('.tools-panel').dataset.pinned==='true'")
+    ev("document.querySelector('.tools-panel .dialog-header button:last-child').click()")
+    wait("!document.querySelector('.tools-panel')&&document.querySelector('#review-tools-menu > .toolbar-popover')===originalToolsContent")
+    ev("document.querySelector('#review-tools-menu > summary').focus()")
+    key(cdp,a,'Enter',13,8)
+    wait("document.querySelector('.tools-panel')!==null")
+    ev("document.querySelector('.tools-panel [data-pdf-control=cursorHandTool]').click()")
+    wait("document.querySelector('iframe').contentWindow.PDFViewerApplication.pdfCursorTools.activeTool===1")
+    # Tools launches keep both keyboard focus and packing priority in Tools,
+    # including Search's native autofocus and Settings' delayed form loading.
+    for tool, panel in [('search','.search-panel'), ('filters','.comment-filter-panel'),
+                        ('reading','.reading-spine-card'), ('analytics','.reader-analytics-card'),
+                        ('properties','.page-properties-card'), ('settings','.settings-panel'),
+                        ('sections','.sections-panel')]:
+        selector=f'.tools-panel [data-left-card={tool}]'
+        ev(f"document.querySelector({json.dumps(selector)}).focus();document.querySelector({json.dumps(selector)}).click()")
+        wait(f"document.querySelector({json.dumps(panel)})!==null")
+        if tool=='settings':
+            wait("document.querySelector('.settings-panel form select')!==null")
+        assert ev(f"document.querySelector({json.dumps(selector)})===document.activeElement&&document.querySelector('.tools-panel').classList.contains('active')&&!document.querySelector({json.dumps(panel)}).classList.contains('active')"), (tool, ev("({focus:document.activeElement.outerHTML,active:[...document.querySelectorAll('.left-card.active')].map(e=>e.className)})"))
+        # Selecting an already-open tool closes it and leaves Tools focused.
+        ev(f"document.querySelector({json.dumps(selector)}).click()")
+        wait(f"document.querySelector({json.dumps(panel)})===null")
+        assert ev(f"document.querySelector({json.dumps(selector)}).getAttribute('aria-checked')==='false'&&document.querySelector({json.dumps(selector)})===document.activeElement&&document.querySelector('.tools-panel').classList.contains('active')")
+        ev(f"document.querySelector({json.dumps(selector)}).click()")
+        wait(f"document.querySelector({json.dumps(panel)})!==null&&document.querySelector({json.dumps(selector)}).getAttribute('aria-checked')==='true'")
+    # Header Tools remains independently usable while the Tools card stays open.
+    click(cdp,a,'#review-tools-menu > summary')
+    wait("document.querySelector('#review-tools-menu').open&&document.querySelector('.tools-panel')!==null")
+    click(cdp,a,'#review-tools-menu [data-pdf-control=cursorSelectTool]')
+    wait("document.querySelector('iframe').contentWindow.PDFViewerApplication.pdfCursorTools.activeTool===0")
+    assert ev("[...document.querySelectorAll('[data-pdf-control=cursorSelectTool]')].every(x=>x.getAttribute('aria-pressed')==='true')")
+    click(cdp,a,'#review-tools-menu [data-left-card=search]')
+    wait("document.querySelector('.search-panel')?.contains(document.activeElement)")
+    assert ev("document.querySelector('#review-tools-menu').open&&document.querySelector('.tools-panel')!==null&&[...document.querySelectorAll('[data-left-card=search]')].every(x=>x.getAttribute('aria-checked')==='true')")
+    # Card action closes the same Search instance opened/focused by the header.
+    ev("document.querySelector('.tools-panel [data-left-card=search]').focus();document.querySelector('.tools-panel [data-left-card=search]').click()")
+    wait("!document.querySelector('.search-panel')")
+    assert ev("[...document.querySelectorAll('[data-left-card=search]')].every(x=>x.getAttribute('aria-checked')==='false')")
+    ev("document.querySelector('.tools-panel [data-close-all-tools]').click()")
+    wait("document.querySelectorAll('.left-card').length===0&&document.querySelector('#review-tools-menu > .toolbar-popover')!==null")
+    ev("document.querySelector('iframe').contentWindow.PDFViewerApplication.pdfCursorTools.switchTool(0)")
     # Existing keyboard menu navigation and mobile popup positioning are reused.
     viewport(cdp, a, 390, 844)
     ev("document.querySelector('#review-tools-menu > summary').focus()")
     key(cdp, a, 'ArrowDown', 40)
-    wait("document.activeElement===document.querySelector('#review-tools-menu [data-close-all-tools]')")
+    wait("document.activeElement===document.querySelector('.tools-icon-grid [data-pdf-control=viewsManagerToggleButton]')")
+    key(cdp,a,'ArrowRight',39)
+    assert ev("document.activeElement===document.querySelector('.tools-icon-grid [data-left-card=search]')")
     key(cdp, a, 'End', 35)
     assert ev("document.activeElement===document.querySelector('#review-tools-menu [data-left-card=sections]')")
     assert ev("(()=>{const r=document.querySelector('#review-tools-menu > .toolbar-popover').getBoundingClientRect();return r.left>=0&&r.right<=innerWidth&&r.top>=0&&r.bottom<=innerHeight;})()")

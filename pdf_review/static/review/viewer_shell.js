@@ -23,17 +23,26 @@ function installSearch(frame, application) {
   find.bar.replaceChildren(row,find.findResultsCount,options,find.findMsg);
   const opener=document.querySelector('[data-pdf-control="viewFindButton"]');
   const nativeOpen=find.open.bind(find),nativeClose=find.close.bind(find);
-  const focus=find.findField.focus.bind(find.findField);
-  find.findField.focus=(options={})=>focus({...options,preventScroll:true});
+  const focus=find.findField.focus.bind(find.findField),select=find.findField.select.bind(find.findField);
+  let focusSearch=true;
+  find.findField.focus=(options={})=>{if(focusSearch)focus({...options,preventScroll:true});};
+  find.findField.select=()=>{if(focusSearch)select();};
   const card=new LeftCard('Search',{opener,viewer:{sectionViewer:{frame,application}},className:'search-panel',stateKey:'search',onVisibility:visible=>{if(!visible)nativeClose();}});
   card.body.append(find.bar);
   // Native localization observes the iframe; adopted controls use app-owned text.
   const count=find.updateResultsCount.bind(find),ui=find.updateUIState.bind(find);
   find.updateResultsCount=(matches={})=>{count(matches);const {current=0,total=0}=matches;find.findResultsCount.textContent=total?`${current} of ${total}`:'';};
   find.updateUIState=(state,previous,matches)=>{ui(state,previous,matches);const id=find.findMsg.getAttribute('data-l10n-id');find.findMsg.textContent=id==='pdfjs-find-not-found'?'No matches':id==='pdfjs-find-reached-top'?'Reached top; continuing from bottom':id==='pdfjs-find-reached-bottom'?'Reached bottom; continuing from top':'';};
-  find.open=()=>{card.open();nativeOpen();card.contentReady();find.findField.focus({preventScroll:true});return card;};
+  find.open=(options={})=>{
+    card.open(options);
+    // Native find.open also selects/focuses the field; keep Tools launches passive.
+    focusSearch=options.focus!==false;
+    try{nativeOpen();card.contentReady();find.findField.focus({preventScroll:true});}
+    finally{focusSearch=true;}
+    return card;
+  };
   find.close=()=>{nativeClose();card.close();};
-  registerLeftCard('search',()=>find.open());
+  registerLeftCard('search',options=>find.open(options));
   const shortcut = (event) => {
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "f") {
       event.preventDefault(); event.stopImmediatePropagation(); find.open();
@@ -42,6 +51,22 @@ function installSearch(frame, application) {
   };
   document.addEventListener("keydown", shortcut);
   doc.addEventListener("keydown", shortcut, true);
+}
+
+function installToolsCard(frame,application){
+  const menu=document.getElementById('review-tools-menu'),summary=menu.querySelector(':scope > summary');
+  // Both surfaces share markup and delegated actions; each keeps its own focus.
+  const content=menu.querySelector(':scope > .toolbar-popover').cloneNode(true);
+  content.removeAttribute('style');
+  const card=new LeftCard('Tools',{opener:summary,viewer:{sectionViewer:{frame,application}},stateKey:'tools',className:'tools-panel',onVisibility:visible=>{
+    if(visible)card.contentReady();
+  }});
+  card.body.append(content);
+  const open=()=>{menu.open=false;card.open();return card;};
+  registerLeftCard('tools',open);
+  summary.title='Tools (double-click or Shift+Enter to open as a card)';
+  summary.addEventListener('dblclick',event=>{event.preventDefault();open();});
+  summary.addEventListener('keydown',event=>{if(event.key==='Enter'&&event.shiftKey){event.preventDefault();open();}});
 }
 
 export function installViewerControls(frame, application) {
@@ -53,14 +78,24 @@ export function installViewerControls(frame, application) {
   const scale = document.getElementById("review-scale");
   document.getElementById("review-page-count").textContent = `/ ${application.pdfDocument.numPages}`;
   page.max = application.pdfDocument.numPages;
-  document.querySelectorAll("[data-pdf-control]").forEach((button) => {
+  document.querySelectorAll("[data-pdf-control]").forEach(button=>{
     button.title ||= button.getAttribute("aria-label") || button.textContent.trim();
-    button.addEventListener("click", () => {
-      if (button.hasAttribute('data-left-card')) return;
-      native.getElementById(button.dataset.pdfControl)?.click();
-      button.closest("details")?.removeAttribute("open");
-    });
   });
+  document.addEventListener('click',event=>{
+    const button=event.target.closest('[data-pdf-control]');
+    if(!button||button.disabled||button.hasAttribute('data-left-card'))return;
+    native.getElementById(button.dataset.pdfControl)?.click();
+    if(!button.closest('[data-keep-menu-open]'))button.closest("details")?.removeAttribute("open");
+  });
+  const syncCursorTools=({tool=application.pdfCursorTools?.activeTool??0,disabled}={})=>{
+    for(const button of document.querySelectorAll('[data-pdf-control="cursorSelectTool"], [data-pdf-control="cursorHandTool"]')){
+      const selected=button.dataset.pdfControl==='cursorSelectTool'?0:1;
+      button.setAttribute('aria-pressed',String(tool===selected));
+      button.disabled=disabled??native.getElementById(button.dataset.pdfControl)?.disabled??false;
+    }
+  };
+  application.eventBus.on('cursortoolchanged',syncCursorTools);
+  syncCursorTools();
   const commitPage = () => {
     const value = Number(page.value);
     if (Number.isInteger(value) && value >= 1 && value <= application.pdfDocument.numPages) pdf.currentPageNumber = value;
@@ -93,6 +128,7 @@ export function installViewerControls(frame, application) {
   new ResizeObserver(() => document.documentElement.style.setProperty('--toolbar-height', `${header.offsetHeight}px`)).observe(header);
   syncMenuValues();
   installSearch(frame, application);
+  installToolsCard(frame,application);
   bindMenuDismissal(native);
 
 }

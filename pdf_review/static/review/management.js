@@ -9,8 +9,8 @@ let settingsPanel = null;
 export function registerManagement(context) {
   viewer = context;
   if(context.config.isOwner){
-    registerLeftCard('settings',()=>openSettings(context.config.documentId,null));
-    registerLeftCard('sections',async()=>(await openSections(context.config.documentId,null)).dialog);
+    registerLeftCard('settings',options=>openSettings(context.config.documentId,null,options));
+    registerLeftCard('sections',async options=>(await openSections(context.config.documentId,null,null,null,options)).dialog);
   }
   context.sectionViewer.onActivateSection = (id, kind) => { context.deselectThread?.(); return openSections(context.config.documentId, null, id, kind); };
   const query = new URLSearchParams(location.search);
@@ -18,12 +18,12 @@ export function registerManagement(context) {
   if (context.config.isOwner && (query.get('sectionsPanel') === '1' || query.get('sections') === 'edit')) openSections(context.config.documentId, null, query.get('section'));
 }
 
-export async function openSettings(documentId, opener) {
-  if (settingsPanel?.element.isConnected) { settingsPanel.open(); return settingsPanel; }
+export async function openSettings(documentId, opener, options = {}) {
+  if (settingsPanel?.element.isConnected) { settingsPanel.open(options); return settingsPanel; }
   if (!viewer && await enterViewer(documentId, 'settingsPanel')) return;
   const dialog = viewer ? new LeftCard('Settings', { opener, viewer, className: 'settings-panel', stateKey:'settings' }) : new AppDialog('Settings', { opener });
   settingsPanel = dialog;
-  dialog.body.textContent = 'Loading…'; if (dialog.open() === false) return;
+  dialog.body.textContent = 'Loading…'; if (dialog.open(options) === false) return;
   try {
     const response = await appFetch(`/documents/${documentId}/review-settings`);
     if (!response.ok) throw new Error('Settings could not be loaded.');
@@ -31,7 +31,7 @@ export async function openSettings(documentId, opener) {
     dialog.contentReady?.();
     const form = dialog.body.querySelector('form');
     if (!dialog.element.isConnected) return dialog;
-    form.querySelector('select').focus({ preventScroll: true });
+    if (options.focus !== false) form.querySelector('select').focus({ preventScroll: true });
     form.querySelector('[data-dialog-cancel]').onclick = () => dialog.close();
     form.onsubmit = async event => {
       event.preventDefault(); dialog.setBusy(true);
@@ -48,12 +48,12 @@ export async function openSettings(documentId, opener) {
   return dialog;
 }
 
-export async function openSections(documentId, opener, selectedId = null, boundaryKind = null) {
-  if (sectionsPanel?.dialog.element.isConnected) { if (selectedId) sectionsPanel.select(selectedId, true, boundaryKind); else sectionsPanel.dialog.open(); return sectionsPanel; }
+export async function openSections(documentId, opener, selectedId = null, boundaryKind = null, options = {}) {
+  if (sectionsPanel?.dialog.element.isConnected) { if (selectedId) sectionsPanel.select(selectedId, true, boundaryKind); else sectionsPanel.dialog.open(options); return sectionsPanel; }
   if (!viewer && await enterViewer(documentId, 'sectionsPanel')) return;
   sectionsPanel ||= new SectionsWorkspace(documentId, { opener, viewer, selectedId });
   if(selectedId)sectionsPanel.selectedId=selectedId;
-  await sectionsPanel.open();
+  await sectionsPanel.open(options);
   if (boundaryKind) sectionsPanel.select(selectedId, true, boundaryKind);
   return sectionsPanel;
 }

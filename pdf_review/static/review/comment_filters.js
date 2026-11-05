@@ -19,9 +19,9 @@ export class CommentFilters {
     this.list=element('div');this.choices.append(this.list);
     this.empty=element('p','No reviewers have commented yet.');this.empty.className='subtle';this.choices.append(this.empty);
     this.card.body.append(this.modes,this.policy,this.choices);
-    registerLeftCard('filters',()=>this.open());
+    registerLeftCard('filters',options=>this.open(options));
   }
-  open(){this.card.open();this.card.contentReady();return this.card;}
+  open(options){this.card.open(options);this.card.contentReady();return this.card;}
   commit(draft){
     this.draft=draft;this.pending++;this.render();
     this.save(draft).finally(()=>{if(--this.pending===0){this.draft=null;this.render();}});

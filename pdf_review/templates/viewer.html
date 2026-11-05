@@ -22,8 +22,6 @@
       <span>{{ version.version_label or version.original_filename }}</span>
     </div>
     <div class="document-controls" role="group" aria-label="PDF viewing controls">
-      <button type="button" data-pdf-control="viewsManagerToggleButton" title="Pages and outline" aria-label="Pages and outline">&#9636;</button>
-      <button type="button" data-pdf-control="viewFindButton" title="Find in PDF (Ctrl+F)" aria-label="Find in PDF"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10" cy="10" r="6"/><path d="m15 15 5 5"/></svg></button>
       <button type="button" data-pdf-control="previous" aria-label="Previous page">&lsaquo;</button>
       <input id="review-page-number" type="number" inputmode="numeric" enterkeyhint="go" min="1" value="1" aria-label="Page number">
       <span id="review-page-count" aria-label="Total pages">/ &hellip;</span>
@@ -55,8 +53,6 @@
 <input type="hidden" id="review-spread" value="0">
 <details class="toolbar-menu submenu" id="review-spread-menu"><summary>Spreads</summary><div class="toolbar-popover" role="menu" aria-label="Spreads"><button type="button" role="menuitemradio" aria-checked="false" data-menu-input="review-spread" data-menu-value="0">No spreads</button><button type="button" role="menuitemradio" aria-checked="false" data-menu-input="review-spread" data-menu-value="1">Odd spreads</button><button type="button" role="menuitemradio" aria-checked="false" data-menu-input="review-spread" data-menu-value="2">Even spreads</button></div></details>
 <hr>
-        <button type="button" data-pdf-control="cursorSelectTool">Text selection tool</button>
-        <button type="button" data-pdf-control="cursorHandTool">Hand tool</button>
         <button type="button" data-pdf-control="firstPage">First page</button>
         <button type="button" data-pdf-control="lastPage">Last page</button>
         <button type="button" data-pdf-control="presentationMode">Presentation</button>
@@ -69,9 +65,16 @@
     <details class="toolbar-menu" id="review-tools-menu">
       <summary>Tools</summary>
       <div class="toolbar-popover" role="menu" aria-label="Tools" data-keep-menu-open>
+        <div class="tools-icon-grid" role="group" aria-label="PDF tools">
+          <button type="button" data-pdf-control="viewsManagerToggleButton" title="Pages and outline" aria-label="Pages and outline"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="3" width="14" height="18" rx="1"/><path d="M8 7h8M8 11h8M8 15h8"/></svg></button>
+          <button type="button" role="menuitemcheckbox" aria-checked="false" data-left-card="search" data-pdf-control="viewFindButton" title="Search (Ctrl+F)" aria-label="Search"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10" cy="10" r="6"/><path d="m15 15 5 5"/></svg></button>
+          <!-- Lucide text-cursor/hand outlines; license: static/vendor/lucide/LICENSE. -->
+          <button type="button" data-pdf-control="cursorSelectTool" aria-label="Text selection tool" aria-pressed="false"><svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 22h-1a4 4 0 0 1-4-4V6a4 4 0 0 1 4-4h1M7 22h1a4 4 0 0 0 4-4M7 2h1a4 4 0 0 1 4 4"/></svg></button>
+          <button type="button" data-pdf-control="cursorHandTool" aria-label="Hand tool" aria-pressed="false"><svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 11V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2M14 10V4a2 2 0 0 0-2-2a2 2 0 0 0-2 2v2M10 10.5V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2v8M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"/></svg></button>
+        </div>
+        <hr>
         <button type="button" data-close-all-tools>Close all tools</button>
         <hr>
-        <button type="button" role="menuitemcheckbox" aria-checked="false" data-left-card="search" data-pdf-control="viewFindButton">Search</button>
         <button type="button" role="menuitemcheckbox" aria-checked="false" data-left-card="filters" data-comment-filters>Comment filter</button>
         <button type="button" role="menuitemcheckbox" aria-checked="false" data-left-card="reading">Reading progress</button>
         <button type="button" role="menuitemcheckbox" aria-checked="false" data-left-card="analytics">Time tracker</button>

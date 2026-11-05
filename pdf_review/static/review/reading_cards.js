@@ -38,7 +38,7 @@ export class ReadingCards {
     this.spine.body.append(node('p','Reading progress','reading-subtitle'),this.spineContent,this.spineControls);
     this.spineError=node('p','', 'reading-error');this.analyticsError=node('p','', 'reading-error');
     this.spine.body.append(this.spineError);this.analytics.body.append(this.analyticsError);
-    registerLeftCard('reading',()=>this.openSpine());registerLeftCard('analytics',()=>this.openAnalytics());
+    registerLeftCard('reading',options=>this.openSpine(options));registerLeftCard('analytics',options=>this.openAnalytics(null,options));
     this.tracker.addEventListener('change',()=>this.scheduleRender());
     this.poll=setInterval(()=>{
       if(document.hidden||(!this.spine.element.isConnected&&!this.analytics.element.isConnected))return;
@@ -61,10 +61,10 @@ export class ReadingCards {
     await this.tracker.refresh();
     if(this.analytics.element.isConnected)await this.loadDetail();
   }
-  openSpine() {this.spine.open();this.render();this.requestRefresh();return this.spine;}
-  openAnalytics(reader=null) {
+  openSpine(options) {this.spine.open(options);this.render();this.requestRefresh();return this.spine;}
+  openAnalytics(reader=null,options) {
     if(reader){this.selected=reader;this.saveViewState();}
-    this.analytics.open();this.render();this.loadDetail().catch(e=>this.error(e));return this.analytics;
+    this.analytics.open(options);this.render();this.loadDetail().catch(e=>this.error(e));return this.analytics;
   }
   navigate(page) {this.application.pdfViewer.currentPageNumber=Math.max(1,Math.min(this.application.pdfDocument.numPages,page));}
   navigateSection(section) {

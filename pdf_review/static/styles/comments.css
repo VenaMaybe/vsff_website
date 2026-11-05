@@ -11,7 +11,10 @@
 .thread-card.active { border-left-color: var(--accent); background: #f7faf8; box-shadow: 0 3px 12px #182a2426; z-index: 2; }
 .thread-card.resolved { color: #616762; }
 .thread-card.active.resolved { background: #f3f5f3; }
-.thread-card-header { align-items: center; display: flex; gap: 7px; justify-content: space-between; }
+.thread-card-header { align-items: baseline; display: flex; gap: 7px; justify-content: space-between; }
+.thread-card-header > .thread-card-location { min-width: 0; }
+.thread-card-header > .comment-actions { align-items: baseline; flex-shrink: 0; white-space: nowrap; }
+.thread-card-header > .comment-actions > .text-action { align-items: flex-start; padding-inline: 3px; }
 .thread-card-location { color: var(--muted); font-size: .72rem; }
 .thread-status-badge {
   background: #e7eee9;

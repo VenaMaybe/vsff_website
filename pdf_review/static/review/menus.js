@@ -69,20 +69,28 @@ document.addEventListener("click", (event) => {
 document.addEventListener("change", syncMenuValues);
 document.addEventListener("keydown", (event) => {
   const trigger = event.target.closest("summary");
-  const menu = event.target.closest(".toolbar-menu");
+  const menu = event.target.closest(".toolbar-menu, .tools-panel");
   if (!menu) return;
+  const icons=event.target.closest('.tools-icon-grid');
+  if(icons&&['ArrowLeft','ArrowRight'].includes(event.key)){
+    const buttons=[...icons.querySelectorAll('button')].filter(button=>!button.disabled);
+    if(!buttons.length)return;
+    event.preventDefault();
+    const index=buttons.indexOf(document.activeElement),direction=event.key==='ArrowRight'?1:-1;
+    buttons[(index+direction+buttons.length)%buttons.length].focus();return;
+  }
   if (event.key === "ArrowLeft" && menu.classList.contains("submenu")) {
     event.preventDefault(); menu.open = false; menu.querySelector("summary").focus(); return;
   }
   if (trigger && ["ArrowRight", "ArrowDown", "ArrowUp"].includes(event.key)) {
     event.preventDefault(); menu.open = true; position(menu);
-    const rows = menu.querySelector(":scope > .toolbar-popover").querySelectorAll(":scope > button, :scope > a, :scope > details > summary, :scope > form > button");
+    const rows = menu.querySelector(":scope > .toolbar-popover").querySelectorAll(":scope > .tools-icon-grid > button, :scope > button, :scope > a, :scope > details > summary, :scope > form > button");
     rows[event.key === "ArrowUp" ? rows.length - 1 : 0]?.focus(); return;
   }
   if (["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) {
     const popup = event.target.closest(".toolbar-popover");
     if (!popup) return;
-    const rows = [...popup.querySelectorAll(":scope > button, :scope > a, :scope > details > summary, :scope > form > button")].filter((item) => !item.disabled);
+    const rows = [...popup.querySelectorAll(":scope > .tools-icon-grid > button, :scope > button, :scope > a, :scope > details > summary, :scope > form > button")].filter((item) => !item.disabled);
     if (!rows.length) return;
     event.preventDefault();
     const index = rows.indexOf(document.activeElement);

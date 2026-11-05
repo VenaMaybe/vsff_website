@@ -26,8 +26,9 @@ document.addEventListener('click', event => {
   const tool = event.target.closest('[data-left-card]');
   if (!tool) return;
   const card = [...cards].find(card => card.stateKey === tool.dataset.leftCard);
-  if (card?.element.classList.contains('active')) card.close(false);
-  else openers.get(tool.dataset.leftCard)?.();
+  const fromToolsCard = !!tool.closest('.tools-panel');
+  if (card && (fromToolsCard || card.element.classList.contains('active'))) card.close(false);
+  else openers.get(tool.dataset.leftCard)?.({focus: !fromToolsCard});
 });
 function persistCards() {
   clearTimeout(persistTimer);
@@ -184,8 +185,10 @@ export class LeftCard {
     }, { passive: false });
   }
   get sectionViewer() { return this.viewer?.sectionViewer; }
-  open() {
-    if (this.element.isConnected) { this.reveal(); return true; }
+  open({focus = true} = {}) {
+    if (this.element.isConnected) { this.reveal({focus}); return true; }
+    // Reused cards can retain their old active class after closing.
+    if (!focus) this.element.classList.remove('active');
     cards.add(this);
     const workspace = document.querySelector('.viewer-workspace');
     (workspace || document.body).append(this.element);
@@ -207,7 +210,7 @@ export class LeftCard {
     this.resize.observe(workspace || document.body); this.resize.observe(this.element);
     for (const event of ['scalechanging', 'rotationchanging', 'spreadmodechanged', 'scrollmodechanged', 'pagerendered', 'reviewlayoutchanged', 'documentoriginchanged']) this.bus?.on(event, this.schedule);
     layoutCards(true); animateCard(this.element, 4, true);
-    this.onVisibility?.(true); this.closeButton.focus({ preventScroll: true });
+    this.onVisibility?.(true); if (focus) this.closeButton.focus({ preventScroll: true });
     return true;
   }
   contentReady() {
@@ -286,15 +289,15 @@ export class LeftCard {
     this.centerRequest = getCenter; this.activate(); layoutCards(true);
     this.closeButton.focus({ preventScroll:true });
   }
-  reveal() {
-    this.activate();
+  reveal({focus = true} = {}) {
+    if (focus) this.activate();
     const rect = this.element.getBoundingClientRect(), parent = this.element.parentElement.getBoundingClientRect();
     if (rect.top < parent.top || rect.bottom > parent.bottom) {
       if (!this.pinned) this.captureAnchor(parent.top + 8);
 
       layoutCards(true);
     }
-    this.closeButton.focus({ preventScroll: true });
+    if (focus) this.closeButton.focus({ preventScroll: true });
   }
   updatePin() {
     this.pin.setAttribute('aria-pressed', String(this.pinned));
