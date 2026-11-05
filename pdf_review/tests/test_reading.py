@@ -211,6 +211,40 @@ class ReadingTests(unittest.TestCase):
         detail=reading.reader_detail(self.database,self.version,self.user,self.user)
         self.assertEqual(detail['sections'][0]['active_ms'],80000)
         self.assertEqual(detail['sections'][0]['end_page'],2)
+        self.assertEqual(detail['sections'][0]['page_count'],1)
+        self.assertEqual(detail['sections'][0]['pages_read'],1)
+        self.assertTrue(detail['sections'][0]['is_read'])
+
+    def test_section_read_requires_strictly_more_than_ninety_percent_of_pages(self):
+        from review.sections import create_section, save_placement
+        section=create_section(self.database,self.document_id,self.user,{'name':'Ten pages'})
+        save_placement(self.database,section,self.version,self.user,
+            dict(start_page=1,start_y=None,end_page=10,end_y=None,start_view_box=[0,0,600,800],end_view_box=[0,0,600,800],page_count=10,expected_revision=0))
+        sid=self.session();self.batch(sid,1,1000)
+        for number in range(1,11):
+            self.batch(sid,number+1,1000+number*5,[self.page(number,5000)])
+            if number in (1,9,10):
+                # A paged detail request must still aggregate the entire section.
+                result=reading.reader_detail(self.database,self.version,self.user,self.user,1,1)['sections'][0]
+                self.assertEqual(result['page_count'],10)
+                self.assertEqual(result['pages_read'],number)
+                self.assertEqual(result['percentage'],number*10)
+                self.assertEqual(result['is_read'],number==10)
+
+    def test_section_read_accepts_over_ninety_percent_and_counts_partial_pages_whole(self):
+        from review.sections import create_section, save_placement
+        section=create_section(self.database,self.document_id,self.user,{'name':'Eleven pages'})
+        payload=dict(start_page=1,start_y=None,end_page=11,end_y=None,start_view_box=[0,0,600,800],end_view_box=[0,0,600,800],page_count=11,expected_revision=0)
+        save_placement(self.database,section,self.version,self.user,payload)
+        sid=reading.start_session(self.database,self.version,self.user,1,11)['session_id'];self.batch(sid,1,1000)
+        for number in range(1,11):self.batch(sid,number+1,1000+number*5,[self.page(number,5000)])
+        result=reading.reader_detail(self.database,self.version,self.user,self.user)['sections'][0]
+        self.assertEqual((result['pages_read'],result['page_count'],result['percentage'],result['is_read']),(10,11,90.9,True))
+        # Almost all this range lies on read p.10, but unread p.11 still counts.
+        save_placement(self.database,section,self.version,self.user,
+            {**payload,'start_page':10,'end_y':799,'expected_revision':1})
+        result=reading.reader_detail(self.database,self.version,self.user,self.user)['sections'][0]
+        self.assertEqual((result['pages_read'],result['page_count'],result['percentage'],result['is_read']),(1,2,50,False))
 
 
 if __name__=='__main__':unittest.main()

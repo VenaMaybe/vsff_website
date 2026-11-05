@@ -20,6 +20,66 @@ dwell bars use the reader's existing review color. Pages expands sections or All
 pages into paged activity lists: state, time and last visit. Longer viewing does not establish comprehension;
 there is no special long-dwell marker on page rows.
 
+Section completion counts distinct pages intersecting its exact-version range.
+A section is considered read only when **more than 90%** of those pages have a
+page-level read timestamp; exactly 90% is still in progress. The server derives
+the integer page count, read count and `is_read` from existing history on refresh;
+no new stored completion flag or migration is needed. Partial-page boundaries
+still prorate dwell time, but do not count fractional pages toward completion.
+The section label shows read/total pages, percentage and explicit section status.
+Green bars continue to compare dwell time and are not completion indicators.
+
+## Firefox freeze and repeated rendering follow-up
+
+Opening Manuscript previously called the shared renderer for both reading cards,
+including closed Reader analytics. Its expanded page groups remain in the detached
+card DOM. After text metrics resolved, `paintPages` treated a detached body as an
+obsolete list, looked for its replacement, found that same body in the detached
+card and called itself again. Cached results let this continue through promise
+microtasks without returning control for input, painting or timers. A bounded
+diagnostic using the pre-fix method reached its 31-call safety cap on one detached
+page list. This is a concrete freeze mechanism, independent of PDF page count;
+long-document extraction and saved expanded page groups make the timing less obvious.
+
+Rendering now skips closed cards. Page-list painting also checks whether analytics
+is still connected before and after asynchronous extraction and between pages.
+Replacement retries require a different, connected body. Closing during an extraction
+therefore cannot restart work on the detached list; an already-started extraction
+may finish and remain in the shared immutable metadata cache.
+
+The Manuscript spine had additional overhead: every tracking/presence refresh
+recreated all chapter labels, reader dots, leader SVG paths and legend rows.
+Those nodes are now keyed by section/reader identity, reordered only when necessary,
+and patched only where values change. An unchanged model skips the spine entirely.
+Tracker/presence rendering is coalesced per animation frame, and opening/section
+refreshes reuse the existing refresh coordinator. Existing card geometry, reader
+colors, navigation, visibility rules, author controls and recording policy remain.
+
+Firefox checks use an isolated 138-page PDF with 24 chapter markers. Ten openings
+previously discarded 2,452 elements and replaced the spine; after the fix, the final
+run retained those nodes with zero observed spine mutations. Timings varied between
+runs and concurrent browser checks, so no CPU speedup is claimed from those samples.
+The original Firefox warning in the user's browser profile was not directly captured.
+
+Passed checks:
+
+```powershell
+.\.venv\Scripts\python.exe tests/browser_sanity.py --reading-ui
+.\.venv\Scripts\python.exe tests/firefox_reading_cards.py
+.\.venv\Scripts\python.exe tests/firefox_page_properties.py
+```
+
+The checks include closed expanded groups, close during extraction, no hidden
+text extraction/retry loop, stable nodes through live updates, existing page/group
+restoration, navigation and author tracking controls. All data are disposable
+fixtures; no user reading records or PDF bytes were changed.
+
+This follow-up edits `static/review/reading_cards.js`, `tests/reading_acceptance.py`,
+`tests/firefox_page_properties.py`, new `tests/reading_rendering.py`,
+`tests/firefox_reading_cards.py` and the shared `tests/firefox_client.py` helper,
+plus this report and `ARCHITECTURE.md`. No server schema, migration, PDF.js or
+zoom implementation changes are required. Reload the local viewer for the new JS.
+
 ## Author controls, privacy and identity
 
 Tracking starts **on** for every eligible reader. Opening the PDF automatically

@@ -16,6 +16,7 @@ from .review_policy import require_reader
 
 WORDS_PER_MINUTE = 400
 MIN_PAGE_SECONDS = 5
+SECTION_READ_PERCENT = 90
 BATCH_SECONDS = 15
 LEASE_SECONDS = 25
 IDLE_SECONDS = 60
@@ -294,14 +295,18 @@ def reader_detail(database, version_id, actor, reader, start=1, limit=50, *, pag
             first, last = math.floor(lo) + 1, math.ceil(hi)
             a, b = bisect_left(numbers, first), bisect_left(numbers, last + 1)
             active, completed = times[b] - times[a], reads[b] - reads[a]
+            # Reading completion counts distinct pages; only dwell time is
+            # prorated when a section covers part of its first/last page.
             for number in {first, last}:
                 overlap = max(0, min(hi, number) - max(lo, number - 1))
                 row = by_page.get(number)
                 if row:
                     active -= (1 - overlap) * row['active_ms']
-                    completed -= (1 - overlap) * int(bool(row['read_at']))
-            section.update(active_ms=round(max(0, active)), pages_read=round(max(0, completed), 2),
-                           percentage=round(100 * max(0, completed) / (hi - lo), 1) if hi > lo else 0)
+            page_count = max(0, last - first + 1) if hi > lo else 0
+            completed = max(0, completed) if page_count else 0
+            section.update(active_ms=round(max(0, active)), pages_read=completed, page_count=page_count,
+                           percentage=round(100 * completed / page_count, 1) if page_count else 0,
+                           is_read=bool(page_count and completed * 100 > SECTION_READ_PERCENT * page_count))
         total = c.execute('SELECT * FROM reading_totals WHERE version_id=? AND user_id=?', (version_id, reader)).fetchone()
         return dict(reader_id=reader, page_count=count, totals=dict(total) if total else {}, sections=sections,
                     pages=pages, next_page=start + limit if start + limit <= count else None)

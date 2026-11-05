@@ -8,6 +8,10 @@ function duration(ms) {const seconds=Math.floor(ms/1000),minutes=Math.floor(seco
 function when(value) {return value?new Date(value).toLocaleString(undefined,{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}):'No recorded activity';}
 function color(reader) {return /^#[0-9a-f]{6}$/i.test(reader?.review_color)?reader.review_color:'#4e79a7';}
 function percent(reader) {return reader?.page_count?Math.round(reader.pages_read/reader.page_count*100):0;}
+function setText(element,value){if(element.textContent!==value)element.textContent=value;}
+function setStyle(element,key,value){if(element.style[key]!==value)element.style[key]=value;}
+function setAttribute(element,key,value){if(element.getAttribute(key)!==String(value))element.setAttribute(key,value);}
+function orderChildren(parent,children){let previous=null;for(const child of children){const next=previous?previous.nextSibling:parent.firstChild;if(child!==next)parent.insertBefore(child,next);previous=child;}}
 
 export class ReadingCards {
   constructor(application,frame,config,connected) {
@@ -35,7 +39,7 @@ export class ReadingCards {
     this.spineError=node('p','', 'reading-error');this.analyticsError=node('p','', 'reading-error');
     this.spine.body.append(this.spineError);this.analytics.body.append(this.analyticsError);
     registerLeftCard('reading',()=>this.openSpine());registerLeftCard('analytics',()=>this.openAnalytics());
-    this.tracker.addEventListener('change',()=>this.render());
+    this.tracker.addEventListener('change',()=>this.scheduleRender());
     this.poll=setInterval(()=>{
       if(document.hidden||(!this.spine.element.isConnected&&!this.analytics.element.isConnected))return;
       this.requestRefresh();
@@ -48,7 +52,7 @@ export class ReadingCards {
   sectionsChanged(sections) {
     const signature=JSON.stringify(sections.map(s=>({name:s.name,placement:s.placement})));
     if(this.sectionSignature && this.sectionSignature!==signature &&
-       (this.spine.element.isConnected||this.analytics.element.isConnected))this.refresh().catch(error=>this.error(error));
+       (this.spine.element.isConnected||this.analytics.element.isConnected))this.requestRefresh();
     this.sectionSignature=signature;
   }
   async initialize() {await this.tracker.initialize();this.render();}
@@ -57,7 +61,7 @@ export class ReadingCards {
     await this.tracker.refresh();
     if(this.analytics.element.isConnected)await this.loadDetail();
   }
-  openSpine() {this.spine.open();this.render();this.refresh().catch(e=>this.error(e));return this.spine;}
+  openSpine() {this.spine.open();this.render();this.requestRefresh();return this.spine;}
   openAnalytics(reader=null) {
     if(reader){this.selected=reader;this.saveViewState();}
     this.analytics.open();this.render();this.loadDetail().catch(e=>this.error(e));return this.analytics;
@@ -105,18 +109,26 @@ export class ReadingCards {
         reader.online=reader.status==='active'&&positions.has(reader.user_id)&&positions.get(reader.user_id)!=null;
         reader.current_page=reader.online?positions.get(reader.user_id):null;
       }
-      this.render();
+      this.scheduleRender();
     });
     socket.on('connect',()=>{this.positions=null;this.requestRefresh();});
-    socket.on('disconnect',()=>{this.positions=new Map();this.render();});
+    socket.on('disconnect',()=>{this.positions=new Map();this.scheduleRender();});
+  }
+  scheduleRender(){
+    if(this.renderPending||(!this.spine.element.isConnected&&!this.analytics.element.isConnected))return;
+    this.renderPending=requestAnimationFrame(()=>{this.renderPending=null;this.render();});
   }
   render() {
+    if(!this.spine.element.isConnected&&!this.analytics.element.isConnected)return;
     if(this.positions)for(const reader of this.tracker.summary?.readers||[]){
       reader.online=reader.status==='active'&&this.positions.get(reader.user_id)!=null;
       reader.current_page=reader.online?this.positions.get(reader.user_id):null;
     }
-    this.renderControls(this.spineControls);this.renderControls(this.analyticsControls);
-    this.renderSpine();
+    if(this.spine.element.isConnected){this.renderControls(this.spineControls);this.renderSpine();this.spine.contentReady();}
+    // Closing analytics must also stop its expanded page groups from extracting
+    // text in the background whenever presence/tracking refreshes the other card.
+    if(!this.analytics.element.isConnected)return;
+    this.renderControls(this.analyticsControls);
     const readers=this.readers();
     if(this.tracker.summary&&!readers.some(r=>r.user_id===this.selected)){this.selected=this.config.currentUserId;this.saveViewState();}
     const signature=readers.map(r=>`${r.user_id}:${r.display_name}`).join('|');
@@ -129,11 +141,16 @@ export class ReadingCards {
     this.analytics.element.style.setProperty('--reader-color',color(reader));
     this.analytics.element.querySelector('h2').textContent=reader?.display_name||'Reader analytics';
     this.renderStats(reader);this.renderSections();
-    this.spine.contentReady();this.analytics.contentReady();
+    this.analytics.contentReady();
   }
   renderSpine() {
     const count=this.application.pdfDocument.numPages,summary=this.tracker.summary;
     const readers=summary?.readers||[],sections=summary?.sections||[];
+    const signature=JSON.stringify([count,summary?.next_offset,
+      sections.map(section=>[section.section_id,section.name,section.start,section.start_page,section.end_page]),
+      readers.map(reader=>[reader.user_id,reader.display_name,color(reader),reader.current_page,reader.last_page,reader.furthest_page,reader.pages_read,reader.page_count,reader.online])]);
+    if(signature===this.spineSignature)return;
+    this.spineSignature=signature;
     const rows=sections.map(s=>({type:'section',section:s,name:s.name,page:s.start_page,range:s.start_page===s.end_page?`p. ${s.start_page}`:`pp. ${s.start_page}–${s.end_page}`,position:s.start/count}));
     rows.push({type:'section',name:'End',page:count,range:`p. ${count}`,position:1});
     for(const reader of readers) {
@@ -152,39 +169,69 @@ export class ReadingCards {
     }
     bottom=height;
     for(const row of [...rows].reverse()){row.top=Math.min(row.top,bottom-row.height);bottom=row.top-4;}
-    const canvas=node('div',undefined,'reading-spine');canvas.style.height=`${height}px`;
-    const line=node('span',undefined,'reading-spine-line');canvas.append(line);
-    const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');svg.setAttribute('class','reading-leaders');
-    svg.setAttribute('viewBox',`0 0 230 ${height}`);svg.setAttribute('preserveAspectRatio','none');svg.setAttribute('aria-hidden','true');canvas.append(svg);
-    for(const row of rows) {
-      const point=node('span',undefined,row.type==='reader'?'reading-reader-dot':'reading-section-dot');
-      point.style.top=`${row.anchor}px`;
-      const label=button(row.type==='reader'?`${row.reader.display_name} · p. ${row.page}`:row.name,
-        ()=>row.type==='reader'?this.openAnalytics(row.reader.user_id):row.section?this.navigateSection(row.section):this.navigate(row.page),`reading-spine-label ${row.type}`);
-      label.style.top=`${row.top}px`;label.style.height=`${row.height}px`;
-      if(row.type==='reader') {
+    if(!this.spineCanvas){
+      this.spineCanvas=node('div',undefined,'reading-spine');
+      this.spineLine=node('span',undefined,'reading-spine-line');
+      this.spineLeaders=document.createElementNS('http://www.w3.org/2000/svg','svg');
+      this.spineLeaders.setAttribute('class','reading-leaders');this.spineLeaders.setAttribute('preserveAspectRatio','none');this.spineLeaders.setAttribute('aria-hidden','true');
+      this.spineLegend=node('div',undefined,'reading-legend');this.legendHeading=node('small','Considered read ? Estimated completion','reading-note');
+      this.spineEntries=new Map();this.legendEntries=new Map();
+      this.spineContent.append(this.spineCanvas,this.spineLegend);
+    }
+    const canvas=this.spineCanvas,svg=this.spineLeaders,legend=this.spineLegend;
+    setStyle(canvas,'height',`${height}px`);setAttribute(svg,'viewBox',`0 0 230 ${height}`);
+    const active=new Set(),children=[this.spineLine,svg],leaders=[];
+    for(const row of rows){
+      const key=row.type==='reader'?`reader:${row.reader.user_id}`:row.section?`section:${row.section.section_id}`:'end';active.add(key);
+      let entry=this.spineEntries.get(key);
+      if(!entry){
+        entry={point:node('span',undefined,row.type==='reader'?'reading-reader-dot':'reading-section-dot')};
+        entry.label=button('',()=>{
+          const current=entry.row;
+          if(current.type==='reader')this.openAnalytics(current.reader.user_id);
+          else if(current.section)this.navigateSection(current.section);else this.navigate(current.page);
+        },`reading-spine-label ${row.type}`);
+        entry.name=node('span');entry.label.append(entry.name);
+        if(row.type==='section'){entry.range=node('small');entry.label.append(entry.range);}
+        entry.leader=document.createElementNS(svg.namespaceURI,'path');this.spineEntries.set(key,entry);
+      }
+      entry.row=row;const {point,label,leader}=entry;
+      setStyle(point,'top',`${row.anchor}px`);setStyle(label,'top',`${row.top}px`);setStyle(label,'height',`${row.height}px`);
+      setText(entry.name,row.type==='reader'?`${row.reader.display_name} ? p. ${row.page}`:row.name);
+      if(row.type==='reader'){
         const cluster=Math.round(row.anchor/5),peers=clusters.get(cluster)||0;clusters.set(cluster,peers+1);
-        point.style.left=`${10+(peers%3)*6}px`;
-        label.style.setProperty('--reader-color',color(row.reader));point.style.background=color(row.reader);
-        point.dataset.online=String(row.reader.online);label.title=`${row.reader.online?'Currently viewing':'Last recorded position'} · p. ${row.page}. Furthest p. ${row.reader.furthest_page}; ${percent(row.reader)}% considered read.`;
-      } else label.append(node('small',row.range));
-      const leader=document.createElementNS(svg.namespaceURI,'path');leader.setAttribute('d',`M${row.type==='reader'?parseFloat(point.style.left)+3.5:14} ${row.anchor} L32 ${row.top+row.height/2}`);svg.append(leader);
-      canvas.append(point,label);
+        setStyle(point,'left',`${10+(peers%3)*6}px`);
+        if(label.style.getPropertyValue('--reader-color')!==color(row.reader))label.style.setProperty('--reader-color',color(row.reader));
+        setStyle(point,'backgroundColor',color(row.reader));setAttribute(point,'data-online',String(row.reader.online));
+        const title=`${row.reader.online?'Currently viewing':'Last recorded position'} ? p. ${row.page}. Furthest p. ${row.reader.furthest_page}; ${percent(row.reader)}% considered read.`;
+        if(label.title!==title)label.title=title;
+      }else setText(entry.range,row.range);
+      setAttribute(leader,'d',`M${row.type==='reader'?parseFloat(point.style.left)+3.5:14} ${row.anchor} L32 ${row.top+row.height/2}`);
+      children.push(point,label);leaders.push(leader);
     }
-    const legend=node('div',undefined,'reading-legend');
-    legend.append(node('small','Considered read · Estimated completion','reading-note'));
-    for(const reader of readers) {
-      const row=button('',()=>this.openAnalytics(reader.user_id),'reading-legend-row');
-      const name=node('span',reader.display_name);name.style.setProperty('--reader-color',color(reader));
-      row.append(name,node('span',`${reader.pages_read||0} / ${count}`),node('span',`${percent(reader)}%`));
-      row.title=`${reader.pages_read||0} of ${count} pages considered read. ${reader.online?'Currently viewing':'Last recorded position'}: p. ${reader.current_page||reader.last_page||'–'}.`;legend.append(row);
+    for(const [key,entry] of this.spineEntries)if(!active.has(key)){entry.point.remove();entry.label.remove();entry.leader.remove();this.spineEntries.delete(key);}
+    orderChildren(canvas,children);orderChildren(svg,leaders);
+    const legendChildren=[this.legendHeading],readerIds=new Set();
+    for(const reader of readers){
+      readerIds.add(reader.user_id);let entry=this.legendEntries.get(reader.user_id);
+      if(!entry){
+        entry={row:button('',()=>this.openAnalytics(reader.user_id),'reading-legend-row'),name:node('span'),read:node('span'),percentage:node('span')};
+        entry.row.append(entry.name,entry.read,entry.percentage);this.legendEntries.set(reader.user_id,entry);
+      }
+      setText(entry.name,reader.display_name);
+      if(entry.name.style.getPropertyValue('--reader-color')!==color(reader))entry.name.style.setProperty('--reader-color',color(reader));
+      setText(entry.read,`${reader.pages_read||0} / ${count}`);setText(entry.percentage,`${percent(reader)}%`);
+      const title=`${reader.pages_read||0} of ${count} pages considered read. ${reader.online?'Currently viewing':'Last recorded position'}: p. ${reader.current_page||reader.last_page||'?'}.`;
+      if(entry.row.title!==title)entry.row.title=title;legendChildren.push(entry.row);
     }
-    if(!readers.length)legend.append(node('p','No reading activity yet.','reading-note'));
-    if(summary?.next_offset!=null)legend.append(button('More readers',async()=>{
-      try{await this.tracker.refresh(summary.next_offset);}catch(e){this.error(e);}
-    },'quiet-control'));
-    this.spineContent.replaceChildren(canvas,legend);
+    for(const [key,entry] of this.legendEntries)if(!readerIds.has(key)){entry.row.remove();this.legendEntries.delete(key);}
+    if(!readers.length){this.emptyLegend ||= node('p','No reading activity yet.','reading-note');legendChildren.push(this.emptyLegend);}else this.emptyLegend?.remove();
+    if(summary?.next_offset!=null){
+      this.moreReaders ||= button('More readers',async()=>{try{await this.tracker.refresh(this.tracker.summary.next_offset);}catch(e){this.error(e);}},'quiet-control');legendChildren.push(this.moreReaders);
+    }else this.moreReaders?.remove();
+    orderChildren(legend,legendChildren);
   }
+
   renderStats(reader) {
     const detail=this.detail?.reader_id===this.selected?this.detail:null;
     const totals=detail?.totals||reader||{},count=detail?.page_count||reader?.page_count||this.application.pdfDocument.numPages;
@@ -243,7 +290,7 @@ export class ReadingCards {
           this.sectionViews.append(row);
         }
         if(!detail.sections.length)this.sectionViews.append(node('p','No mapped sections. Use Pages for the whole document.','reading-note'));
-        this.sectionViews.append(node('p','Bars show approximate active viewing time. Longer dwell does not establish difficulty or comprehension.','reading-note'));
+        this.sectionViews.append(node('p','Bars compare active viewing time. A section is considered read only when more than 90% of its pages are considered read. Viewing time does not establish comprehension.','reading-note'));
       } else {
         for(const section of this.pageGroups(detail)) {
           const group=node('details',undefined,'reading-page-group');group.dataset.sectionId=section.section_id;
@@ -266,7 +313,10 @@ export class ReadingCards {
         const section=detail.sections.find(s=>s.section_id===row.dataset.sectionId);
         const time=row.querySelector('.reading-section-time'),read=row.querySelector('small');
         if(time.textContent!==duration(section.active_ms))time.textContent=duration(section.active_ms);
-        const percentage=`${section.percentage}% considered read`;if(read.textContent!==percentage)read.textContent=percentage;
+        row.dataset.state=section.is_read?'read':section.pages_read?'partial':'unread';
+        const status=section.is_read?'Considered read':section.pages_read?'In progress':'Not yet read';
+        const progress=`${status} · ${section.pages_read}/${section.page_count} pages (${section.percentage}%)`;
+        if(read.textContent!==progress)read.textContent=progress;
         row.querySelector('.reading-time-track > span').style.width=`${section.active_ms/maximum*100}%`;
       }
     } else {
@@ -276,6 +326,7 @@ export class ReadingCards {
   }
   pageGroups(detail) {return [...detail.sections,{section_id:'all',name:'All pages',start_page:1,end_page:detail.page_count}];}
   async paintPages(body,section,more=false) {
+    if(!this.analytics.element.isConnected)return;
     const selected=this.selected,key=`${selected}:${section.section_id}`;
     let data=this.windows.get(key);
     if(!data){data={pages:[],stale:true,next:null};this.windows.set(key,data);}
@@ -302,11 +353,13 @@ export class ReadingCards {
         this.error(error);
       } finally {data.loading=false;}
     }
+    if(!this.analytics.element.isConnected||selected!==this.selected||this.windows.get(key)!==data)return;
     const pages=data.pages,metrics=new Map();
     // Bound concurrent PDF text extraction, including for pages not viewed yet.
     let cursor=0;
     await Promise.all(Array.from({length:Math.min(4,pages.length)},async()=>{
       while(cursor<pages.length){
+        if(!this.analytics.element.isConnected||selected!==this.selected||this.windows.get(key)!==data)return;
         const page=pages[cursor++];
         const words=page.word_count??await this.tracker.wordCount(page.page_number);
         const policy=this.tracker.policy;
@@ -314,10 +367,13 @@ export class ReadingCards {
         metrics.set(page.page_number,{words,threshold});
       }
     }));
-    if(selected!==this.selected||this.windows.get(key)!==data)return;
+    if(!this.analytics.element.isConnected||selected!==this.selected||this.windows.get(key)!==data)return;
     if(!body.isConnected){
       const group=[...this.sectionViews.querySelectorAll('.reading-page-group')].find(e=>e.dataset.sectionId===section.section_id);
-      if(group?.open)this.paintPages(group.querySelector('.reading-pages'),section);
+      const replacement=group?.open?group.querySelector('.reading-pages'):null;
+      // A closed card still contains its expanded groups. Retrying the same
+      // detached body creates an endless chain of already-resolved promises.
+      if(replacement?.isConnected&&replacement!==body)this.paintPages(replacement,section);
       return;
     }
     if(data.pages!==pages){this.paintPages(body,section);return;}

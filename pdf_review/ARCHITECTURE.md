@@ -744,6 +744,11 @@ versions and devices. Cumulative page/reader totals update incrementally; visit
 rows update per session/visit/page. Client timing, metadata and inferred completion
 remain approximate. Policy is centralized at 400 words/minute and a 5-second page
 minimum; considered-read timestamps are separate from measured time.
+Section completion is derived from distinct pages intersecting the canonical
+range: `pages_read * 100 > page_count * 90`, strictly above 90%, not rounded
+percentage or any single read page. Fractional edge coverage prorates dwell time
+only. Section labels give an explicit status and read/total pages; bar widths
+continue to compare active viewing time, independently of completion.
 
 The reading summary pages at 100 readers, per-page detail at 50 rows by default
 (100 max). Committed batches send targeted, content-free `reading.changed` WebSocket
@@ -769,6 +774,14 @@ Reader/view/section-structure changes rebuild only the affected view. An account
 exact-version scoped browser record restores the reader, Pages/Sections tab and
 expanded group identifiers; the authorized roster validates the saved reader.
 Only UI choices, not measured activity, are stored in this record.
+
+Reading-card rendering is visibility-gated: closed analytics cannot render its
+expanded page groups or start/continue page-metric extraction. A stale page-list
+body may retry only into a different, connected replacement. Detached groups in
+closed cards must never recursively retry themselves through promise microtasks.
+The Manuscript spine retains keyed section/reader/legend/SVG nodes and skips an
+unchanged model; tracker/presence draws coalesce per animation frame. These rules
+prevent closed-card work and refresh churn from blocking long-document viewers.
 
 ## Version statistics metadata and histogram
 

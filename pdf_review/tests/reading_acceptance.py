@@ -25,6 +25,8 @@ def seed_reading(app,document,version,users):
 def run_reading(cdp,a,b,fixture,base):
     ev=lambda script:cdp.evaluate(a,script)
     wait=lambda script:cdp.wait(a,script)
+    from tests.reading_rendering import check_detached_pages
+    check_detached_pages(ev)
     viewport(cdp,a,1280,1000)
     # Deterministic clock cases complement real foreground timing below.
     result=ev("""(async()=>{const {ReadingClock}=await import('/static/review/reading_clock.js');
@@ -76,6 +78,16 @@ def run_reading(cdp,a,b,fixture,base):
     wait("document.querySelector('.reader-analytics-card h2').textContent==='Alice'")
     wait("document.querySelector('.reading-section-stat')!==null")
     assert ev("document.querySelectorAll('.reader-analytics-card').length===1")
+    assert ev("""(async()=>{
+      const c=JSON.parse(document.querySelector('#anchor-config').textContent),reader=document.querySelector('#reading-reader-select').value;
+      const detail=await (await fetch(`/api/versions/${c.versionId}/reading/readers/${reader}`)).json();
+      return detail.sections.every(section=>{
+        const row=[...document.querySelectorAll('.reading-section-stat')].find(row=>row.dataset.sectionId===section.section_id);
+        return section.is_read===(section.page_count>0&&section.pages_read/section.page_count>.9)&&
+          row.querySelector('small').textContent.includes(`${section.pages_read}/${section.page_count} pages`)&&
+          row.querySelector('small').textContent.startsWith(section.is_read?'Considered read':section.pages_read?'In progress':'Not yet read');
+      });
+    })()""")
     # Pin each tool for a narrow, readable screenshot; this uses normal card APIs.
     ev("document.querySelector('.reading-spine-card .left-card-pin').click()")
     wait("(()=>{const e=document.querySelector('.reading-spine-card'),r=e.getBoundingClientRect();return r.left>=8&&r.top>=40&&r.top<65&&e.getAnimations().length===0;})()")
@@ -94,7 +106,7 @@ def run_reading(cdp,a,b,fixture,base):
     ev("document.querySelector('.reading-page-group:last-child').open=true")
     wait("document.querySelectorAll('.reading-page').length===10")
     ev("""(()=>{
-      window.readingStable={group:document.querySelector('.reading-page-group'),row:document.querySelector('.reading-page'),removed:0,fetches:0};
+      window.readingStable={spine:document.querySelector('.reading-spine'),spineLabel:document.querySelector('.reading-spine-label'),group:document.querySelector('.reading-page-group'),row:document.querySelector('.reading-page'),removed:0,fetches:0};
       const state=window.readingStable;
       state.observer=new MutationObserver(records=>{state.removed+=records.reduce((sum,r)=>sum+[...r.removedNodes].filter(n=>n.nodeType===1).length,0);});
       state.observer.observe(document.querySelector('.reading-section-views'),{childList:true,subtree:true});
@@ -104,6 +116,7 @@ def run_reading(cdp,a,b,fixture,base):
     assert request(cdp,a,url+'/consent','POST',{'action':'pause','page_count':8})['status']==200
     wait("window.readingStable.fetches>=2")
     assert ev("window.readingStable.group===document.querySelector('.reading-page-group')&&window.readingStable.row===document.querySelector('.reading-page')&&window.readingStable.removed===0")
+    assert ev("window.readingStable.spine===document.querySelector('.reading-spine')&&window.readingStable.spineLabel===document.querySelector('.reading-spine-label')")
     ev("window.readingStable.observer.disconnect()")
     assert ev("[...document.querySelectorAll('.reading-page')].every(e=>getComputedStyle(e).boxShadow==='none')")
     assert ev("getComputedStyle(document.querySelector('.reading-page-group[data-section-id=all] .reading-page:last-child')).paddingBottom==='0px'&&getComputedStyle(document.querySelector('.reading-page-group:not([data-section-id=all]) .reading-page:last-child')).paddingBottom==='0px'&&getComputedStyle(document.querySelector('.reading-page-group[open]:not(:last-child)')).paddingBottom==='10px'")
