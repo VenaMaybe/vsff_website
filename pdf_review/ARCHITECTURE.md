@@ -102,13 +102,22 @@ Keyboard resizing repositions the composer without resizing this field; only
 genuinely insufficient viewport space requires scrolling the containing card.
 The mobile page-number field also uses 16px native text and blurs on confirmation.
 
-Highlight rendering deduplicates exact rectangles and omits rectangles fully
-contained by another rectangle in the same anchor segment. Browser range bounds
-can include both text and enclosing-span boxes of slightly different heights;
-painting both makes one phrase darker. This is a display-only normalization in
-`anchor_geometry.js` / `anchor_overlay.js`: canonical geometry, selector data and
-immutable anchors are not rewritten. Disjoint rectangles and separate anchors
-remain distinct, including overlapping conversations on the same text.
+Highlight rendering deduplicates exact rectangles, omits fully contained boxes,
+and joins touching or overlapping runs with nearly matching line bounds within
+one anchor segment. Browser ranges can include text runs, spaces and enclosing
+spans of slightly different heights. Separate fills/outlines otherwise create
+seams and darker or stepped edges within a single phrase. Matching uses PDF units
+(15% thickness tolerance for line bounds, at most 5% thickness / 0.5pt for gaps),
+uses intrinsic PDF page rotation to select the canonical reading axis, and
+retains the original rectangle order. Viewer rotation does not change grouping;
+short successive lines are never joined along the perpendicular axis.
+This display-only normalization in `anchor_geometry.js` / `anchor_overlay.js`
+is cached by immutable rectangle-array identity, independent of zoom/rotation.
+Canonical geometry and selector data are not rewritten; existing anchors benefit
+without a migration. Separate lines, appreciable gaps and separate anchors remain
+distinct, including overlapping conversations on the same text. Focused coverage:
+`tests/browser_sanity.py --highlight-overlap`, including the reported fragment
+coordinates, real multi-span capture, immutable storage and overlap click cycling.
 
 Pointer clicks on overlapping highlights use the iframe document's actual
 `elementsFromPoint` hit stack, restricted to thread highlights in the clicked
@@ -809,8 +818,14 @@ minimum; considered-read timestamps are separate from measured time.
 Section completion is derived from distinct pages intersecting the canonical
 range: `pages_read * 100 > page_count * 90`, strictly above 90%, not rounded
 percentage or any single read page. Fractional edge coverage prorates dwell time
-only. Section labels give an explicit status and read/total pages; bar widths
-continue to compare active viewing time, independently of completion.
+only. Section labels give an explicit status and read/total pages. Time tracker's
+Sections view defaults to Completion: bar widths and right-side values use the
+section's page completion percentage. Its compact Dwell time toggle restores
+relative active viewing-time bars and duration values. Switching patches existing
+nodes; headings, explanatory text and accessible bar labels reflect the metric.
+The account/exact-version reading-view preference saves `sectionMetric`, with
+Completion as the default for old/absent/invalid preferences. Tracking, completion
+thresholds and server data are unchanged.
 
 The reading summary pages at 100 readers, per-page detail at 50 rows by default
 (100 max). Committed batches send targeted, content-free `reading.changed` WebSocket

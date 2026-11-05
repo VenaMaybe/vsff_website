@@ -20,6 +20,9 @@ export class AnchorOverlay {
     this.application = viewerApplication;
     this.anchors = [];
     this.threadStates = new Map();
+    // Canonical rectangle arrays are immutable; normalize once per fetched array,
+    // rather than repeating line grouping on every zoom or focus update.
+    this.rectangleCache = new WeakMap();
     this.selectedThreadId = null;
     this.onThreadSelect = null;
     installStyles(viewerWindow.document);
@@ -127,7 +130,12 @@ export class AnchorOverlay {
     const existing = new Map([...overlay.children].map(node => [node.dataset.rectangleKey, node]));
     const wanted = new Set();
     for (const { anchor, segment, index } of segments) {
-      for (const [rectangleIndex, rectangle] of visibleHighlightRectangles(segment.rectangles).entries()) {
+      let rectangles = this.rectangleCache.get(segment.rectangles);
+      if (!rectangles) {
+        rectangles = visibleHighlightRectangles(segment.rectangles, pageView.pdfPage?.rotate ?? 0);
+        this.rectangleCache.set(segment.rectangles, rectangles);
+      }
+      for (const [rectangleIndex, rectangle] of rectangles.entries()) {
         const geometry = pdfRectangleToCss(rectangle, viewport, pageBounds);
         if (!geometry || geometry.width <= 0 || geometry.height <= 0) continue;
         const key = `${anchor.anchor_id}:${index}:${rectangleIndex}`;

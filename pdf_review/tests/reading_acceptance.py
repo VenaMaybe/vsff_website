@@ -88,6 +88,24 @@ def run_reading(cdp,a,b,fixture,base):
           row.querySelector('small').textContent.startsWith(section.is_read?'Considered read':section.pages_read?'In progress':'Not yet read');
       });
     })()""")
+    # Completion is the default; switching only patches the retained bars/rows.
+    assert ev("document.querySelector('[data-section-metric=completion]').getAttribute('aria-pressed')==='true'")
+    ev("window.sectionBarRow=document.querySelector('.reading-section-stat')")
+    assert ev("""(async()=>{
+      const c=JSON.parse(document.querySelector('#anchor-config').textContent),reader=document.querySelector('#reading-reader-select').value;
+      const detail=await (await fetch(`/api/versions/${c.versionId}/reading/readers/${reader}`)).json();
+      const check=(completion)=>detail.sections.every(section=>{
+        const row=[...document.querySelectorAll('.reading-section-stat')].find(r=>r.dataset.sectionId===section.section_id);
+        const maximum=Math.max(1,...detail.sections.map(s=>s.active_ms));
+        const expected=completion?section.percentage:section.active_ms/maximum*100;
+        return Math.abs(parseFloat(row.querySelector('.reading-time-track > span').style.width)-expected)<.01&&
+          (!completion||row.querySelector('.reading-section-time').textContent===section.percentage+'%');
+      });
+      const initial=check(true);document.querySelector('[data-section-metric=dwell]').click();
+      const dwell=check(false),same=sectionBarRow===document.querySelector('.reading-section-stat');
+      document.querySelector('[data-section-metric=completion]').click();
+      return initial&&dwell&&same&&check(true)&&sectionBarRow===document.querySelector('.reading-section-stat');
+    })()""")
     # Pin each tool for a narrow, readable screenshot; this uses normal card APIs.
     ev("document.querySelector('.reading-spine-card .left-card-pin').click()")
     wait("(()=>{const e=document.querySelector('.reading-spine-card'),r=e.getBoundingClientRect();return r.left>=8&&r.top>=40&&r.top<65&&e.getAnimations().length===0;})()")
@@ -95,6 +113,7 @@ def run_reading(cdp,a,b,fixture,base):
     ev("document.querySelector('.reader-analytics-card .left-card-pin').click()")
     wait("(()=>{const e=document.querySelector('.reader-analytics-card'),r=e.getBoundingClientRect();return r.left>=8&&r.top>=40&&r.top<65&&e.getAnimations().length===0;})()")
     screenshot(cdp,a,'reader-analytics-sections')
+    ev("document.querySelector('[data-section-metric=dwell]').click()")
     ev("[...document.querySelectorAll('.reading-tabs button')].find(e=>e.textContent==='Pages').click();document.querySelector('.reading-page-group').open=true")
     wait("document.querySelector('.reading-page')!==null")
     assert ev("[...document.querySelectorAll('.reading-page')].every(e=>e.querySelector('.reading-page-words')?.textContent.match(/^[0-9,]+ words$/)&&e.querySelector('.reading-page-ert')?.textContent.match(/^ERT [0-9]+s$/))")
@@ -135,6 +154,9 @@ def run_reading(cdp,a,b,fixture,base):
     wait("document.querySelector('.reading-tabs [aria-pressed=true]')?.textContent==='Pages'")
     wait("document.querySelector('.reading-page-group')?.open&&document.querySelector('.reading-page')!==null")
     assert ev("!document.querySelector('.reading-page-group:last-child').open")
+    ev("[...document.querySelectorAll('.reading-tabs button')].find(e=>e.textContent==='Sections').click()")
+    wait("document.querySelector('[data-section-metric=dwell]')?.getAttribute('aria-pressed')==='true'")
+    ev("[...document.querySelectorAll('.reading-tabs button')].find(e=>e.textContent==='Pages').click()")
     assert ev("[...document.querySelectorAll('[data-left-card]')].every(e=>e.getAttribute('aria-checked')===String(e.dataset.leftCard!=='properties'))")
     ev("document.querySelector('[data-close-all-tools]').click()")
     wait("document.querySelectorAll('.left-card').length===0")

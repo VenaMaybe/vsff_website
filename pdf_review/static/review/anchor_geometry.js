@@ -63,13 +63,55 @@ export function deduplicateRectangles(rectangles) {
   });
 }
 
-// Range.getClientRects can include a text span and a taller enclosing span.
-// Paint their shared coverage once; persisted canonical rectangles stay intact.
-export function visibleHighlightRectangles(rectangles) {
-  const unique=deduplicateRectangles(rectangles);
-  return unique.filter((rectangle,index)=>!unique.some((other,otherIndex)=>
-    otherIndex!==index && other[0]<=rectangle[0] && other[1]<=rectangle[1] &&
-    other[2]>=rectangle[2] && other[3]>=rectangle[3]));
+// A browser range can report adjacent text runs, spaces and enclosing spans.
+// Normalize only the painted geometry; never modify the saved selector bundle.
+export function visibleHighlightRectangles(rectangles, pageRotation = 0) {
+  const unique = deduplicateRectangles(rectangles);
+  const exposed = unique.filter((rectangle, index) => !unique.some((other, otherIndex) =>
+    otherIndex !== index && other[0] <= rectangle[0] && other[1] <= rectangle[1] &&
+    other[2] >= rectangle[2] && other[3] >= rectangle[3]));
+  // Work in PDF units, independent of viewer zoom/rotation. Page rotation
+  // metadata supplies the reading axis; never merge in the perpendicular axis,
+  // where short successive lines could otherwise look like one vertical run.
+  const pieces = exposed.map(rectangle => [...rectangle]);
+  const order = new Map(pieces.map((rectangle, index) => [rectangle, index]));
+  const along = pageRotation % 180 === 0 ? 0 : 1;
+  const across = 1 - along;
+  const lines = [];
+  for (const rectangle of pieces.sort((a, b) =>
+    (a[across] + a[across + 2]) - (b[across] + b[across + 2]) || a[along] - b[along])) {
+    const thickness = rectangle[across + 2] - rectangle[across];
+    const line = lines.find(candidate => {
+      const tolerance = Math.min(thickness, candidate.thickness) * .15;
+      return Math.abs(rectangle[across] - candidate.low) <= tolerance &&
+        Math.abs(rectangle[across + 2] - candidate.high) <= tolerance;
+    });
+    if (line) line.rectangles.push(rectangle);
+    else lines.push({ low: rectangle[across], high: rectangle[across + 2], thickness, rectangles: [rectangle] });
+  }
+  const result = [];
+  for (const line of lines) {
+    let previous = null;
+    for (const rectangle of line.rectangles.sort((a, b) => a[along] - b[along])) {
+      const thickness = Math.max(rectangle[across + 2], previous?.[across + 2] ?? -Infinity) -
+        Math.min(rectangle[across], previous?.[across] ?? Infinity);
+      const length = previous ? Math.max(previous[along + 2], rectangle[along + 2]) - previous[along] : 0;
+      // Allow sub-point rounding gaps, not word-sized gaps or column gutters.
+      // Avoid turning tiny boxes into a run across the text's reading axis.
+      if (previous && length >= thickness &&
+          rectangle[along] - previous[along + 2] <= Math.min(line.thickness * .05, .5)) {
+        order.set(previous, Math.min(order.get(previous), order.get(rectangle)));
+        for (const axis of [0, 1]) {
+          previous[axis] = Math.min(previous[axis], rectangle[axis]);
+          previous[axis + 2] = Math.max(previous[axis + 2], rectangle[axis + 2]);
+        }
+      } else {
+        previous = rectangle;
+        result.push(previous);
+      }
+    }
+  }
+  return result.sort((a, b) => order.get(a) - order.get(b));
 }
 
 export function pdfRectangleToCss(rectangle, viewport, textLayerRect) {

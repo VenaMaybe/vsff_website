@@ -72,6 +72,9 @@ section feedback. See [BETA_C2_REPORT.md](BETA_C2_REPORT.md) for the audit and c
   WebSocket notifications refresh saved activity after each 15-second batch; live
   positions reuse presence. Completion uses PDF.js word counts at 400 words/minute
   with a 5-second minimum. Spreads share one measured time budget.
+  Time tracker > Sections defaults to **Completion** bars (pages considered read)
+  and can switch to **Dwell time** bars. The metric choice is remembered for this
+  account/PDF version, and switching retains the existing rows and bars.
   See [Reading progress report](READING_PROGRESS_REPORT.md) for the schema and limits.
 - Owners open **Tools → Settings** in the PDF viewer to set privacy, PDF download access and
   first-open spread/comment/scope defaults. Existing personal choices survive
@@ -156,8 +159,10 @@ section feedback. See [BETA_C2_REPORT.md](BETA_C2_REPORT.md) for the audit and c
   positions as the other left tools.
 - **Account â†’ Review color** selects a fixed palette entry. Highlight and section
   response accents follow the top-level author. Duplicate or fully nested highlight
-  rectangles within one anchor are painted once, avoiding darker patches from
-  overlapping text-span bounds. Stored anchor geometry remains unchanged. Repeated
+  rectangles within one anchor are painted once. Near-touching and overlapping
+  runs on the same line join into one highlight, removing internal seams and
+  uneven outlines on existing and new comments. Separate lines, gaps and comments
+  stay distinct. Stored anchor geometry remains unchanged. Repeated
   clicks where comment highlights overlap cycle through those conversations,
   wrapping around so comments underneath remain selectable. Initials supply presence avatars;
   the application makes no external avatar requests.

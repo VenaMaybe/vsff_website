@@ -36,6 +36,7 @@
 .reading-stat strong { font-weight:600; }
 .reading-tabs { display:flex; gap:3px; padding:10px 0 6px; }
 .reading-tabs button { flex:1; min-height:25px; font-size:11px; padding:3px; }
+.reading-tabs.reading-section-metrics { padding:0; margin:4px 0 6px; }
 .reading-tabs [aria-pressed=true] { color:var(--ink); background:var(--surface-hover); border-color:var(--line); }
 .reading-section-views h3 { font-size:11px; margin:7px 0 9px; }
 .reading-section-stat { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:2px 6px; margin:0 0 11px; font-size:10px; }

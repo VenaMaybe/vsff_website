@@ -20,11 +20,12 @@ export class ReadingCards {
     const viewer={sectionViewer:{application,frame}};
     this.spine=new LeftCard('Manuscript',{viewer,opener:document.querySelector('[data-left-card=reading]'),stateKey:'reading',className:'reading-spine-card'});
     this.analytics=new LeftCard('Time tracker',{viewer,opener:document.querySelector('[data-left-card=analytics]'),stateKey:'analytics',className:'reader-analytics-card'});
-    this.selected=config.currentUserId;this.view='sections';this.windows=new Map();this.expanded=new Set();
+    this.selected=config.currentUserId;this.view='sections';this.sectionMetric='completion';this.windows=new Map();this.expanded=new Set();
     this.viewStateKey=`pdf-review:reading-view:v1:${config.currentUserId}:${config.versionId}`;
     try {
       const saved=JSON.parse(localStorage.getItem(this.viewStateKey)||'null');
       if(saved?.view==='pages'||saved?.view==='sections')this.view=saved.view;
+      if(saved?.sectionMetric==='completion'||saved?.sectionMetric==='dwell')this.sectionMetric=saved.sectionMetric;
       if(typeof saved?.reader==='string'&&saved.reader.length<=128)this.selected=saved.reader;
       if(Array.isArray(saved?.expanded))this.expanded=new Set(saved.expanded.filter(k=>typeof k==='string'&&k.length<=128).slice(0,1000));
     } catch { /* Storage is optional; use the normal defaults. */ }
@@ -46,7 +47,7 @@ export class ReadingCards {
     },30000);
   }
   saveViewState() {
-    try {localStorage.setItem(this.viewStateKey,JSON.stringify({view:this.view,reader:this.selected,expanded:[...this.expanded]}));}
+    try {localStorage.setItem(this.viewStateKey,JSON.stringify({view:this.view,sectionMetric:this.sectionMetric,reader:this.selected,expanded:[...this.expanded]}));}
     catch { /* Card controls remain usable with storage disabled. */ }
   }
   sectionsChanged(sections) {
@@ -281,7 +282,12 @@ export class ReadingCards {
       this.sectionViews.append(tabs);
       if(!detail){this.sectionViews.append(node('p','No recorded reading activity yet.','reading-note'));return;}
       if(this.view==='sections') {
-        this.sectionViews.append(node('h3','Dwell time by section'));
+        const metrics=node('div',undefined,'reading-tabs reading-section-metrics');metrics.setAttribute('role','group');metrics.setAttribute('aria-label','Section bar metric');
+        for(const [value,label] of [['completion','Completion'],['dwell','Dwell time']]){
+          const toggle=button(label,()=>{this.sectionMetric=value;this.saveViewState();this.renderSections();},'quiet-control');
+          toggle.dataset.sectionMetric=value;metrics.append(toggle);
+        }
+        this.sectionViews.append(metrics,node('h3',undefined,'reading-section-metric-heading'));
         for(const section of detail.sections) {
           const row=node('div',undefined,'reading-section-stat'),heading=button(section.name,()=>this.navigateSection(section),'reading-section-link');
           row.dataset.sectionId=section.section_id;
@@ -290,7 +296,7 @@ export class ReadingCards {
           this.sectionViews.append(row);
         }
         if(!detail.sections.length)this.sectionViews.append(node('p','No mapped sections. Use Pages for the whole document.','reading-note'));
-        this.sectionViews.append(node('p','Bars compare active viewing time. A section is considered read only when more than 90% of its pages are considered read. Viewing time does not establish comprehension.','reading-note'));
+        this.sectionViews.append(node('p',undefined,'reading-note reading-section-bar-note'));
       } else {
         for(const section of this.pageGroups(detail)) {
           const group=node('details',undefined,'reading-page-group');group.dataset.sectionId=section.section_id;
@@ -308,16 +314,25 @@ export class ReadingCards {
     }
     if(!detail)return;
     if(this.view==='sections') {
+      const completion=this.sectionMetric==='completion',sections=new Map(detail.sections.map(section=>[section.section_id,section]));
       const maximum=Math.max(1,...detail.sections.map(s=>s.active_ms));
+      for(const toggle of this.sectionViews.querySelectorAll('[data-section-metric]'))setAttribute(toggle,'aria-pressed',toggle.dataset.sectionMetric===this.sectionMetric);
+      setText(this.sectionViews.querySelector('.reading-section-metric-heading'),completion?'Completion by section':'Dwell time by section');
+      setText(this.sectionViews.querySelector('.reading-section-bar-note'),
+        (completion?'Bars show the percentage of pages considered read.':'Bars compare active viewing time.')+
+        ' A section is considered read only when more than 90% of its pages are considered read. Viewing time does not establish comprehension.');
       for(const row of this.sectionViews.querySelectorAll('.reading-section-stat')) {
-        const section=detail.sections.find(s=>s.section_id===row.dataset.sectionId);
+        const section=sections.get(row.dataset.sectionId);
         const time=row.querySelector('.reading-section-time'),read=row.querySelector('small');
-        if(time.textContent!==duration(section.active_ms))time.textContent=duration(section.active_ms);
+        setText(time,completion?`${section.percentage}%`:duration(section.active_ms));
         row.dataset.state=section.is_read?'read':section.pages_read?'partial':'unread';
         const status=section.is_read?'Considered read':section.pages_read?'In progress':'Not yet read';
         const progress=`${status} · ${section.pages_read}/${section.page_count} pages (${section.percentage}%)`;
         if(read.textContent!==progress)read.textContent=progress;
-        row.querySelector('.reading-time-track > span').style.width=`${section.active_ms/maximum*100}%`;
+        const track=row.querySelector('.reading-time-track'),value=completion?section.percentage:section.active_ms/maximum*100;
+        setStyle(track.firstElementChild,'width',`${Math.max(0,Math.min(100,value))}%`);
+        setAttribute(track,'role','img');
+        setAttribute(track,'aria-label',`${section.name}: ${completion?`${section.percentage}% of pages considered read`:`${duration(section.active_ms)} active viewing time`}`);
       }
     } else {
       const sections=new Map(this.pageGroups(detail).map(s=>[s.section_id,s]));

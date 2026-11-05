@@ -17,7 +17,8 @@ review color at 28% opacity normally and 38% on hover, mixed with transparent.
 
 Analytics shows position, furthest visited page, measured active viewing time,
 considered-read pages, activity date and estimated section completion. Section
-dwell bars use the reader's existing review color. Pages expands sections or All
+bars default to Completion, with a Dwell time switch; both use the reader's
+existing review color. Pages expands sections or All
 pages into paged activity lists: state, time and last visit. Longer viewing does not establish comprehension;
 there is no special long-dwell marker on page rows.
 
@@ -28,7 +29,10 @@ the integer page count, read count and `is_read` from existing history on refres
 no new stored completion flag or migration is needed. Partial-page boundaries
 still prorate dwell time, but do not count fractional pages toward completion.
 The section label shows read/total pages, percentage and explicit section status.
-Green bars continue to compare dwell time and are not completion indicators.
+Completion bars show the percentage of pages considered read; Dwell time bars
+compare each section's active viewing time with the longest section time. The
+right-hand value, heading, note and accessible bar labels match the selected
+metric. Switching patches the retained rows/bars without rebuilding the card.
 
 ## Firefox freeze and repeated rendering follow-up
 
@@ -239,8 +243,8 @@ pages. The final Pages group no longer duplicates the activity footer's divider.
 
 ## Stable analytics view and reload restoration
 
-The selected reader, Pages/Sections tab and expanded page groups are saved under
-an account/exact-version scoped browser key. Only these UI choices are stored;
+The selected reader, Pages/Sections tab, section bar metric and expanded page groups
+are saved under an account/exact-version scoped browser key. Only these UI choices are stored;
 measured activity remains server-side. Saved reader selection is validated against
 the authorized roster on load. Unavailable storage falls back to normal defaults.
 
