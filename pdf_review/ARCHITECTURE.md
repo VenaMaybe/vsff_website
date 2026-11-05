@@ -35,6 +35,14 @@ ordinary Flask CLI initialization would apply migrations before its command.
 constant text, no identity/database/blob reads, no session creation, and the
 existing host validation and private/no-store headers. It authorizes no content.
 
+`legal.privacy` (`/privacy`) and `legal.terms` (`/tos`) are also explicit public
+GET/HEAD exceptions, registered in `legal_routes.PUBLIC_ENDPOINTS`. They render
+policy text through the shared shell without account/database/blob lookups,
+CSRF token creation or flash consumption. Public policy access also works with
+an expired/revoked session. Only those exact endpoints bypass authentication;
+the default-deny policy and production host/security headers remain in force.
+Policy links belong in the shared footer and account menu, with a notice at sign-in.
+
 ## Immutable artifacts and versions
 
 1. Imported PDF bytes are immutable. PDF Review never annotates, replaces, or rewrites them.

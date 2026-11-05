@@ -13,6 +13,7 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 
 from .database import version_table, connect, transaction
 from .documents import now_utc
+from .legal_routes import PUBLIC_ENDPOINTS
 
 bp = Blueprint("auth", __name__, url_prefix="/auth")
 SESSION_KEY = "authenticated_user_id"
@@ -250,6 +251,8 @@ def init_auth(app):
         if request.routing_exception is not None:
             raise request.routing_exception
         if request.endpoint == "healthz":
+            return
+        if request.endpoint in PUBLIC_ENDPOINTS:
             return
         if request.endpoint == "static":
             if request.path.casefold().endswith(".pdf"):

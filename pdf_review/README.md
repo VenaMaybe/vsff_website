@@ -1,5 +1,32 @@
 # PDF Review
 
+## Public beta policies
+
+`GET/HEAD /privacy` and `/tos` are public, signed-out policy pages for PDF Review,
+operated by Vena. Contact: yppahhappy.com@gmail.com. They use the shared shell
+without creating a session or loading private account/document data. Sign-in,
+the shared page footer and the account menu (including the viewer) link to both.
+All existing document, PDF, account and API routes retain their authorization.
+
+The policies describe basic Google identity scopes, manuscripts and feedback,
+default-on author-controlled reading activity, sharing-directory email visibility,
+browser metadata storage, retained revisions/PDFs and manual deletion requests.
+They add no invitation system, account-erasure workflow or database migration.
+
+After the normal deployment, Google OAuth Branding can use
+`https://review.venasff.com/privacy` and `https://review.venasff.com/tos`.
+Verify both in a signed-out browser. The homepage remains a separate task:
+`/` still redirects signed-out visitors to sign-in. Google's production homepage
+requirements include a public app description and policy links; these policy
+pages alone do not complete production branding readiness. See
+[Google OAuth policies](https://developers.google.com/identity/protocols/oauth2/policies)
+and [brand verification](https://developers.google.com/identity/protocols/oauth2/production-readiness/brand-verification).
+Only `openid email profile` is requested; no scope expansion is needed for this change.
+Beta email approval already exists; automatic invitation delivery is still deferred.
+
+Validate with `.venv/Scripts/python.exe -m unittest discover -s tests -q`.
+Policy routes and their security boundaries have focused coverage in `tests/test_legal.py`.
+
 ## BETA C2 â€” review settings and document sections
 
 This local version adds owner-controlled **Shared / Isolated** review, personal

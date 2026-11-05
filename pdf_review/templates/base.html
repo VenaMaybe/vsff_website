@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="csrf-token" content="{{ csrf_token() }}">
+  {% if not public_policy %}<meta name="csrf-token" content="{{ csrf_token() }}">{% endif %}
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}PDF Review{% endblock %}</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
@@ -17,7 +17,7 @@
     {% include "_account_menu.html" %}
   </header>
   <main class="page">
-    {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if not public_policy %}{% with messages = get_flashed_messages(with_categories=true) %}
       {% if messages %}
         <div class="messages" aria-live="polite">
           {% for category, message in messages %}
@@ -25,8 +25,14 @@
           {% endfor %}
         </div>
       {% endif %}
-    {% endwith %}
+    {% endwith %}{% endif %}
     {% block content %}{% endblock %}
   </main>
+  <footer class="site-footer{% if public_policy %} site-footer--legal{% endif %}">
+    <nav aria-label="Policies">
+      <a href="{{ url_for('legal.privacy') }}">Privacy policy</a>
+      <a href="{{ url_for('legal.terms') }}">Terms of service</a>
+    </nav>
+  </footer>
 </body>
 </html>

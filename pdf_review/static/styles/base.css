@@ -42,6 +42,13 @@ textarea { resize: vertical; line-height: 1.4; }
 .menu-metadata span { color: var(--muted); font-size: var(--ui-font-size-small); }
 .identity-menu > summary { max-width: 160px; overflow: hidden; text-overflow: ellipsis; }
 .page { max-width: 1280px; margin: 0 auto; padding: 16px 12px 32px; }
+.site-footer { max-width: 1280px; margin: 0 auto; padding: 0 12px 20px; }
+.site-footer nav { display: flex; flex-wrap: wrap; gap: 8px 16px; font-size: 12px; }
+.site-footer--legal nav { justify-content: center; }
+.legal-policy { max-width: 72ch; margin: 0 auto; font-size: 14px; overflow-wrap: anywhere; }
+.legal-policy h2 { margin-top: 24px; }
+.legal-policy p, .legal-policy li { line-height: 1.65; }
+.legal-policy li + li { margin-top: 10px; }
 h1, h2, h3 { line-height: 1.3; }
 h1 { font-size: 20px; font-weight: 600; margin: 0; }
 h2 { font-size: 14px; margin: 0 0 8px; }
