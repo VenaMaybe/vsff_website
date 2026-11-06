@@ -462,7 +462,7 @@ def comment_interaction_checks(cdp, session):
     cdp.wait(session, """(() => {const c=document.querySelector('.thread-card.active'); const m=[...document.querySelectorAll('.thread-marker')].find(m=>m.dataset.threadId===c?.dataset.threadId);return c&&!c.hidden&&!m.hidden&&c.getBoundingClientRect().left>=m.getBoundingClientRect().right+5;})()""")
     screenshot(cdp, session, 'refine-minimized-expand-right')
     viewport(cdp, session, 390, 844)
-    cdp.wait(session, "document.querySelector('#comments-visibility').value==='mobile'")
+    change(cdp, session, '#comments-visibility', 'mobile')
     cdp.evaluate(session, PDF + '.container.scrollLeft=0;' + PDF + '.container.scrollTop=0')
     before = cdp.evaluate(session, snapshot)
     cdp.evaluate(session, """(() => {const d=document.querySelector('iframe').contentDocument;[...d.querySelectorAll('.pdf-review-thread-highlight')].find(h=>h.dataset.threadId===window.focusTestThread).click();})()""")
@@ -472,8 +472,8 @@ def comment_interaction_checks(cdp, session):
     key(cdp, session, 'Escape', 27)
     cdp.wait(session, "!document.querySelector('.thread-card.active') && [...document.querySelectorAll('.thread-card')].every(c=>c.hidden)")
     viewport(cdp, session, 1440, 900)
-    cdp.wait(session, "document.querySelector('#comments-visibility').value==='minimized'")
-    print('PASS stationary dense selection/insertion, Enter/alternate shortcut, Escape, selected styling, right expansion and automatic Mobile popup', flush=True)
+    cdp.wait(session, "document.querySelector('#comments-visibility').value==='mobile'")
+    print('PASS stationary dense selection/insertion, Enter/alternate shortcut, Escape, selected styling, right expansion and selected Pop-up display', flush=True)
 
 
 def comment_ui_checks(cdp, session):
@@ -574,8 +574,8 @@ def comment_ui_checks(cdp, session):
     assert cdp.evaluate(session, metrics) == desktop, 'Header control styles changed below 750px'
     screenshot(cdp, session, 'refine-header-desktop-styling-695')
     viewport(cdp, session, 390, 844)
-    cdp.wait(session, "document.querySelector('#comments-visibility').value==='mobile'")
-    assert cdp.evaluate(session, "document.querySelector('.thread-card.active').offsetWidth===280")
+    change(cdp, session, '#comments-visibility', 'mobile')
+    cdp.wait(session, "document.querySelector('.thread-card.active').offsetWidth===280")
     screenshot(cdp, session, 'refine-mobile-narrow-comment')
     for offset in [0, 200, 500]:
         cdp.evaluate(session, PDF + f'.container.scrollTop={offset}')

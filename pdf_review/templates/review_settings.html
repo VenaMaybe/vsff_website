@@ -12,7 +12,7 @@
 {% for reader in reading_readers %}<label>{{ reader.display_name }} <select name="tracking_reader_{{ reader.user_id }}"><option value="0" {{ 'selected' if not reader.paused }}>On</option><option value="1" {{ 'selected' if reader.paused }}>Paused</option></select></label>{% endfor %}
 <p class="subtle">Reader pauses apply across this document's PDF versions. Document tracking must also be On.</p></details>
 <h2>First-open viewer defaults</h2><p class="subtle">Established personal preferences are retained when defaults change.</p>
-{% for name,label,choices in [('default_scope','Review scope',[('all','Everyone'),('mine','Mine')]),('default_spread','Spreads',[(0,'No spreads'),(1,'Odd spreads'),(2,'Even spreads')]),('default_display','Comments',[('expanded','Expanded'),('minimized','Minimized'),('hidden','Hidden')])] %}
+{% for name,label,choices in [('default_scope','Review scope',[('all','Everyone'),('mine','Mine')]),('default_spread','Spreads',[(0,'No spreads'),(1,'Odd spreads'),(2,'Even spreads')]),('default_display','Comments',[('expanded','Expanded'),('minimized','Compact'),('hidden','Hidden')])] %}
 <label>{{ label }} <select name="{{ name }}">{% for value,title in choices %}<option value="{{ value }}" {{ 'selected' if settings[name]==value }}>{{ title }}</option>{% endfor %}</select></label>
 {% endfor %}<p class="dialog-error" role="alert"></p><div class="dialog-actions"><button type="button" data-dialog-cancel>Cancel</button><button type="submit">Save</button></div>
 </form>

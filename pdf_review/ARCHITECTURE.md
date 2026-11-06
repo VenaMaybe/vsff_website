@@ -151,7 +151,7 @@ Mobile Cancel immediately restores the selection action's pre-composer corner.
 That target stays fixed through intermediate keyboard-closing viewport sizes;
 normal placement resumes when viewport height returns or viewport width changes.
 New selections and composer opening reset the override. No delay or animation.
-The mobile selection composer docks at the visual viewport's bottom-right as a
+The touch-device selection composer docks at the visual viewport's bottom-right as a
 fixed body-level overlay, outside the PDF workspace's clipping and stage bounds.
 Its lifecycle restores the original parent for desktop positioning and on close.
 Keyboard sizing uses the full visual viewport height, never its intersection with
@@ -162,7 +162,7 @@ The first touch on an unfocused docked selection editor cancels default pointer
 focus and calls `focus({preventScroll:true})` within that same user gesture. This
 opens the keyboard without starting Safari's competing native reveal-scroll.
 Already-focused editor taps retain native caret placement and selection behavior.
-Coarse-pointer/narrow-layout users tap the editor to focus it; initial opening
+Coarse-pointer users tap the editor to focus it; initial opening
 and reopening use the same focus policy. Mobile textareas render at 16px to avoid
 Safari's small-field focus zoom. Desktop retains autofocus and compact text.
 The selection editor wraps a transformed 16px textarea in a fixed 72px field,
@@ -170,6 +170,21 @@ rendering compact 13px text without changing its native focus font metrics.
 Keyboard resizing repositions the composer without resizing this field; only
 genuinely insufficient viewport space requires scrolling the containing card.
 The mobile page-number field also uses 16px native text and blurs on confirmation.
+
+Comment display and input capability are independent. Public styles are Expanded,
+Compact, Pop-up and Hidden. Existing persisted/API tokens `minimized` and `mobile`
+remain Compact and Pop-up respectively; no migration or preference reset. Resize
+does not replace a selected style. `usesViewportComposer()` is the shared
+coarse-pointer docking/focus policy for opening and layout; a narrow desktop
+window or selecting Pop-up does not imply keyboard docking. The rail positions
+the composer before initial focus. Desktop Expanded composers participate in
+packing, with document coordinates converted for their untransformed parent and
+rebased with document origin changes. Compact composers open beside the marker
+rail; Pop-up/Hidden composers open below the selection. Floating bounds exclude
+marker overlap without using expanded-card heights. Hidden excludes ordinary
+cards/markers from packing, and saving a comment does not reveal them. Touch
+composers remain body-level viewport controls outside document scroll extents.
+Focused coverage: `tests/browser_sanity.py --composer-modes`.
 
 Highlight rendering deduplicates exact rectangles, omits fully contained boxes,
 and joins touching or overlapping runs with nearly matching line bounds within

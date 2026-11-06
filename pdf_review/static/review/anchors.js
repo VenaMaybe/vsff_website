@@ -197,7 +197,7 @@ function refreshAll() {
   refreshOverlay();
 }
 
-function selectThread(threadId, navigate) {
+function selectThread(threadId, navigate, revealHidden = true) {
   const thread = state.thread(threadId);
   if (!thread) return;
   if (thread.status === "resolved" && state.filter === "open") {
@@ -207,7 +207,7 @@ function selectThread(threadId, navigate) {
   state.selectedThreadId = threadId;
   refreshSidebar();
   refreshOverlay();
-  rail?.showThread(threadId);
+  if (revealHidden) rail?.showThread(threadId);
   if (navigate) {
     const anchor = threadAnchor(thread);
     const geometry = anchor && anchorGeometry(viewerApplication, anchor);
@@ -367,7 +367,7 @@ const composer = new SelectionCommentComposer(
       state.replaceThread(thread);
       state.selectedThreadId = thread.thread_id;
       refreshAll();
-      selectThread(thread.thread_id, false);
+      selectThread(thread.thread_id, false, false);
       setReviewStatus("Comment added.", "success");
       threadRefresh.request();
     } catch (error) {

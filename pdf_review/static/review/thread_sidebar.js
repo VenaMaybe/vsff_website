@@ -310,8 +310,10 @@ export function renderThreadSidebar(container, threads, selectedThreadId, action
     const path = document.createElementNS(svg.namespaceURI, "path");
     path.setAttribute("d", "M4 4h16v12H9l-5 4z M8 8h8 M8 12h5");
     svg.append(path);
-    marker.append(svg);
-    if (thread.comments.length > 1) marker.append(element("span", "", String(thread.comments.length)));
+    const content = element("span", "thread-marker-content");
+    content.append(svg);
+    if (thread.comments.length > 1) content.append(element("span", "thread-marker-count", String(thread.comments.length)));
+    marker.append(content);
     marker.addEventListener("click", () => actions.select(thread, true));
     container.append(marker, threadCard(thread, selectedThreadId, actions));
   });

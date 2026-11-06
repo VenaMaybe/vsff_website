@@ -285,6 +285,11 @@ def run():
                     run_selection_action(cdp,a)
                     assert not cdp.exceptions,cdp.exceptions
                     return
+                if '--composer-modes' in sys.argv:
+                    from tests.composer_modes import run_composer_modes
+                    run_composer_modes(cdp,a)
+                    assert not cdp.exceptions,cdp.exceptions
+                    return
                 if '--tall-stack-insertion' in sys.argv:
                     from tests.left_card_insertion import run_tall_stack
                     run_tall_stack(cdp,a)

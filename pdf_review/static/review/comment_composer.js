@@ -1,3 +1,8 @@
+// Input capability, not the chosen comment style or a narrow desktop window.
+export function usesViewportComposer() {
+  return matchMedia('(pointer: coarse)').matches;
+}
+
 export class SelectionCommentComposer {
   constructor(container, form, body, quote, cancelButton, onSubmit) {
     this.container = container;
@@ -31,17 +36,18 @@ export class SelectionCommentComposer {
   open(payload) {
     this.payload = payload;
     this.quote.textContent = payload.selection_text;
-    this.setViewportDocked(matchMedia("(width < 750px), (pointer: coarse)").matches);
+    this.setViewportDocked(usesViewportComposer());
     this.container.hidden = false;
     this.body.value = "";
+    this.position?.();
     this.focusForOpen();
   }
 
   focusForOpen() {
     // Safari can show its native form-navigation bar on programmatic focus
-    // even without opening the keyboard. Apply this to reopening too, including
-    // narrow layouts even when a mouse/trackpad is the primary pointer.
-    if (!matchMedia("(width < 750px), (pointer: coarse)").matches) {
+    // even without opening the keyboard. Apply the touch-device policy on
+    // reopening too; a narrow mouse-driven window retains ordinary focus.
+    if (!usesViewportComposer()) {
       this.body.focus({ preventScroll: true });
     }
   }

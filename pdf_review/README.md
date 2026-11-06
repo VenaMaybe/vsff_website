@@ -975,10 +975,18 @@ Submit the selection composer with **Ctrl/Command+Enter**, or post any active
 comment/reply/edit with **Ctrl+Shift+Enter**; **Escape** closes
 the composer or active thread.
 Comments always use one right-hand rail, including both pages of a spread.
-Expanded shows compact cards; Minimized uses narrow markers and one active full
-card opening to the right; Hidden reserves no width. Mobile uses markers with
-the active comment over the PDF below its highlight, and activates automatically
-at widths below 750px. Clicking highlights or inserting a comment aligns the
+Expanded shows full cards; Compact uses narrow markers and one active full card
+opening beside the marker; Pop-up opens the active comment below its highlight
+on desktop as well as touch devices. Hidden hides comments and markers.
+The selected style survives window resizing. Existing saved Minimized/Mobile
+choices remain compatible as Compact/Pop-up; no database migration is needed.
+The desktop new-comment composer joins the packed list in Expanded, appears
+beside the marker rail in Compact, and below the selection in Pop-up or Hidden.
+Hidden stays hidden after submission. Touch-first phones/tablets instead dock
+the composer at the visual viewport's bottom-right with keyboard-aware sizing,
+independently of comment style. A narrow mouse-driven laptop window does not dock.
+Composer drafts survive style changes, and markers avoid actual floating-card
+bounds rather than reserving expanded-card heights. Clicking highlights aligns the
 active card and moves neighboring comments while keeping the PDF still.
 Comments sit beside the page/spread inside the
 same native scrolling workspace. Small screens and large zoom use its horizontal

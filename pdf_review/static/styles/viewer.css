@@ -46,11 +46,14 @@
 .selection-comment-composer:not([hidden]) { animation: comment-open 130ms ease-out; }
 @keyframes comment-open { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
 /* Minimized threads use actual buttons, independent of the full cards. */
-.thread-marker { position: absolute; display: inline-flex; gap: 2px; width: 34px; height: 28px; min-height: 28px; padding: 3px; pointer-events: auto; background: transparent; border: 0; color: var(--accent); }
-.thread-marker:hover { background: var(--surface-hover); }
+.thread-marker { position: absolute; display: inline-flex; justify-content: flex-start; width: 34px; height: 28px; min-height: 28px; padding: 0; pointer-events: auto; background: transparent; border: 0; color: var(--accent); }
+.thread-marker:hover { background: transparent; }
+.thread-marker-content { display: inline-flex; align-items: center; flex-shrink: 0; gap: 2px; padding: 3px; border-radius: inherit; }
+.thread-marker:hover .thread-marker-content { background: var(--surface-hover); }
 .thread-marker[hidden] { display: none; }
-.thread-marker svg { width: 18px; height: 18px; }
-.thread-marker span { font-size: 10px; }
+.thread-marker svg { width: 18px; height: 18px; flex-shrink: 0; }
+/* Content may overflow the fixed marker; it never changes rail/card spacing. */
+.thread-marker-count { font-size: 10px; white-space: nowrap; }
 .selection-comment-composer { background: var(--surface); border: 1px solid var(--accent); padding: 8px; border-radius: 3px; z-index: 2; }
 .selection-comment-composer.viewport-composer { position: fixed; z-index: var(--layer-popup); }
 .composer-label { margin: 0 0 6px; font-size: 12px; font-weight: 600; }

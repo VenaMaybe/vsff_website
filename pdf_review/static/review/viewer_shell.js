@@ -6,6 +6,7 @@ import { sectionGeometry } from './section_viewer.js';
 import { LeftCard, registerLeftCard } from './left_card.js';
 import { documentStage } from './document_stage.js';
 import { installPdfGestures } from './pdf_gestures.js';
+import { usesViewportComposer } from './comment_composer.js';
 
 function installSearch(frame, application) {
   const doc = frame.contentDocument;
@@ -157,6 +158,7 @@ export function anchorGeometry(application, anchor, { end = false } = {}) {
 export class CommentRail {
   constructor(frame, application, state, composer, selectionLayout) {
     Object.assign(this, { frame, application, state, composer, selectionLayout });
+    composer.position = () => { this.composerPlacement = null; this.positionComposer(); };
     this.panel = document.querySelector(".review-panel");
     this.list = document.getElementById("thread-list");
     this.visibility = document.getElementById("comments-visibility");
@@ -169,21 +171,13 @@ export class CommentRail {
         if (card.style.left) card.style.left = `${parseFloat(card.style.left)+dx}px`;
         if (card.style.top) card.style.top = `${parseFloat(card.style.top)+dy}px`;
       }
+      if (this.composerPlacement) { this.composerPlacement.left += dx; this.composerPlacement.top += dy; }
       this.translate();
     });
     this.mobileQuery = matchMedia("(width < 750px)");
-    this.desktopMode = "expanded";
-    this.mode = this.mobileQuery.matches ? "mobile" : this.visibility.value;
+    this.mode = this.visibility.value;
     this.visibility.value = this.mode;
-    this.mobileQuery.addEventListener("change", ({ matches }) => {
-      if (matches) {
-        if (this.mode !== "mobile") this.desktopMode = this.mode;
-        this.mode = "mobile";
-      } else if (this.mode === "mobile") this.mode = this.desktopMode;
-      this.visibility.value = this.mode;
-      this.schedule();
-      syncMenuValues();
-    });
+    this.mobileQuery.addEventListener("change", () => this.schedule());
     this.scheduled = false;
     this.observed = new Set();
     this.observer = new ResizeObserver(() => this.schedule());
@@ -211,7 +205,6 @@ export class CommentRail {
     for (const event of ["scalechanging", "rotationchanging", "pagerendered", "textlayerrendered", "scrollmodechanged", "spreadmodechanged", "pagesinit", "leftcardchanged"]) application.eventBus.on(event, () => this.schedule());
     this.visibility.addEventListener("change", () => {
       this.mode = this.visibility.value;
-      if (this.mode !== "mobile") this.desktopMode = this.mode;
       this.schedule();
       const hidden = this.mode === "hidden";
       frame.contentDocument.documentElement.classList.toggle("review-comments-hidden", hidden);
@@ -264,6 +257,7 @@ export class CommentRail {
       const geometry = thread?.section ? sectionGeometry(this.application,thread.section) : anchorGeometry(this.application, thread?.targets[0]?.anchor);
       const marker = markers.get(thread.thread_id);
       const active = thread.thread_id === this.state.selectedThreadId;
+      if (!visible) { marker.hidden = true; card.hidden = true; continue; }
       marker.hidden = !minimized;
       card.hidden = minimized && !active;
       card.classList.toggle("floating-thread-card", minimized && active);
@@ -347,10 +341,33 @@ export class CommentRail {
       bottom=Math.max(...items.map(item=>item.top+item.height+gap));
     }
     for (const item of items) {
-      item.card.style.left = `${item.x}px`;
-      item.card.style.top = `${item.top}px`;
+      const composer = item.card === this.composer.container;
+      if (composer) this.composerPlacement = { payload: this.composer.payload, left: item.x, top: item.top };
+      item.card.style.left = `${item.x - (composer ? this.scroller.scrollLeft : 0)}px`;
+      item.card.style.top = `${item.top - (composer ? this.scroller.scrollTop : 0)}px`;
     }
     this.positionFloating();
+    // Floating cards and composers do not belong to the marker-height list.
+    // Reserve only their actual painted area, without expanded-card-sized gaps.
+    const obstacles = [this.floating?.card, composing ? this.composer.container : null]
+      .filter(Boolean).map(node => node.getBoundingClientRect()).sort((a,b)=>a.top-b.top);
+    if (minimized && obstacles.length) {
+      let previous = -Infinity;
+      const frameTop = this.frame.getBoundingClientRect().top;
+      for (const item of items) {
+        const rect = item.card.getBoundingClientRect();
+        let top = Math.max(item.top, previous);
+        for (const obstacle of obstacles) {
+          const screenTop = frameTop + top - this.scroller.scrollTop;
+          if (rect.left < obstacle.right && rect.right > obstacle.left &&
+              screenTop < obstacle.bottom && screenTop + item.height > obstacle.top) {
+            top = obstacle.bottom - frameTop + this.scroller.scrollTop + gap;
+          }
+        }
+        item.top = top; item.card.style.top = `${top}px`;
+        previous = top + item.height + gap;
+      }
+    }
     const frame = this.frame.getBoundingClientRect();
     const reachable = new Set(items.map(item => item.card));
     if (this.floating) reachable.add(this.floating.card);
@@ -435,7 +452,7 @@ export class CommentRail {
   positionComposer() {
     const box = this.composer.container;
     if (box.hidden) return;
-    if (this.mode === 'mobile' || this.mobileQuery.matches || matchMedia('(pointer: coarse)').matches) {
+    if (usesViewportComposer()) {
       this.composer.setViewportDocked(true);
       const viewport = window.visualViewport;
       const left = viewport?.offsetLeft || 0, top = viewport?.offsetTop || 0;
@@ -454,6 +471,16 @@ export class CommentRail {
     if (!geometry) return;
     box.style.removeProperty("width");
     box.style.removeProperty("max-height");
+    if (this.mode === 'mobile' || this.mode === 'hidden') {
+      const position = this.popupPosition(box, geometry);
+      box.style.left = `${position.left}px`; box.style.top = `${position.top}px`;
+      return;
+    }
+    if (this.mode === 'expanded' && this.composerPlacement?.payload === this.composer.payload) {
+      box.style.left = `${this.composerPlacement.left - this.scroller.scrollLeft}px`;
+      box.style.top = `${this.composerPlacement.top - this.scroller.scrollTop}px`;
+      return;
+    }
     box.style.left = `${this.spreadRight(geometry.pageNumber) + (this.mode === "minimized" ? 48 : 6)*cardScale(this.application)}px`;
     box.style.top = `${Math.max(8, (geometry.top + geometry.bottom - cardSize(box, this.application).height) / 2)}px`;
   }
