@@ -9,11 +9,11 @@
   <div class="access-person"><strong>{{ member.display_name or 'Not yet joined' }}</strong><span>{{ member.email }}</span><span>{{ member.site_role }} · {{ member.membership_status }}</span></div>
   <div class="access-person"><span>Invited by {{ member.inviter or 'Unknown' }}</span>
     <span>{{ 'Invited' if member.date_source == 'invitation' else 'Beta access recorded' }}: {{ member.invited_at or 'Unknown' }}</span>
-    <span>{% if member.joined_at %}Joined: {{ member.joined_at }}{% elif member.joined_by_at %}Joined by: {{ member.joined_by_at }}{% else %}Join date unknown / not yet joined{% endif %}</span>
+    <span>{% if member.joined_at %}Joined: {{ member.joined_at }}{% elif member.joined_by_at %}Joined by: {{ member.joined_by_at }}{% elif member.has_joined %}Join date unknown{% else %}Hasn't signed in yet{% endif %}</span>
   </div>
 </article>
 {% else %}<p>No membership records yet.</p>{% endfor %}
-{% if is_site_admin %}
+{% if is_site_admin and pending_legacy_attribution %}
 <section class="panel compact-panel"><h2>Historical invitation attribution</h2>
 <p>Existing members are attributed to the sole site admin during migration. If no sole admin existed, assign unassigned historical records to yourself here. Dates remain unchanged.</p>
 <form method="post" action="{{ url_for('invites.legacy') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">

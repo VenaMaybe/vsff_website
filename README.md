@@ -27,3 +27,22 @@ Copy-Item .env.example .env
 # Set your persistent SECRET_KEY and Google development credentials in .env.
 python app.py
 ```
+
+# For opening it on mobile locally
+The tunnel is running, and sign-in protection is working.
+
+1. Open [Google Cloud Clients](https://console.cloud.google.com/auth/clients), select your project, and open the existing **Web application** OAuth client.
+2. Under **Authorized redirect URIs**, add this exact address and click **Save**. Keep your existing entries. [Google’s instructions](https://developers.google.com/identity/protocols/oauth2/web-server#creatingcred)
+
+   ```text
+   https://arrangement-gently-previously-diary.trycloudflare.com/auth/google/callback
+   ```
+
+3. On your iPhone, open [the test site](https://arrangement-gently-previously-diary.trycloudflare.com) in Safari and sign in.
+4. Open a PDF and test pinch zoom near the top and farther down.
+
+Keep your laptop awake during testing. To stop afterward, run this from the `pdf_review` directory:
+
+```powershell
+.\mobile_https.ps1 -Stop
+```

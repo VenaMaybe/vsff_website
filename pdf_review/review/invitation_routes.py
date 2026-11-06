@@ -3,7 +3,7 @@
 from flask import Blueprint, abort, current_app, g, jsonify, redirect, render_template, request, session, url_for
 
 from . import invitations as service
-from .access import AccessDenied, AccessError
+from .access import AccessDenied, AccessError, is_site_admin
 from .auth import current_user, IdentityDenied
 
 
@@ -43,7 +43,8 @@ def manage():
 
 @bp.get('/members')
 def members():
-    return render_template('members.html', members=service.directory(database(), actor()))
+    pending_attribution = is_site_admin(database(), actor()) and service.needs_legacy_attribution(database(), actor())
+    return render_template('members.html', members=service.directory(database(), actor()), pending_legacy_attribution=pending_attribution)
 
 
 @bp.post('/invitations')

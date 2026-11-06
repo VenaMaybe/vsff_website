@@ -250,11 +250,13 @@ def directory(database, actor):
     try:
         require_inviter(c, actor)
         return [dict(r) for r in c.execute("""SELECT m.normalized_email AS email,u.display_name,
+            u.google_subject IS NOT NULL AS has_joined,
             CASE WHEN s.user_id IS NOT NULL THEN 'Site Admin' WHEN t.user_id IS NOT NULL THEN 'Trusted User' ELSE 'Member' END AS site_role,
             CASE WHEN a.enabled=1 AND (u.user_id IS NULL OR u.is_active=1) THEN 'Enabled'
                  WHEN a.normalized_email IS NULL AND u.user_id IS NULL AND m.access_blocked=0 THEN 'Not joined' ELSE 'Disabled' END AS membership_status,
             m.invited_at,m.date_source,m.joined_at,m.joined_by_at,inviter.display_name AS inviter
             FROM beta_memberships m LEFT JOIN users u ON u.user_id=m.user_id
+                OR (m.user_id IS NULL AND u.normalized_email=m.normalized_email)
             LEFT JOIN allowed_emails a ON a.normalized_email=m.normalized_email
             LEFT JOIN site_admins s ON s.user_id=u.user_id LEFT JOIN trusted_users t ON t.user_id=u.user_id
             LEFT JOIN users inviter ON inviter.user_id=m.invited_by
@@ -290,6 +292,15 @@ def backfill_legacy(database, actor):
         for row in c.execute('SELECT * FROM beta_memberships WHERE legacy=1 AND invited_by IS NULL').fetchall():
             c.execute('UPDATE beta_memberships SET invited_by=? WHERE normalized_email=?', (actor, row['normalized_email']))
             audit(c, actor, 'membership.legacy_attributed', 'email', row['normalized_email'], date_source=row['date_source'])
+
+
+def needs_legacy_attribution(database, actor):
+    c = connect(database)
+    try:
+        authorize_actor(c, actor)
+        return bool(c.execute('SELECT 1 FROM beta_memberships WHERE legacy=1 AND invited_by IS NULL LIMIT 1').fetchone())
+    finally:
+        c.close()
 
 
 def audit_history(database, actor, before=None):

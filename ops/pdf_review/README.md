@@ -6,6 +6,20 @@ later approved maintenance session as root on the VPS. Do not run this runbook o
 the Windows development machine. No SSH command, key, credential, manuscript,
 database, or production environment file is supplied here.
 
+Current application update: migration **14** adds Trusted Users/invitations.
+Migration **15** additionally records a document's main version. Existing documents
+default to the newest active version; PDF/version bytes and identities are unchanged.
+Use the existing pre-start SQLite backup and single-worker migration flow.
+It preserves identities, content and grants. If exactly one site admin exists,
+historical invitations are attributed to that admin; otherwise use the admin
+directory's explicit attribution action for unassigned historical records.
+Old allowlist/last-login dates are labelled as access records/joined-by bounds.
+No new environment variable, OAuth scope, email provider or proxy rule is needed.
+After deploying, check Admin > Trusted Users, Beta members, Invitations and
+Access history with synthetic identities first. Expiration is enforced on
+redemption without a scheduler; optionally run `review_admin expire-invitations`
+using the existing protected environment wrapper to record periodic expiry events.
+
 The reviewed bundle and `/healthz` application change must first be published to
 `origin/main` through the normal review/release process. This task does not push
 them. Initial installation requires a root session; the forced deployment SSH
@@ -503,7 +517,8 @@ In browser developer tools, also confirm:
   revocation limitation are understood: revocation is checked on subsequent
   HTTP/connect/join/page reports; an already idle socket is not instantly evicted.
 
-`/healthz` is the sole new public app endpoint; it discloses only process liveness.
+`/healthz` discloses only process liveness. The later public `/privacy` and `/tos`
+pages disclose policy text only and must also work while signed out.
 All existing private-content authentication/ACL checks stay in effect. Stop
 before real data migration if any origin, cache, authorization, or WebSocket check
 fails. Confirm existing VSFF API/site health again with `check_vsff`.
