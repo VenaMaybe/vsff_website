@@ -42,8 +42,9 @@ section feedback. See [BETA_C2_REPORT.md](BETA_C2_REPORT.md) for the audit and c
   storage purge. See [Version deletion report](VERSION_DELETION_REPORT.md).
 - **Tools** opens Search, Comment filter, Reading progress, Time
   tracker and Statistics left cards; document owners
-  also see Settings and Sections. Checkmarks identify open cards;
-  selecting an open tool focuses it; selecting the focused tool again closes it.
+  also see Settings and Sections. Checkmarks identify open cards.
+  Ctrl/Cmd+F opens or focuses Search and pins it to the viewport.
+  Selecting an open tool focuses it; selecting the focused tool again closes it.
   **Close all tools** closes the cards together. Tools stays open while choosing
   items and dismisses when you click elsewhere. Cards also retain their X buttons.
   Double-click **Tools** (or press Shift+Enter on it) to open the same controls in
@@ -102,7 +103,8 @@ section feedback. See [BETA_C2_REPORT.md](BETA_C2_REPORT.md) for the audit and c
   Cards taller than the viewer open 8px below its top so their header stays visible;
   after opening, they scroll with the document normally.
   First opening and reopening use the same short fade and 4px slide; initial
-  positioning and content-ready layout do not replace that entrance animation.
+  positioning, automatic pinning and content-ready layout do not replace that
+  entrance animation. This also applies to Search opened with Ctrl/Cmd+F.
   Opening within a tall stack chooses an internal gap and retains that split
   through loading/resizing; it first stops existing movement at displayed positions.
   Left cards never extend above the first PDF
@@ -164,7 +166,10 @@ section feedback. See [BETA_C2_REPORT.md](BETA_C2_REPORT.md) for the audit and c
   uneven outlines on existing and new comments. Separate lines, gaps and comments
   stay distinct. Stored anchor geometry remains unchanged. Repeated
   clicks where comment highlights overlap cycle through those conversations,
-  wrapping around so comments underneath remain selectable. Initials supply presence avatars;
+  wrapping around so comments underneath remain selectable. Dragging selects PDF
+  text through existing highlights, including when starting beneath one; ordinary
+  clicks still open comments, with hover feedback and overlap cycling preserved.
+  Initials supply presence avatars;
   the application makes no external avatar requests.
   Colors use [Tableau 10](https://d3js.org/d3-scale-chromatic/categorical#schemeTableau10),
   replacing the original 24 similar muted shades. Migration 9 maps existing choices

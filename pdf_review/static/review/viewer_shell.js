@@ -46,7 +46,9 @@ function installSearch(frame, application) {
   registerLeftCard('search',options=>find.open(options));
   const shortcut = (event) => {
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "f") {
-      event.preventDefault(); event.stopImmediatePropagation(); find.open();
+      event.preventDefault(); event.stopImmediatePropagation();
+      const search = find.open();
+      if (!search.pinned) search.setPinned(true);
     }
     if (event.key === "Escape" && find.opened) { find.close(); }
   };

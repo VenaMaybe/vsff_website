@@ -26,6 +26,8 @@ export class AnchorOverlay {
     this.selectedThreadId = null;
     this.onThreadSelect = null;
     installStyles(viewerWindow.document);
+    this.hitRegions = new WeakMap();
+    this.installInteraction();
     const renderEvent = ({ pageNumber }) => this.renderPage(pageNumber);
     viewerApplication.eventBus.on("textlayerrendered", renderEvent);
     viewerApplication.eventBus.on("pagerendered", renderEvent);
@@ -39,6 +41,133 @@ export class AnchorOverlay {
         this.window.requestAnimationFrame(() => this.renderPage(pageNumber));
       }
     });
+  }
+
+  installInteraction() {
+    const document = this.window.document;
+    const cancelCursorDelay = () => this.window.clearTimeout(this.cursorDelay);
+    document.addEventListener("pointerdown", event => {
+      cancelCursorDelay();
+      this.hoverPoint = null;
+      const highlight = event.button === 0 && event.pointerType !== "touch" ? this.highlightsAt(event)[0] : null;
+      if (highlight) this.hoverPoint = { target: event.target, clientX: event.clientX, clientY: event.clientY };
+      this.setHoveredHighlight(highlight ?? null);
+      // Cursor cosmetics only: native selection still starts on pointer-down.
+      // A quick click retains the hand; a hold or actual drag reveals the I-beam.
+      if (highlight) this.cursorDelay = this.window.setTimeout(() => {
+        this.hoverPoint = null;
+        this.setHoveredHighlight(null);
+      }, 200);
+      if (event.isPrimary === false) {
+        if (this.pointerGesture) this.pointerGesture.cancelled = true;
+        return;
+      }
+      const scroller = this.application.pdfViewer.container;
+      this.pointerGesture = event.button === 0 ? {
+        id: event.pointerId, x: event.clientX, y: event.clientY, moved: false,
+        tolerance: event.pointerType === "touch" ? 8 : 4,
+        left: scroller.scrollLeft, top: scroller.scrollTop,
+      } : null;
+    }, true);
+    document.addEventListener("pointermove", event => {
+      const gesture = this.pointerGesture;
+      if (gesture && event.pointerId === gesture.id &&
+          Math.hypot(event.clientX - gesture.x, event.clientY - gesture.y) > gesture.tolerance) {
+        gesture.moved = true;
+        cancelCursorDelay();
+        this.hoverPoint = null;
+        this.setHoveredHighlight(null);
+      }
+      // Selection and panning remain wholly native. Only idle hover needs a read.
+      if (event.buttons || event.pointerType === "touch") return;
+      this.hoverPoint = { target: event.target, clientX: event.clientX, clientY: event.clientY };
+      if (this.hoverScheduled) return;
+      this.hoverScheduled = true;
+      this.window.requestAnimationFrame(() => {
+        this.hoverScheduled = false;
+        this.setHoveredHighlight(this.highlightsAt(this.hoverPoint)[0] ?? null);
+      });
+    }, { capture: true, passive: true });
+    document.addEventListener("pointerup", () => {
+      cancelCursorDelay();
+      if (!this.window.getSelection()?.isCollapsed) {
+        this.hoverPoint = null;
+        this.setHoveredHighlight(null);
+      }
+    }, true);
+    document.addEventListener("pointercancel", () => {
+      cancelCursorDelay();
+      if (this.pointerGesture) this.pointerGesture.cancelled = true;
+      this.hoverPoint = null;
+      this.setHoveredHighlight(null);
+    }, true);
+    document.addEventListener("click", event => {
+      // Retain direct programmatic activation used by diagnostics/accessibility.
+      const direct = !event.detail && event.target.closest?.(".pdf-review-thread-highlight");
+      if (direct) {
+        event.preventDefault(); event.stopPropagation();
+        this.onThreadSelect?.(direct.dataset.threadId);
+        return;
+      }
+      const gesture = this.pointerGesture;
+      this.pointerGesture = null;
+      const scroller = this.application.pdfViewer.container;
+      if (event.defaultPrevented || event.button !== 0 || event.detail !== 1 ||
+          event.ctrlKey || event.metaKey || event.altKey || event.shiftKey ||
+          !gesture || gesture.moved || gesture.cancelled ||
+          Math.hypot(event.clientX - gesture.x, event.clientY - gesture.y) > gesture.tolerance ||
+          scroller.scrollLeft !== gesture.left || scroller.scrollTop !== gesture.top ||
+          !this.window.getSelection()?.isCollapsed) return;
+      const highlights = this.highlightsAt(event);
+      const threads = [...new Set(highlights.map(node => node.dataset.threadId))];
+      if (!threads.length) return;
+      if (event.pointerType !== "touch") {
+        this.hoverPoint = { target: event.target, clientX: event.clientX, clientY: event.clientY };
+        this.setHoveredHighlight(highlights[0]);
+      }
+      event.preventDefault(); event.stopPropagation();
+      const current = threads.indexOf(this.selectedThreadId);
+      this.onThreadSelect?.(threads[(current + 1) % threads.length]);
+    }, true);
+    const clearHover = () => { cancelCursorDelay(); this.hoverPoint = null; this.setHoveredHighlight(null); };
+    document.addEventListener("scroll", clearHover, { capture: true, passive: true });
+    document.addEventListener("pointerleave", clearHover);
+    this.window.addEventListener("blur", clearHover);
+    this.application.eventBus.on("cursortoolchanged", clearHover);
+  }
+
+  highlightsAt(point) {
+    if (this.window.document.documentElement.classList.contains("review-comments-hidden") ||
+        !point?.target?.isConnected || point.target.closest?.(
+      "a, button, input, textarea, select, [contenteditable=true], .annotationLayer, .annotationEditorLayer, .section-management-line"
+    )) return [];
+    const page = point.target.closest?.(".page");
+    const overlay = page?.querySelector(":scope > .pdf-review-anchor-overlay");
+    const regions = overlay && !overlay.hidden && this.hitRegions.get(overlay);
+    if (!regions?.length) return [];
+    // One layout read for this page, using the same percentages as the paint.
+    // This follows native zoom immediately without measuring every rectangle.
+    const bounds = overlay.getBoundingClientRect();
+    const x = (point.clientX - bounds.left) / bounds.width;
+    const y = (point.clientY - bounds.top) / bounds.height;
+    return regions.filter(region => !region.node.hidden && region.node.dataset.threadId &&
+      x >= region.left && x <= region.right && y >= region.top && y <= region.bottom)
+      .map(region => region.node);
+  }
+
+  setHoveredHighlight(highlight) {
+    // Put the cursor on the actual hit-tested text element, not the transparent
+    // highlight. A short hold or drag clears it without delaying native selection.
+    const cursorTarget = highlight ? this.hoverPoint?.target : null;
+    if (cursorTarget !== this.hoverCursorTarget) {
+      this.hoverCursorTarget?.classList.remove("review-highlight-cursor");
+      this.hoverCursorTarget = cursorTarget;
+      cursorTarget?.classList.add("review-highlight-cursor");
+    }
+    if (highlight === this.hoveredHighlight) return;
+    this.hoveredHighlight?.classList.remove("is-hovered");
+    this.hoveredHighlight = highlight;
+    highlight?.classList.add("is-hovered");
   }
 
   setAnchors(anchors) {
@@ -129,6 +258,7 @@ export class AnchorOverlay {
     overlay.dataset.renderKey = renderKey;
     const existing = new Map([...overlay.children].map(node => [node.dataset.rectangleKey, node]));
     const wanted = new Set();
+    const regions = new Map();
     for (const { anchor, segment, index } of segments) {
       let rectangles = this.rectangleCache.get(segment.rectangles);
       if (!rectangles) {
@@ -145,15 +275,6 @@ export class AnchorOverlay {
           highlight = this.window.document.createElement("div");
           highlight.className = "pdf-review-anchor-highlight";
           highlight.dataset.rectangleKey = key;
-          highlight.addEventListener("click", event => {
-            if (!highlight.dataset.threadId) return;
-            event.preventDefault(); event.stopPropagation();
-            const hits = event.detail ? this.window.document.elementsFromPoint(event.clientX,event.clientY) : [];
-            const threads = [...new Set(hits.filter(node => node.classList?.contains('pdf-review-thread-highlight') &&
-              node.closest('.pdf-review-anchor-overlay') === overlay).map(node => node.dataset.threadId))];
-            const current = threads.indexOf(this.selectedThreadId);
-            this.onThreadSelect?.(threads.length ? threads[(current+1)%threads.length] : highlight.dataset.threadId);
-          });
           overlay.append(highlight);
         }
         highlight.hidden = false;
@@ -175,8 +296,13 @@ export class AnchorOverlay {
         highlight.style.top = `${geometry.top / pageBounds.height * 100}%`;
         highlight.style.width = `${geometry.width / pageBounds.width * 100}%`;
         highlight.style.height = `${geometry.height / pageBounds.height * 100}%`;
+        regions.set(highlight, { node: highlight,
+          left: geometry.left / pageBounds.width, right: (geometry.left + geometry.width) / pageBounds.width,
+          top: geometry.top / pageBounds.height, bottom: (geometry.top + geometry.height) / pageBounds.height });
       }
     }
+    // Reverse DOM paint order preserves the former topmost-first click cycle.
+    this.hitRegions.set(overlay, [...overlay.children].reverse().flatMap(node => regions.has(node) ? [regions.get(node)] : []));
     for (const [key,node] of existing) if (!wanted.has(key)) {
       if (this.application.reviewPdfTouchActive) node.hidden = true;
       else node.remove();

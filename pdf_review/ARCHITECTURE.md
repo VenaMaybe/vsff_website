@@ -119,16 +119,25 @@ distinct, including overlapping conversations on the same text. Focused coverage
 `tests/browser_sanity.py --highlight-overlap`, including the reported fragment
 coordinates, real multi-span capture, immutable storage and overlap click cycling.
 
-Pointer clicks on overlapping highlights use the iframe document's actual
-`elementsFromPoint` hit stack, restricted to thread highlights in the clicked
-page overlay. Thread IDs are deduplicated so multiple rectangles from one
-conversation count once. With no selected conversation at the click point,
-selection starts at the topmost hit; otherwise it advances to the next hit and
-wraps around. The current selected thread supplies the cursor across overlay
-rebuilds, without a persisted cycle counter. Only highlights covering that exact
-point participate. Programmatic/keyboard clicks without pointer coordinates keep
-the target highlight's ordinary selection behavior. Existing card selection,
-click-away handling, filtering and canonical anchor data are unchanged.
+Highlight rectangles are visual only (`pointer-events:none`), so PDF.js's native
+text layer receives selection presses and drags even beneath existing comments.
+Shared iframe pointer/click listeners distinguish a simple primary click from
+movement, scrolling, cancelled/multi-pointer gestures and noncollapsed selection;
+they never prevent pointer-down/move defaults or synthesize selection ranges.
+Click/idle-hover hit testing uses the painted percentage regions, one page-overlay
+bounds read and reverse DOM paint order. Hidden comments, PDF links/forms and
+section controls do not participate. Hover is frame-coalesced and cleared during
+dragging, scrolling or leaving the viewer. There are no per-rectangle listeners.
+Hover applies the clickable hand cursor to the underlying text hit target. A
+primary mouse press retains it for a quick click; movement or a 200ms hold clears
+it. Release cancels the timer, and scrolling/cancellation/tool changes clear it.
+This cosmetic delay never delays native selection, hit testing or click handling.
+Thread IDs are deduplicated so multiple rectangles from one conversation count
+once. With no selected conversation at the click point, selection starts at the
+topmost hit; otherwise it advances and wraps around. Only highlights covering
+that exact point participate; direct programmatic highlight clicks retain their
+ordinary activation. Selected thread state supplies the cycle cursor across
+overlay rebuilds. Saved anchors and native selection/zoom/panning remain unchanged.
 
 
 ## Stable authenticated authorship
@@ -633,9 +642,14 @@ saved layouts restore top anchors. Pinned cards remain outside packing.
 
 Initial placement skips position-travel animation while `openingCentered` is set.
 After synchronous visibility/focus layout, `open()` starts one shared 160ms
-ease-out fade and 4px slide. `contentReady()` does not cancel or replace it, so a
-fresh element and a reused element have the same entrance. Reduced motion skips
-it. Exact animation traces are covered by `--left-card-focus`.
+ease-out fade and 4px slide. A separate entrance guard lasts until that animation
+finishes or is cancelled: automatic pinning, focus and content-ready layouts cannot
+replace it, even after centered placement has finished. This keeps fresh and reused
+cards identical, including Ctrl/Cmd+F opening Search then pinning it. Direct pointer
+interaction interrupts the entrance so dragging and manual pinning remain responsive.
+Close cancels and releases the guard; old completion callbacks cannot affect a later
+opening. Reduced motion skips it. Exact traces are covered by `--left-card-focus`
+and the real first/reopened Search shortcut in `--tools-menu`.
 
 `--left-card-insertion` checks unequal displacements, first-page spill, delayed
 content growth and focus retention at 100% and 50% zoom, plus fixed-slot retention

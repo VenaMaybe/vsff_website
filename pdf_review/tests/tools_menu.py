@@ -8,6 +8,31 @@ def run_tools(cdp, a, b, fixture, base):
     def ev(script): return cdp.evaluate(a, script)
     def wait(script): return cdp.wait(a, script)
     viewport(cdp, a, 1440, 1000)
+    # Exercise the real shortcut before Search has ever opened. Immediate pinning
+    # must not replace the entrance with travel from its provisional center.
+    entrances=ev("""(async()=>{
+      const original=Element.prototype.animate;let trace=[];const result=[];
+      Element.prototype.animate=function(frames,options){
+        if(this.matches('.search-panel'))trace.push({frames,options});
+        return original.call(this,frames,options);
+      };
+      const pause=()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));
+      try {
+        for(let i=0;i<2;i++){
+          trace=[];
+          document.body.dispatchEvent(new KeyboardEvent('keydown',{key:'f',ctrlKey:true,bubbles:true,cancelable:true}));
+          await pause();
+          const card=document.querySelector('.search-panel');
+          result.push({trace:[...trace],pinned:card.dataset.pinned});
+          card.querySelector('.dialog-header button:last-child').click();
+        }
+      }finally{Element.prototype.animate=original;}
+      return result;
+    })()""")
+    assert entrances[0]==entrances[1] and entrances[0]['pinned']=='true',entrances
+    assert entrances[0]['trace']==[dict(frames=[dict(translate='0 4px',opacity=0),dict(translate='0 0',opacity=1)],options=dict(duration=160,easing='ease-out'))],entrances
+    # Leave ordinary menu launches at their usual unpinned state.
+    ev("document.body.dispatchEvent(new KeyboardEvent('keydown',{key:'f',ctrlKey:true,bubbles:true,cancelable:true}));document.querySelector('.search-panel .left-card-pin').click();document.querySelector('.search-panel .dialog-header button:last-child').click()")
     assert ev("!document.querySelector('#review-view-menu [data-pdf-control=cursorSelectTool],#review-view-menu [data-pdf-control=cursorHandTool]')")
     click(cdp,a,'#review-tools-menu > summary')
     click(cdp,a,'.tools-icon-grid [data-pdf-control=cursorHandTool]')
@@ -111,6 +136,14 @@ def run_tools(cdp, a, b, fixture, base):
     wait("document.querySelectorAll('.left-card').length===0&&document.querySelector('#review-tools-menu > .toolbar-popover')!==null")
     ev("document.querySelector('iframe').contentWindow.PDFViewerApplication.pdfCursorTools.switchTool(0)")
     # Existing keyboard menu navigation and mobile popup positioning are reused.
+    # Ctrl/Cmd+F pins the one Search card from either document context.
+    for context,modifier in [('document','ctrlKey'),("document.querySelector('iframe').contentDocument",'metaKey')]:
+        ev(context+".body.dispatchEvent(new KeyboardEvent('keydown',{key:'f',"+modifier+":true,bubbles:true,cancelable:true}))")
+        wait("document.querySelector('.search-panel')?.dataset.pinned==='true'")
+        assert ev("document.querySelectorAll('.search-panel').length===1&&document.querySelector('.search-panel').contains(document.activeElement)")
+        ev("document.querySelector('.search-panel .left-card-pin').click()")
+        assert ev("document.querySelector('.search-panel').dataset.pinned==='false'")
+    ev("document.querySelector('.search-panel .dialog-header button:last-child').click()")
     viewport(cdp, a, 390, 844)
     ev("document.querySelector('#review-tools-menu > summary').focus()")
     key(cdp, a, 'ArrowDown', 40)

@@ -204,7 +204,7 @@ export class LeftCard {
     this.element.append(header, this.body);
     this.schedule = () => layoutCards();
     this.openingCentered = true;
-    this.element.addEventListener('pointerdown', () => { this.openingCentered=false; this.activate(); });
+    this.element.addEventListener('pointerdown', () => { this.stopEntrance(); this.openingCentered=false; this.activate(); });
     this.element.addEventListener('focusin', () => this.activate());
     this.element.addEventListener('keydown', event => {
       if (event.key === 'Escape' && this.cancelHeaderDrag) { event.preventDefault(); event.stopPropagation(); this.cancelHeaderDrag(); return; }
@@ -224,6 +224,7 @@ export class LeftCard {
     // Reused cards can retain their old active class after closing.
     if (!focus) this.element.classList.remove('active');
     this.openingCentered=true;
+    this.openingEntrance=true;
     // Use the displayed neighbor positions as the insertion's starting layout.
     // Keep this snapshot stable while asynchronously loaded content changes size.
     const workspace = document.querySelector('.viewer-workspace');
@@ -262,8 +263,19 @@ export class LeftCard {
     for (const event of ['scalechanging', 'rotationchanging', 'spreadmodechanged', 'scrollmodechanged', 'pagerendered', 'reviewlayoutchanged', 'documentoriginchanged']) this.bus?.on(event, this.schedule);
     layoutCards(true);
     this.onVisibility?.(true); if (focus) this.closeButton.focus({ preventScroll: true });
-    animateCard(this.element, 4, true);
+    const animation = this.openingAnimation = animateCard(this.element, 4, true);
+    const finished = () => {
+      if (this.openingAnimation !== animation) return;
+      this.openingAnimation = null; this.openingEntrance = false;
+    };
+    if (animation) animation.finished.then(finished, finished);
+    else finished();
     return true;
+  }
+  stopEntrance() {
+    const animation = this.openingAnimation;
+    this.openingAnimation = null; this.openingEntrance = false;
+    animation?.cancel();
   }
   contentReady() {
     if(!this.openingCentered)return;
@@ -272,7 +284,7 @@ export class LeftCard {
   }
   activate() {
     const changed = !this.pinned && (focusedCard !== this || !this.element.classList.contains('active'));
-    if(changed && this.element.isConnected && !this.openingCentered) {
+    if(changed && this.element.isConnected && !this.openingCentered && !this.openingEntrance) {
       // Collision displacement becomes the anchor before changing focus priority.
       // Preserve neighbors too so focusing one card cannot undo their packing.
       for(const card of cards)if(!card.pinned && card.element.parentElement===this.element.parentElement) {
@@ -291,6 +303,7 @@ export class LeftCard {
   }
   startHeaderDrag(event) {
     if (event.button !== 0 || event.target.closest('button') || this.busy) return;
+    this.stopEntrance();
     event.preventDefault(); this.openingCentered = false;
     const header = event.currentTarget, initial = this.element.getBoundingClientRect().top, start = event.clientY;
     const listeners = new AbortController(); let moved = false;
@@ -369,18 +382,19 @@ export class LeftCard {
     this.anchorFraction = (visualTop - integration.frame.getBoundingClientRect().top - page.top) / page.height;
   }
   position({left,top,visualTop,motion},parentTop,firstPageTop) {
-    if(!this.openingCentered&&visualTop<firstPageTop){this.element.getAnimations().forEach(animation=>animation.cancel());visualTop=firstPageTop;}
+    if(!this.openingCentered&&!this.openingEntrance&&visualTop<firstPageTop){this.element.getAnimations().forEach(animation=>animation.cancel());visualTop=firstPageTop;}
     const x=`${left}px`,y=`${top}px`;
     if(this.element.style.left!==x)this.element.style.left=x;
     if(this.element.style.top!==y)this.element.style.top=y;
     this.lastTop=top;
     // Initial placement (including content-ready layouts) is not a move from
     // the default CSS position. Keep open()'s single short entrance intact.
-    if(motion&&!this.openingCentered&&Math.abs(visualTop-parentTop-top)>.5)animateCard(this.element,visualTop-parentTop-top);
+    if(motion&&!this.openingCentered&&!this.openingEntrance&&Math.abs(visualTop-parentTop-top)>.5)animateCard(this.element,visualTop-parentTop-top);
   }
 
   close(restoreFocus = true) {
     if (this.busy) return false;
+    this.stopEntrance();
     this.cancelHeaderDrag?.();this.focusEvents?.abort();
     this.scroller?.removeEventListener('scroll', this.onScroll); this.resize?.disconnect();
     for (const event of ['scalechanging', 'rotationchanging', 'spreadmodechanged', 'scrollmodechanged', 'pagerendered', 'reviewlayoutchanged', 'documentoriginchanged']) this.bus?.off(event, this.schedule);

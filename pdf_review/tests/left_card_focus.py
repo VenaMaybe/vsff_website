@@ -85,9 +85,15 @@ def run_focus(cdp, session):
       const first=trace;card.close(false);trace=[];
       card.open({focus:false});card.contentReady();await pause();
       const second=trace;card.close(false);
-      return {first,second};
+      trace=[];
+      card.open({focus:false});card.contentReady();await pause();
+      card.setPinned(true);card.body.style.height='500px';
+      card.contentReady();card.activate();await pause();
+      const pinned=trace;card.close(false);
+      return {first,second,pinned};
     })()""")
     assert len(entrance['first'])==1 and entrance['first']==entrance['second'],entrance
+    assert entrance['pinned']==entrance['first'],entrance
     assert entrance['first'][0]['frames']==[{'translate':'0 4px','opacity':0},{'translate':'0 0','opacity':1}],entrance
     assert entrance['first'][0]['options']=={'duration':160,'easing':'ease-out'},entrance
     cdp.call('Emulation.setEmulatedMedia',{'features':[{'name':'prefers-reduced-motion','value':'reduce'}]},session)
