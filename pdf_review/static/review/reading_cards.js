@@ -175,7 +175,7 @@ export class ReadingCards {
       this.spineLine=node('span',undefined,'reading-spine-line');
       this.spineLeaders=document.createElementNS('http://www.w3.org/2000/svg','svg');
       this.spineLeaders.setAttribute('class','reading-leaders');this.spineLeaders.setAttribute('preserveAspectRatio','none');this.spineLeaders.setAttribute('aria-hidden','true');
-      this.spineLegend=node('div',undefined,'reading-legend');this.legendHeading=node('small','Considered read ? Estimated completion','reading-note');
+      this.spineLegend=node('div',undefined,'reading-legend');this.legendHeading=node('small','Considered read \u00b7 Estimated completion','reading-note');
       this.spineEntries=new Map();this.legendEntries=new Map();
       this.spineContent.append(this.spineCanvas,this.spineLegend);
     }
@@ -198,13 +198,13 @@ export class ReadingCards {
       }
       entry.row=row;const {point,label,leader}=entry;
       setStyle(point,'top',`${row.anchor}px`);setStyle(label,'top',`${row.top}px`);setStyle(label,'height',`${row.height}px`);
-      setText(entry.name,row.type==='reader'?`${row.reader.display_name} ? p. ${row.page}`:row.name);
+      setText(entry.name,row.type==='reader'?`${row.reader.display_name} \u00b7 p. ${row.page}`:row.name);
       if(row.type==='reader'){
         const cluster=Math.round(row.anchor/5),peers=clusters.get(cluster)||0;clusters.set(cluster,peers+1);
         setStyle(point,'left',`${10+(peers%3)*6}px`);
         if(label.style.getPropertyValue('--reader-color')!==color(row.reader))label.style.setProperty('--reader-color',color(row.reader));
         setStyle(point,'backgroundColor',color(row.reader));setAttribute(point,'data-online',String(row.reader.online));
-        const title=`${row.reader.online?'Currently viewing':'Last recorded position'} ? p. ${row.page}. Furthest p. ${row.reader.furthest_page}; ${percent(row.reader)}% considered read.`;
+        const title=`${row.reader.online?'Currently viewing':'Last recorded position'} \u00b7 p. ${row.page}. Furthest p. ${row.reader.furthest_page}; ${percent(row.reader)}% considered read.`;
         if(label.title!==title)label.title=title;
       }else setText(entry.range,row.range);
       setAttribute(leader,'d',`M${row.type==='reader'?parseFloat(point.style.left)+3.5:14} ${row.anchor} L32 ${row.top+row.height/2}`);
