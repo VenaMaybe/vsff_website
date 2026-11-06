@@ -25,8 +25,10 @@
     <a class="document-card" href="{{ url_for('core.document_detail', document_id=document.document_id) }}">
       <h2>{{ document.title }}</h2>
       <p class="document-owners">{% for owner in document_owners.get(document.document_id, []) %}<span class="document-owner-badge" style="--review-color:{{ owner.review_color }}">Owner: {{ owner.display_name }}</span>{% else %}<span>Owner: Not assigned</span>{% endfor %}</p>
-      <p>{{ document.version_count }} version{{ '' if document.version_count == 1 else 's' }}</p>
-      <small>Created {{ document.created_at|replace('T', ' ')|replace('Z', ' UTC') }}</small>
+      <div class="document-metadata">
+        <span>{{ document.version_count }} version{{ '' if document.version_count == 1 else 's' }}</span>
+        <small>Created <time datetime="{{ document.created_at }}" title="{{ document.created_at|replace('T', ' ')|replace('Z', ' UTC') }}">{{ document.created_at[:10] }}</time></small>
+      </div>
     </a>
   {% else %}
     <div class="empty-state">

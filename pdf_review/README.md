@@ -17,6 +17,9 @@ the main-version button together at the bottom right.
 Owners can choose **Make main version**; the selected button shows **Main version**
 and a checkmark. Other readers see a Main version badge without a mutation control.
 The homepage document list includes all current owners' display names, without emails.
+On narrow screens, titles and owner badges share the top row, with version count
+and creation time below. Creation times use the browser's local date/time format
+without seconds or milliseconds; the exact UTC timestamp remains in the tooltip.
 
 Migration **15** stores one main-version designation per document without changing
 immutable PDF/version rows. Existing documents default to their newest active
