@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}Access history · PDF Review{% endblock %}
+{% block content %}
+<div class="page-heading"><h1>Access history</h1><a href="{{ url_for('accounts.admin') }}">Admin</a></div>
+<p class="subtle">Newest first. Times are UTC. Historical backfill events describe attribution recorded now, not a newly sent invitation.</p>
+{% for event in events %}<article class="access-row" data-action="{{ event.action }}">
+<div class="access-person"><strong>{{ event.action|replace('.', ' · ')|replace('_', ' ')|title }}</strong><span>{{ event.actor or 'Offline operator / migration' }} · {{ event.created_at }}</span>
+{% if event.recipient %}<span>{{ event.recipient }}</span>{% endif %}
+{% if event.inviter %}<span>Invited by {{ event.inviter }}{% if event.offered_role %} · Offered {{ event.offered_role|title }}{% endif %}</span>{% endif %}
+<details class="subtle"><summary>Technical details</summary><span>{{ event.target_type }}: {{ event.target_identifier }}</span><br><code>{{ event.details }}</code></details></div></article>
+{% else %}<p>No earlier events.</p>{% endfor %}
+{% if events|length == 100 %}<p><a href="{{ url_for('invites.history', before=events[-1].id) }}">Older events</a></p>{% endif %}
+{% endblock %}

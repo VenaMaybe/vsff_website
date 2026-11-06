@@ -24,6 +24,7 @@
   {% for document in documents %}
     <a class="document-card" href="{{ url_for('core.document_detail', document_id=document.document_id) }}">
       <h2>{{ document.title }}</h2>
+      <p class="document-owners">{% for owner in document_owners.get(document.document_id, []) %}<span class="document-owner-badge" style="--review-color:{{ owner.review_color }}">Owner: {{ owner.display_name }}</span>{% else %}<span>Owner: Not assigned</span>{% endfor %}</p>
       <p>{{ document.version_count }} version{{ '' if document.version_count == 1 else 's' }}</p>
       <small>Created {{ document.created_at|replace('T', ' ')|replace('Z', ' UTC') }}</small>
     </a>
@@ -34,4 +35,5 @@
     </div>
   {% endfor %}
 </section>
+<script type="module" src="{{ url_for('static', filename='review/dashboard_refresh.js') }}"></script>
 {% endblock %}

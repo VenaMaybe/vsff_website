@@ -5,6 +5,7 @@
     <div class="menu-metadata"><strong>{{ auth_user.display_name }}</strong><span>{{ auth_user.email }}</span></div>
     <hr>
     <a role="menuitem" href="{{ url_for('accounts.account') }}">Account</a>
+    {% if can_invite_beta %}<a role="menuitem" href="{{ url_for('invites.manage') }}">Invitations</a><a role="menuitem" href="{{ url_for('invites.members') }}">Beta members</a>{% endif %}
     <a role="menuitem" href="{{ url_for('legal.privacy') }}">Privacy policy</a>
     <a role="menuitem" href="{{ url_for('legal.terms') }}">Terms of service</a>
     {% if is_site_admin %}<a role="menuitem" href="{{ url_for('accounts.admin') }}">Admin</a>{% endif %}

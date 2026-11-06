@@ -57,7 +57,11 @@ p { line-height: 1.45; }
 .lede, .subtle, small { color: var(--muted); }
 .lede { font-size: 12px; margin: 5px 0 0; }
 .mono, code { font-family: 'Cascadia Mono', 'SFMono-Regular', Consolas, monospace; font-size: 11px; }
-.page-heading { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; gap: 8px; }
+.page-heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; margin-bottom: 12px; gap: 8px; }
+.document-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.delete-version-menu a span { min-width: 0; overflow-wrap: anywhere; }
+.delete-version-menu small { display: block; margin-top: 3px; white-space: normal; }
+.toolbar-popover > .delete-version-menu > summary { color: var(--danger); }
 .breadcrumbs { color: var(--muted); font-size: 12px; margin-bottom: 10px; }
 .panel, .version-card { background: var(--surface); border: 1px solid var(--line); border-radius: 3px; padding: 12px; margin-bottom: 12px; }
 .panel > p { margin: 5px 0 10px; color: var(--muted); }
@@ -71,12 +75,18 @@ label em { color: var(--muted); font-weight: 400; }
 .document-card:hover { background: #f7f8f7; }
 .document-card h2, .document-card h3 { font-size: 13px; margin: 0; flex: 1 1 220px; overflow-wrap: anywhere; }
 .document-card p { font-size: 12px; margin: 0; }
+.document-owners { display: flex; flex-wrap: wrap; gap: 6px; color: var(--muted); overflow-wrap: anywhere; }
+.document-owner-badge { display: inline-block; padding: 3px 7px; border-radius: 5px; color: var(--ink); background: color-mix(in srgb,var(--review-color,var(--accent)) 28%,transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb,var(--review-color,var(--accent)) 35%,transparent); }
 .document-card small { font-size: 11px; }
 .version-card { display: flex; align-items: stretch; justify-content: space-between; gap: 12px; }
 .version-actions { display: flex; flex-direction: column; align-items: flex-end; justify-content: space-between; gap: 12px; }
+.version-open-controls { display: inline-flex; align-items: center; gap: 8px; }
+.version-secondary-controls { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
+.button.main-version-toggle[aria-pressed=true] { background: var(--accent); border-color: var(--accent); color: white; }
+.main-version-toggle[aria-pressed=true]::before { content: '\2713'; margin-right: 5px; }
 .version-main { min-width: 0; flex: 1; }
 .version-title-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.version-title-row h3 { font-size: 14px; margin: 0; }
+.version-title-row h3 { font-size: 14px; margin: 0; min-width: 0; overflow-wrap: anywhere; }
 .metadata { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 8px 20px; margin: 12px 0; }
 .metadata div { min-width: 0; }
 .metadata dt { font-size: 11px; color: var(--muted); margin-bottom: 2px; }
@@ -97,7 +107,9 @@ summary { cursor: pointer; }
 @media (max-width: 700px) {
  .page { padding: 12px 8px 24px; }
  .metadata { grid-template-columns: 1fr; }
- .version-actions { justify-content: flex-start; }
+ .version-card { flex-wrap: wrap; }
+ .version-main { flex-basis: 100%; }
+ .version-actions { width: 100%; }
  .app-toolbar button, .toolbar-menu > summary { min-height: 32px; }
  .toolbar-popover > button, .toolbar-popover > a, .toolbar-popover > form > button, .toolbar-popover > .submenu > summary { min-height: 32px; }
  .slice-label { display: none; }

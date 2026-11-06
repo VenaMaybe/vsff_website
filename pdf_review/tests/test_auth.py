@@ -11,7 +11,7 @@ from joserfc import jwt
 from joserfc.jwk import RSAKey
 
 from review import create_app
-from review.auth import PROTECTED_ENDPOINTS, ACCOUNT_ENDPOINTS, OWNER_ENDPOINTS, ADMIN_ENDPOINTS, SESSION_KEY, normalize_email, safe_next
+from review.auth import PROTECTED_ENDPOINTS, ACCOUNT_ENDPOINTS, OWNER_ENDPOINTS, ADMIN_ENDPOINTS, TRUSTED_ENDPOINTS, INVITE_PUBLIC_ENDPOINTS, SESSION_KEY, normalize_email, safe_next
 from review.database import MIGRATIONS, init_database, transaction
 from review.documents import create_document, import_version
 from review.migrations import carry_item, create_migration
@@ -115,10 +115,56 @@ class AuthTests(unittest.TestCase):
         self.assertEqual(auth["code_challenge_method"], "S256")
         self.assertNotIn("access_type", auth)
 
+    def invitation_fixture(self):
+        from review import access, invitations
+        self.auth(self.alpha)
+        access.set_site_admin(self.database, self.alpha['user_id'], True)
+        row = invitations.create_invitation(self.database, self.alpha['user_id'], 'invited@example.test', self.document_id, 'reviewer')
+        token = invitations.token_for(self.app.secret_key, row)
+        self.client.get('/auth/login')
+        with self.client.session_transaction() as state:
+            csrf = state['csrf_token']
+        response = self.client.post('/invite/' + row['invitation_id'] + '/open', data={'token': token, 'csrf_token': csrf})
+        self.assertEqual(response.status_code, 403)  # Owner is not the invited Google account.
+        return row
+
+    def test_invitation_signed_oidc_wrong_account_retry_then_exact_document(self):
+        row = self.invitation_fixture()
+        response = self.login()
+        self.assertEqual(response.status_code, 403)
+        self.assertIn(b'Use your invited Google account', response.data)
+        self.assertEqual(self.sql('SELECT status FROM invitations WHERE invitation_id=?', (row['invitation_id'],))[0]['status'], 'pending')
+        with self.client.session_transaction() as state:
+            self.assertNotIn(SESSION_KEY, state)
+            self.assertIn('pending_invitation', state)
+        response = self.login({'email': 'invited@example.test'})
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(response.location.endswith('/documents/' + self.document_id))
+        with self.client.session_transaction() as state:
+            uid = state[SESSION_KEY]
+            self.assertNotIn('pending_invitation', state)
+        self.assertEqual(self.sql('SELECT role FROM document_access WHERE document_id=? AND user_id=?', (self.document_id, uid))[0]['role'], 'reviewer')
+        self.assertEqual(self.client.get(response.location).status_code, 200)
+
+    def test_invitation_bad_oidc_signature_never_creates_access(self):
+        row = self.invitation_fixture()
+        response = self.login({'email': 'invited@example.test'}, signing_key=self.wrong_key)
+        self.assertIn('/auth/denied', response.location)
+        self.assertEqual(self.sql("SELECT * FROM allowed_emails WHERE normalized_email='invited@example.test'"), [])
+        self.assertEqual(self.sql('SELECT status FROM invitations WHERE invitation_id=?', (row['invitation_id'],))[0]['status'], 'pending')
+
+    def test_invitation_revoked_during_oidc_handshake_never_grants_access(self):
+        from review import invitations
+        row = self.invitation_fixture()
+        invitations.revoke_invitation(self.database, self.alpha['user_id'], row['invitation_id'])
+        response = self.login({'email': 'invited@example.test'})
+        self.assertIn('/auth/denied', response.location)
+        self.assertEqual(self.sql("SELECT * FROM allowed_emails WHERE normalized_email='invited@example.test'"), [])
+
     def test_all_application_routes_have_explicit_policy(self):
         endpoints = {rule.endpoint for rule in self.app.url_map.iter_rules()
-                     if rule.endpoint.startswith(("core.", "carry.", "accounts.", "review_options.", "reading."))}
-        self.assertEqual(endpoints, PROTECTED_ENDPOINTS | ACCOUNT_ENDPOINTS | OWNER_ENDPOINTS | ADMIN_ENDPOINTS)
+                     if rule.endpoint.startswith(("core.", "carry.", "accounts.", "review_options.", "reading.", "invites."))}
+        self.assertEqual(endpoints, PROTECTED_ENDPOINTS | ACCOUNT_ENDPOINTS | OWNER_ENDPOINTS | ADMIN_ENDPOINTS | TRUSTED_ENDPOINTS | INVITE_PUBLIC_ENDPOINTS)
 
     def test_state_mismatch_and_unsolicited_callback_fail(self):
         self.allow()

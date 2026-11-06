@@ -32,7 +32,7 @@ from .anchors import (
 )
 from .database import connect
 from .auth import current_user, document_role
-from .access import AccessDenied
+from .access import AccessDenied, document_owner_profiles
 from .documents import (
     DocumentError,
     create_document,
@@ -43,6 +43,8 @@ from .documents import (
     import_version,
     list_documents,
     list_versions,
+    get_main_version,
+    set_main_version,
 )
 from .storage import BlobIntegrityError, InvalidPDFError, StorageError
 from .realtime import notify_thread_changed
@@ -129,7 +131,8 @@ def current_reviewer_id() -> str:
 
 @bp.get("/")
 def dashboard():
-    return render_template("dashboard.html", documents=[doc for doc in list_documents(database_path()) if document_role(g.auth_user, doc["document_id"])])
+    return render_template("dashboard.html", documents=[doc for doc in list_documents(database_path()) if document_role(g.auth_user, doc["document_id"])],
+                           document_owners=document_owner_profiles(database_path(), g.auth_user['user_id']))
 
 
 @bp.post("/documents")
@@ -152,6 +155,7 @@ def document_detail(document_id: str):
         "document.html",
         document=document,
         versions=list_versions(database_path(), document_id),
+        main_version_id=get_main_version(database_path(), document_id),
     )
 
 
@@ -189,6 +193,20 @@ def new_version(document_id: str):
         message = "Version imported; identical stored bytes were safely deduplicated."
     flash(message, "success")
     return redirect(url_for("core.document_detail", document_id=document_id)), 303
+
+
+@bp.post('/versions/<version_id>/main')
+def main_version(version_id):
+    if set(request.form) - {'csrf_token'}:
+        abort(400)
+    try:
+        document_id = set_main_version(database_path(), version_id, current_reviewer_id())
+    except AccessDenied:
+        abort(403)
+    except VersionNotFoundError:
+        abort(404)
+    flash('Main version updated.', 'success')
+    return redirect(url_for('core.document_detail', document_id=document_id), code=303)
 
 
 @bp.route('/versions/<version_id>/delete',methods=['GET','POST'])

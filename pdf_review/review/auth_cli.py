@@ -129,3 +129,19 @@ def init_auth_cli(app):
         """Delete only an erroneous allowlist entry, never the stable user/history."""
         access.set_allowed_email(current_app.config['DATABASE'], email, 'remove', confirmed=confirm_established)
         click.echo('Allowlist entry removed; identity and history retained.')
+
+    @command
+    def expire_invitations():
+        """Record expired invitation states; run periodically if desired."""
+        from .invitations import expire_pending
+        with transaction(current_app.config['DATABASE']) as connection:
+            expire_pending(connection)
+        click.echo('Expired invitations recorded.')
+
+    @command
+    @click.argument('admin_user_id')
+    def attribute_legacy_invitations(admin_user_id):
+        """Attribute unassigned historical memberships to an existing admin."""
+        from .invitations import backfill_legacy
+        backfill_legacy(current_app.config['DATABASE'], admin_user_id)
+        click.echo('Unassigned historical memberships attributed; dates unchanged.')

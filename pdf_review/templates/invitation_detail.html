@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}Manage invitation · PDF Review{% endblock %}
+{% block content %}
+<section class="panel compact-panel"><h1>Invitation</h1>
+<p>{{ invitation.normalized_email }} · {{ invitation.role|title if invitation.role else 'Private beta' }}</p>
+<p>Status: {{ 'Expired' if invitation.status == 'pending' and not invitation_link else invitation.status|title }}{% if invitation.status == 'pending' %} · Expires {{ invitation.expires_at }} UTC{% endif %}</p>
+{% if invitation.status == 'accepted' %}<p>Access has been granted. Existing members can open shared documents from their dashboard. Existing document roles are preserved; change them in Manage access if needed. This does not mean the recipient has read the document.</p>{% endif %}
+{% if invitation_link %}
+<label><span>Invitation link — send only to this person</span><input id="invitation-link" value="{{ invitation_link }}" readonly></label>
+<button type="button" data-copy-invitation>Copy link</button><span role="status" data-copy-status></span>
+<script type="module" src="{{ url_for('static', filename='review/invitations.js') }}"></script>
+{% elif invitation.status == 'pending' %}<p>This invitation has expired. Renew it to create a new link.</p>{% endif %}
+{% if invitation.status != 'accepted' %}
+<form class="access-actions" method="post" action="{{ url_for('invites.mutate', invitation_id=invitation.invitation_id) }}">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+{% if invitation_link %}<button name="action" value="revoke" class="button quiet danger">Revoke invitation</button>{% endif %}
+<button name="action" value="renew">Renew with a new link</button></form>
+{% endif %}
+<p><a href="{{ url_for('core.dashboard') }}">Back to documents</a>{% if can_invite_beta %} · <a href="{{ url_for('invites.manage') }}">Invitations</a>{% endif %}</p>
+</section>
+{% endblock %}

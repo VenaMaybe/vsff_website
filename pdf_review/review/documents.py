@@ -84,10 +84,13 @@ def create_document(database_path: Path | str, title: str, *, owner_id: str | No
 def list_documents(database_path: Path | str) -> list[sqlite3.Row]:
     connection = connect(database_path)
     try:
+        # Historical offline fixtures may predate authenticated document ownership.
+        owners = "(SELECT group_concat(display_name, ', ') FROM (SELECT u.display_name FROM document_access a JOIN users u ON u.user_id=a.user_id WHERE a.document_id=d.document_id AND a.role='owner' ORDER BY u.display_name COLLATE NOCASE,u.user_id))" if connection.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='document_access'").fetchone() else 'NULL'
         return connection.execute(
             f"""
             SELECT d.*, COUNT(v.version_id) AS version_count,
-                   MAX(v.imported_at) AS last_imported_at
+                   MAX(v.imported_at) AS last_imported_at,
+                   {owners} AS owner_names
             FROM documents d
             LEFT JOIN {version_table(connection)} v ON v.document_id = d.document_id
             GROUP BY d.document_id
@@ -139,6 +142,40 @@ def get_version(database_path: Path | str, version_id: str) -> sqlite3.Row | Non
         connection.close()
 
 
+def has_main_versions(connection):
+    return bool(connection.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='document_main_versions'").fetchone())
+
+
+def get_main_version(database_path, document_id):
+    connection = connect(database_path)
+    try:
+        if has_main_versions(connection):
+            row = connection.execute('SELECT m.version_id FROM document_main_versions m JOIN active_document_versions v USING(version_id) WHERE m.document_id=?', (document_id,)).fetchone()
+        else:
+            row = connection.execute(f'SELECT version_id FROM {version_table(connection)} WHERE document_id=? ORDER BY imported_at DESC,version_id DESC LIMIT 1', (document_id,)).fetchone()
+        return row['version_id'] if row else None
+    finally:
+        connection.close()
+
+
+def set_main_version(database_path, version_id, user_id):
+    from .access import AccessDenied, authorize_actor, audit
+    if not isinstance(user_id, str) or not user_id:
+        raise AccessDenied('An authenticated document owner is required.')
+    with transaction(database_path) as connection:
+        version = connection.execute(f'SELECT document_id FROM {version_table(connection)} WHERE version_id=?', (version_id,)).fetchone()
+        if not version:
+            raise VersionNotFoundError('The version does not exist.')
+        document_id = version['document_id']
+        authorize_actor(connection, user_id, document_id)
+        previous = connection.execute('SELECT version_id FROM document_main_versions WHERE document_id=?', (document_id,)).fetchone()
+        if previous and previous['version_id'] == version_id:
+            return document_id
+        connection.execute('INSERT INTO document_main_versions(document_id,version_id,selected_by,selected_at) VALUES (?,?,?,?) ON CONFLICT(document_id) DO UPDATE SET version_id=excluded.version_id,selected_by=excluded.selected_by,selected_at=excluded.selected_at', (document_id, version_id, user_id, now_utc()))
+        audit(connection, user_id, 'document.main_version', 'document', document_id, previous_version_id=previous['version_id'] if previous else None, version_id=version_id)
+        return document_id
+
+
 def import_version(
     database_path: Path | str,
     blob_store: BlobStore,
@@ -185,6 +222,8 @@ def import_version(
                         external_id,
                     ),
                 )
+                if has_main_versions(connection):
+                    connection.execute('INSERT OR IGNORE INTO document_main_versions(document_id,version_id,selected_at) VALUES (?,?,?)', (document_id, version_id, now_utc()))
         except Exception:
             if blob.created:
                 path = blob_store.resolve(blob.relative_path, blob.sha256)
@@ -217,6 +256,15 @@ def delete_version(database_path, version_id, user_id, confirmation):
         if connection.execute('SELECT 1 FROM version_deletions WHERE version_id=?',(version_id,)).fetchone():
             return version['document_id']
         connection.execute('INSERT INTO version_deletions VALUES(?,?,?)',(version_id,user_id,now_utc()))
+        if has_main_versions(connection):
+            main = connection.execute('SELECT version_id FROM document_main_versions WHERE document_id=?', (version['document_id'],)).fetchone()
+            if main and main['version_id'] == version_id:
+                replacement = connection.execute('SELECT version_id FROM active_document_versions WHERE document_id=? ORDER BY imported_at DESC,version_id DESC LIMIT 1', (version['document_id'],)).fetchone()
+                if replacement:
+                    connection.execute('UPDATE document_main_versions SET version_id=?,selected_by=?,selected_at=? WHERE document_id=?', (replacement['version_id'], user_id, now_utc(), version['document_id']))
+                else:
+                    connection.execute('DELETE FROM document_main_versions WHERE document_id=?', (version['document_id'],))
+                audit(connection, user_id, 'document.main_version', 'document', version['document_id'], previous_version_id=version_id, version_id=replacement['version_id'] if replacement else None, reason='version_deleted')
         connection.execute('DELETE FROM reading_leases WHERE session_id IN (SELECT session_id FROM reading_sessions WHERE version_id=?)',(version_id,))
         audit(connection,user_id,'version.delete','version',version_id,document_id=version['document_id'])
         return version['document_id']

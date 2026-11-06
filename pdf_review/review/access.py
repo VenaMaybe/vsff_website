@@ -76,6 +76,17 @@ def shareable_users(database):
     return rows(database, ELIGIBLE + " ORDER BY u.display_name COLLATE NOCASE, u.email")
 
 
+def document_owner_profiles(database, user_id):
+    """Owner presentation for documents this account can access; no email directory."""
+    profiles = {}
+    for owner in rows(database, """SELECT a.document_id,u.display_name,u.review_color
+        FROM document_access a JOIN users u ON u.user_id=a.user_id
+        JOIN document_access mine ON mine.document_id=a.document_id AND mine.user_id=?
+        WHERE a.role='owner' ORDER BY u.display_name COLLATE NOCASE,u.user_id""", (user_id,)):
+        profiles.setdefault(owner['document_id'], []).append(owner)
+    return profiles
+
+
 def document_grants(database, document_id):
     return rows(database, """SELECT u.user_id, u.display_name, u.email, u.email_verified, a.role
         FROM document_access a JOIN users u ON u.user_id = a.user_id
@@ -109,6 +120,8 @@ def set_document_access(database, document_id, user_id, role, *, actor=None):
                 SET role = excluded.role, granted_by_user_id = excluded.granted_by_user_id""", (document_id, user_id, role, now_utc(), actor))
         audit(connection, actor, 'document.revoke' if role is None else ('document.role_change' if old else 'document.grant'),
               'document', document_id, user_id=user_id, previous_role=old['role'] if old else None, role=role)
+        from .invitations import revoke_invalid
+        revoke_invalid(connection)
 
 
 def list_identities(database):
@@ -148,6 +161,8 @@ def set_site_admin(database, user_id, enabled, *, actor=None):
                 raise AccessError("The final active site administrator cannot be removed. Add another active admin first.")
             connection.execute("DELETE FROM site_admins WHERE user_id = ?", (user_id,))
         audit(connection, actor, 'site_admin.grant' if enabled else 'site_admin.revoke', 'user', user_id)
+        from .invitations import revoke_invalid
+        revoke_invalid(connection)
 
 
 def set_allowed_email(database, email, action, *, note=None, confirmed=False, actor=None):
@@ -180,3 +195,14 @@ def set_allowed_email(database, email, action, *, note=None, confirmed=False, ac
                 VALUES (?, ?, ?, ?) ON CONFLICT(normalized_email) DO UPDATE SET enabled = 1, note = excluded.note""", (email, now_utc(), actor, note))
         event = 'reenable' if action == 'allow' and old and not old['enabled'] else action
         audit(connection, actor, 'beta_email.' + event, 'email', email)
+        if action == 'allow':
+            connection.execute("INSERT OR IGNORE INTO beta_memberships(normalized_email,invited_by,invited_at,date_source) VALUES (?,?,?,'allowlist_record')", (email, actor, now_utc()))
+            connection.execute('UPDATE beta_memberships SET access_blocked=0 WHERE normalized_email=?', (email,))
+        else:
+            connection.execute("INSERT OR IGNORE INTO beta_memberships(normalized_email,date_source) VALUES (?,'unknown')", (email,))
+            connection.execute('UPDATE beta_memberships SET access_blocked=1 WHERE normalized_email=?', (email,))
+            from .invitations import transition
+            for pending in connection.execute("SELECT * FROM invitations WHERE normalized_email=? AND status='pending'", (email,)).fetchall():
+                transition(connection, pending, 'revoked', actor, reason='recipient_beta_access_removed')
+        from .invitations import revoke_invalid
+        revoke_invalid(connection)

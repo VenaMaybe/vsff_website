@@ -1,0 +1,8 @@
+{% extends "base.html" %}
+{% block title %}Choose your invited account · PDF Review{% endblock %}
+{% block content %}
+<h1>Use your invited Google account</h1>
+<p>This invitation was sent to a different email. No access has been granted to this account.</p>
+<a class="button" href="{{ url_for('auth.google_login') }}">Choose another Google account</a>
+<p>If the invitation was sent to the wrong address, ask the inviter to revoke it and invite the correct address.</p>
+{% endblock %}

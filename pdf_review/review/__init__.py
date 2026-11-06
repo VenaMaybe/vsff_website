@@ -19,6 +19,7 @@ from .account_routes import bp as account_bp
 from .review_routes import bp as review_options_bp
 from .reading_routes import bp as reading_bp
 from .legal_routes import bp as legal_bp
+from .invitation_routes import bp as invitation_bp
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -68,6 +69,7 @@ def create_app(test_config: dict | None = None) -> Flask:
     app.register_blueprint(review_options_bp)
     app.register_blueprint(reading_bp)
     app.register_blueprint(legal_bp)
+    app.register_blueprint(invitation_bp)
     init_realtime(app)
 
     @app.get("/healthz", provide_automatic_options=False)

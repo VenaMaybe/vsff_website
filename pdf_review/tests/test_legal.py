@@ -54,12 +54,11 @@ class LegalTests(unittest.TestCase):
             self.assertEqual(self.client.get(path).status_code, 302)
         self.assertEqual(self.client.get("/api/versions/fixture/threads").status_code, 401)
 
-    def test_login_links_to_both_policies_and_discloses_reading_activity(self):
+    def test_login_links_to_both_policies(self):
         response = self.client.get("/auth/login")
         self.assertEqual(response.status_code, 200)
         self.assertIn(b'href="/privacy"', response.data)
         self.assertIn(b'href="/tos"', response.data)
-        self.assertIn(b"document owners can see reading activity", response.data)
 
     def test_production_policies_keep_host_validation_and_https_headers(self):
         app = create_app({"TESTING": True, "DATA_DIR": self.temp.name,

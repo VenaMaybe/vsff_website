@@ -1,5 +1,84 @@
 # PDF Review
 
+## Document controls and main version (current)
+
+The green **Share** button beside Manage access opens a responsive native dialog
+with existing-member and email sharing options. Both reuse the Manage access
+form fragment and current owner/trust rules. Submission stays in the dialog;
+new invitations display a copyable link. Errors preserve inputs for retry.
+Escape/Close returns focus to Share. Without JavaScript the button opens Manage
+access normally. This dialog change adds no schema migration. Verify it with
+`python tests/browser_sanity.py --share-dialog`.
+
+**Manage access** sits beside Document actions. **Document actions > Delete
+version** opens a version picker, then the existing exact-version confirmation.
+Version cards keep **Open PDF** at the top right, with **Verify integrity** then
+the main-version button together at the bottom right.
+Owners can choose **Make main version**; the selected button shows **Main version**
+and a checkmark. Other readers see a Main version badge without a mutation control.
+The homepage document list includes all current owners' display names, without emails.
+
+Migration **15** stores one main-version designation per document without changing
+immutable PDF/version rows. Existing documents default to their newest active
+version. A new document's first import becomes main; subsequent imports preserve
+the chosen main. Deleting the main version selects the newest remaining version,
+or clears the designation if no versions remain. Owner-only changes are CSRF
+protected, reauthorized in the transaction and audited. Back up real SQLite before
+normal startup applies the migration. See [DOCUMENT_CONTROLS_REPORT.md](DOCUMENT_CONTROLS_REPORT.md).
+
+## Trusted Users and invitations (current)
+
+Migration **14** adds Trusted Users, email-bound beta/document invitations and
+membership dates. Existing site admins, identities, permissions, PDFs and review
+history are preserved; nobody is automatically promoted. Back up SQLite before
+starting this version against real data. See [INVITATIONS_REPORT.md](INVITATIONS_REPORT.md).
+
+- **Admin > Trusted Users** grants/revokes trust. Only admins change site roles
+  or suspend/reinstate beta membership. Trust grants no document access.
+- Account menu **Invitations** creates a beta-only invitation. A document owner's
+  **Manage access > Share by email** offers Viewer/Reviewer access. Trusted owners
+  can invite new members directly into a document; ordinary owners can share with
+  existing active members. Ownership is assigned separately after joining.
+- Copy and send the link yourself; no email service is added. Links are restricted
+  to the intended Google email and expire after seven days. The recipient signs
+  in and lands on the shared document, or dashboard for beta-only invitations.
+  Identity linking, admission, access and acceptance audit commit atomically.
+  Existing active members receive document access immediately; existing roles
+  are preserved rather than silently upgraded.
+- **Manage invitation** offers copy, revoke and renew. Old links stop working
+  after renewal, revocation, expiry or acceptance. Losing the authority used to
+  invite revokes pending invitations; acceptance also rechecks current authority.
+  Accepted memberships/grants remain until explicitly changed. Trusted Users
+  cannot reinstate disabled/removed members by inviting them again.
+- The dashboard refreshes its authorized document list every 15 seconds while
+  visible and on tab focus/visibility changes, preserving document-title drafts.
+- **Beta members** exposes names, emails, site roles, membership status, inviter
+  and available dates to Trusted Users/admins. It exposes no documents, document
+  memberships, reading activity, Google identifiers or private admin notes.
+- **Admin > Access history** shows append-only invitation, trust, membership and
+  access events with older-event pagination. Invitation lists show 200 recent
+  entries. Signatures are neither stored nor logged; links use URL fragments
+  rather than query strings/paths for the secret.
+
+Historical memberships are attributed to the **sole existing site admin**, if
+there is one. Otherwise known creators are preserved and **Beta members >
+Historical invitation attribution** can assign unassigned historical records
+to the current admin. No identity is guessed by name/email. Existing allowlist
+creation dates are labelled **Beta access recorded**; historical last-login
+dates are labelled **Joined by**, since they do not establish first login.
+New invitations and first identity links record exact UTC dates going forward.
+
+Optional periodic cleanup: `python -m flask --app app expire-invitations`
+records expired statuses/events. Expired links are always rejected immediately,
+even without cleanup; listings derive expired status. Creation/revocation also
+perform expiry cleanup. An inviter may have at most 100 pending invitations.
+For production, use the existing protected environment with `--app wsgi`.
+
+```powershell
+.venv/Scripts/python.exe -m unittest discover -s tests -q
+.venv/Scripts/python.exe tests/browser_sanity.py --invitations
+```
+
 ## Public beta policies
 
 `GET/HEAD /privacy` and `/tos` are public, signed-out policy pages for PDF Review,
@@ -11,7 +90,8 @@ All existing document, PDF, account and API routes retain their authorization.
 The policies describe basic Google identity scopes, manuscripts and feedback,
 default-on author-controlled reading activity, sharing-directory email visibility,
 browser metadata storage, retained revisions/PDFs and manual deletion requests.
-They add no invitation system, account-erasure workflow or database migration.
+They include Trusted User directory visibility and invitation records. Account
+erasure remains a manual request; ordinary UI deletion retains historical records.
 
 After the normal deployment, Google OAuth Branding can use
 `https://review.venasff.com/privacy` and `https://review.venasff.com/tos`.
@@ -22,7 +102,7 @@ pages alone do not complete production branding readiness. See
 [Google OAuth policies](https://developers.google.com/identity/protocols/oauth2/policies)
 and [brand verification](https://developers.google.com/identity/protocols/oauth2/production-readiness/brand-verification).
 Only `openid email profile` is requested; no scope expansion is needed for this change.
-Beta email approval already exists; automatic invitation delivery is still deferred.
+Beta email approval and copyable invitations exist; automatic email delivery is deferred.
 
 Validate with `.venv/Scripts/python.exe -m unittest discover -s tests -q`.
 Policy routes and their security boundaries have focused coverage in `tests/test_legal.py`.

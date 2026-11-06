@@ -2,6 +2,7 @@
 {% block title %}Admin · PDF Review{% endblock %}
 {% block content %}
 <div class="page-heading"><h1>Private beta administration</h1></div>
+<p><a href="{{ url_for('invites.manage') }}">Invitations</a> · <a href="{{ url_for('invites.members') }}">Beta members</a> · <a href="{{ url_for('invites.history') }}">Access history</a></p>
 <p class="lede">Site administrators control beta membership. Document owners control document sharing. Administration alone does not grant access to PDFs.</p>
 <nav class="admin-nav" aria-label="Administration sections"><a href="#beta-access">Beta access</a><a href="#users">Users</a><a href="#site-admins">Site admins</a></nav>
 <section class="panel" id="beta-access"><h2>Beta access</h2>
@@ -46,4 +47,11 @@
 <label class="access-person"><span>Existing active beta user</span><select name="user_id" required><option value="">Choose a person</option>{% for user in users %}{% if user.is_active and user.allowed and user.email_verified and user.has_identity and not user.is_site_admin %}<option value="{{ user.user_id }}">{{ user.display_name }} — {{ user.email }}</option>{% endif %}{% endfor %}</select></label>
 <button type="submit">Grant site admin</button>
 </form></section>
+<section class="panel"><h2>Trusted Users</h2>
+<p>Trusted Users can invite people into the beta and view the member directory. They receive no additional document access and cannot change site roles.</p>
+{% for user in users %}{% if not user.is_site_admin and (user.user_id in trusted_ids or (user.has_identity and user.is_active and user.allowed)) %}
+<article class="access-row"><div class="access-person"><strong>{{ user.display_name }}</strong><span>{{ user.email }} · {{ 'Trusted User' if user.user_id in trusted_ids else 'Member' }}</span></div>
+<form method="post" action="{{ url_for('invites.trusted') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="user_id" value="{{ user.user_id }}">
+<button name="action" value="{{ 'revoke' if user.user_id in trusted_ids else 'grant' }}">{{ 'Revoke trust' if user.user_id in trusted_ids else 'Make Trusted User' }}</button></form></article>
+{% endif %}{% endfor %}</section>
 {% endblock %}

@@ -19,6 +19,7 @@ bp = Blueprint("auth", __name__, url_prefix="/auth")
 SESSION_KEY = "authenticated_user_id"
 UNSAFE = {"POST", "PUT", "PATCH", "DELETE"}
 PROTECTED_ENDPOINTS = {
+    'core.main_version',
     "core.dashboard", "core.new_document", "core.document_detail", "core.new_version",
     "core.view_version", "core.version_pdf", "core.verify_version", "core.delete_version", "core.version_anchors",
     "core.create_version_anchor", "core.reviewers", "core.version_threads", "core.create_version_thread",
@@ -28,9 +29,14 @@ PROTECTED_ENDPOINTS = {
     "carry.thread_target_history",
 }
 ACCOUNT_ENDPOINTS = {'accounts.account', 'accounts.profile', 'review_options.color'}
+ACCOUNT_ENDPOINTS.update({'invites.manage', 'invites.detail', 'invites.mutate'})
+TRUSTED_ENDPOINTS = {'invites.members', 'invites.beta_create'}
+INVITE_PUBLIC_ENDPOINTS = {'invites.landing', 'invites.open'}
 OWNER_ENDPOINTS = {'accounts.access_page', 'accounts.access_mutation', 'accounts.shareable'}
 ADMIN_ENDPOINTS = {'accounts.admin', 'accounts.beta_email', 'accounts.site_admin'}
-REVIEW_OWNER_ENDPOINTS = {'core.delete_version','review_options.settings_page','review_options.settings_save','reading.consent',
+ADMIN_ENDPOINTS.update({'invites.trusted', 'invites.history', 'invites.legacy'})
+OWNER_ENDPOINTS.add('invites.document_create')
+REVIEW_OWNER_ENDPOINTS = {'core.delete_version','core.main_version','review_options.settings_page','review_options.settings_save','reading.consent',
     'review_options.sections_page','review_options.create_section','review_options.section_update',
     'review_options.placement','review_options.shared_boundary','review_options.outline'}
 PROTECTED_ENDPOINTS.update(REVIEW_OWNER_ENDPOINTS | {'review_options.viewer_preferences',
@@ -129,7 +135,7 @@ def check_csrf():
         abort(400, description="Invalid CSRF token.")
 
 
-def resolve_google_identity(claims):
+def resolve_google_identity(claims, invitation=None):
     """Called ONLY with Authlib-validated ID-token claims; tokens never persisted."""
     if not claims or claims.get("email_verified") is not True:
         raise IdentityDenied("Verified email required")
@@ -138,7 +144,9 @@ def resolve_google_identity(claims):
         raise IdentityDenied("Subject required")
     email = normalize_email(claims.get("email"))
     with transaction(current_app.config["DATABASE"]) as connection:
-        if connection.execute("SELECT 1 FROM allowed_emails WHERE normalized_email = ? AND enabled = 1", (email,)).fetchone() is None:
+        from .invitations import validate_marker, accept_in_transaction, record_join
+        invited = validate_marker(connection, invitation, email) if invitation else None
+        if not invited and connection.execute("SELECT 1 FROM allowed_emails WHERE normalized_email = ? AND enabled = 1", (email,)).fetchone() is None:
             raise IdentityDenied("Account not allowed")
         user = connection.execute("SELECT * FROM users WHERE google_subject = ?", (subject,)).fetchone()
         matches = connection.execute("SELECT * FROM users WHERE normalized_email = ?", (email,)).fetchall()
@@ -161,6 +169,9 @@ def resolve_google_identity(claims):
         connection.execute("""UPDATE users SET google_subject = ?, email = ?, normalized_email = ?,
             email_verified = 1, display_name = ?, last_login_at = ? WHERE user_id = ?""",
             (subject, claims["email"].strip(), email, name, now_utc(), user_id))
+        if invited:
+            accept_in_transaction(connection, invited, user_id)
+        record_join(connection, user_id, email, first_link=user is None or user['google_subject'] is None)
     return user_id
 
 
@@ -174,21 +185,31 @@ def google_login():
     if not current_app.config.get("GOOGLE_CLIENT_ID") or not current_app.config.get("GOOGLE_CLIENT_SECRET"):
         return render_template("error.html", title="Sign-in unavailable", message="Google sign-in is not configured."), 503
     next_url = safe_next(request.args.get("next"))
+    invitation = session.get('pending_invitation')
     session.clear()
+    if invitation:
+        session['pending_invitation'] = invitation
     session["login_next"] = next_url
     return current_app.extensions["google_oidc"].authorize_redirect(
-        url_for("auth.google_callback", _external=True, _scheme=current_app.config["PREFERRED_URL_SCHEME"]), nonce=secrets.token_urlsafe(32))
+        url_for("auth.google_callback", _external=True, _scheme=current_app.config["PREFERRED_URL_SCHEME"]), nonce=secrets.token_urlsafe(32),
+        **({'prompt': 'select_account'} if invitation else {}))
 
 
 @bp.get("/google/callback")
 def google_callback():
+    from .invitations import WrongInvitationAccount
+    invitation = session.get('pending_invitation')
     try:
         token = current_app.extensions["google_oidc"].authorize_access_token()
         # Authlib validates signature, issuer, audience, expiry and saved nonce.
         # Never fall back to userinfo supplied by a query string or a userinfo API.
         if not token.get("id_token") or not token.get("userinfo"):
             raise IdentityDenied("Missing ID token")
-        user_id = resolve_google_identity(token["userinfo"])
+        user_id = resolve_google_identity(token["userinfo"], invitation)
+    except WrongInvitationAccount:
+        session.clear()
+        session['pending_invitation'] = invitation
+        return render_template('invitation_account.html'), 403
     except (ValueError, sqlite3.IntegrityError):
         session.clear()
         return redirect(url_for("auth.denied"))
@@ -197,6 +218,13 @@ def google_callback():
         session.clear()
         return redirect(url_for("auth.denied"))
     destination = safe_next(session.get("login_next"))
+    if invitation:
+        connection = connect(current_app.config['DATABASE'])
+        try:
+            row = connection.execute('SELECT document_id FROM invitations WHERE invitation_id=? AND accepted_by=?', (invitation['id'], user_id)).fetchone()
+            destination = url_for('core.document_detail', document_id=row['document_id']) if row and row['document_id'] else url_for('core.dashboard')
+        finally:
+            connection.close()
     session.clear()
     session[SESSION_KEY] = user_id
     session.permanent = True
@@ -254,6 +282,10 @@ def init_auth(app):
             return
         if request.endpoint in PUBLIC_ENDPOINTS:
             return
+        if request.endpoint in INVITE_PUBLIC_ENDPOINTS:
+            if request.method in UNSAFE:
+                check_csrf()
+            return
         if request.endpoint == "static":
             if request.path.casefold().endswith(".pdf"):
                 abort(404)
@@ -269,8 +301,11 @@ def init_auth(app):
         if request.endpoint == "auth.logout":
             check_csrf()
             return
-        if request.endpoint in ACCOUNT_ENDPOINTS | OWNER_ENDPOINTS | ADMIN_ENDPOINTS:
+        if request.endpoint in ACCOUNT_ENDPOINTS | OWNER_ENDPOINTS | ADMIN_ENDPOINTS | TRUSTED_ENDPOINTS:
             from .access import is_site_admin
+            from .invitations import can_invite
+            if request.endpoint in TRUSTED_ENDPOINTS and not can_invite(app.config['DATABASE'], g.auth_user['user_id']):
+                abort(403)
             if request.endpoint in ADMIN_ENDPOINTS and not is_site_admin(app.config['DATABASE'], g.auth_user['user_id']):
                 abort(403)
             if request.endpoint in OWNER_ENDPOINTS:
@@ -332,9 +367,11 @@ def init_auth(app):
     @app.context_processor
     def auth_context():
         from .access import is_site_admin
+        from .invitations import can_invite
         user = getattr(g, 'auth_user', None)
         return {"auth_user": getattr(g, "auth_user", None), "csrf_token": csrf_token,
                 "is_site_admin": bool(user and is_site_admin(app.config['DATABASE'], user['user_id'])),
+                "can_invite_beta": bool(user and can_invite(app.config['DATABASE'], user['user_id'])),
                 "document_role": getattr(g, "document_role", None)}
 
     @app.after_request

@@ -374,8 +374,8 @@ def shared_page_checks(cdp, a, b, fixture, base):
             assert cdp.evaluate(b, "document.documentElement.scrollWidth<=innerWidth && document.querySelector('.app-toolbar .identity-menu')!==null"), (name,width)
             if name == 'document':
                 assert cdp.evaluate(b, """[...document.querySelectorAll('.version-card')].every(card=>{
-                  const a=card.querySelector('.version-actions > a').getBoundingClientRect(), c=card.getBoundingClientRect();
-                  return Math.abs(c.right-a.right-13)<2 && Math.abs(a.top-c.top-13)<2;
+                  const a=card.querySelector('.version-open-controls > a').getBoundingClientRect(), c=card.getBoundingClientRect();
+                  return innerWidth<700 ? a.left>=c.left && a.right<=c.right : Math.abs(c.right-a.right-13)<2 && Math.abs(a.top-c.top-13)<2;
                 })""")
             if name == 'import':
                 assert cdp.evaluate(b, "getComputedStyle(document.querySelector('input[type=file]'),'::file-selector-button').borderRightWidth==='1px'")

@@ -384,6 +384,8 @@ MIGRATIONS.append((10, "document_download_controls", Path(__file__).with_name("m
 MIGRATIONS.append((11, "consented_exact_version_reading_activity", Path(__file__).with_name("migration11.sql").read_text(encoding="utf-8")))
 MIGRATIONS.append((12, "author_reading_policy", Path(__file__).with_name("migration12.sql").read_text(encoding="utf-8")))
 MIGRATIONS.append((13, "version_deletion_ledger", Path(__file__).with_name("migration13.sql").read_text(encoding="utf-8-sig")))
+MIGRATIONS.append((14, "trusted_users_and_invitations", Path(__file__).with_name("migration14.sql").read_text(encoding="utf-8")))
+MIGRATIONS.append((15, "document_main_versions", Path(__file__).with_name("migration15.sql").read_text(encoding="utf-8")))
 
 
 def connect(database_path: Path | str) -> sqlite3.Connection:

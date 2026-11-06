@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}Invitations · PDF Review{% endblock %}
+{% block content %}
+<div class="page-heading"><h1>Invitations</h1><a href="{{ url_for('invites.members') }}">Beta members</a></div>
+<section class="panel compact-panel" id="invite-beta"><h2>Invite to the private beta</h2>
+<p>Enter the person's Google email. Copy the invitation link and send it yourself. Only that account can accept it; links expire after seven days. No email is sent automatically.</p>
+<form class="access-actions" method="post" action="{{ url_for('invites.beta_create') }}">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+<label class="access-person"><span>Google email</span><input name="email" type="email" maxlength="320" required></label><button>Create invitation</button></form>
+<p>To invite someone to a specific document, use that document's Manage access page.</p></section>
+<section class="panel"><h2>{{ 'Recent invitations' if is_site_admin else 'Your recent invitations' }}</h2>
+{% include "_invitation_list.html" %}
+<p class="subtle">Shows up to 200 recent invitations. Accepted document invitations grant access immediately for existing members.</p></section>
+{% endblock %}

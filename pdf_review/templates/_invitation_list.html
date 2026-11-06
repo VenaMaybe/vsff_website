@@ -1,0 +1,10 @@
+<div class="access-list">
+{% for invitation in invitations %}
+<article class="access-row">
+  <div class="access-person"><strong>{{ invitation.normalized_email }}</strong><span>{{ invitation.status|title }}{% if invitation.role %} · {{ invitation.role|title }}{% else %} · Beta membership{% endif %}</span>
+  <span class="subtle">Invited by {{ invitation.inviter }} · {{ invitation.created_at }} UTC</span>
+  <span class="subtle">{% if invitation.accepted_at %}Accepted / access granted: {{ invitation.accepted_at }}{% else %}Expires: {{ invitation.expires_at }}{% endif %}</span></div>
+  <a href="{{ url_for('invites.detail', invitation_id=invitation.invitation_id) }}">Manage invitation</a>
+</article>
+{% else %}<p class="subtle">No invitations yet.</p>{% endfor %}
+</div>

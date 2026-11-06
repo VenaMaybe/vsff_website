@@ -1,0 +1,30 @@
+<div class="share-options">
+  <p class="share-document-name">Share <strong>{{ document.title }}</strong></p>
+  <section class="share-option">
+    <h3>Add existing beta user</h3>
+    <p class="subtle">Give someone in the beta access to this document.</p>
+    <form class="share-form" data-share-form="existing" method="post" action="{{ url_for('accounts.access_mutation', document_id=document.document_id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="grant">
+      <label><span>Beta member</span><select name="user_id" required><option value="">Choose a person</option>{% for user in shareable %}<option value="{{ user.user_id }}">{{ user.display_name }} — {{ user.email }}</option>{% endfor %}</select></label>
+      <div class="share-submit-row">
+        <label><span>Role</span><select name="role"><option value="reviewer">Reviewer</option><option value="viewer">Viewer</option><option value="owner">Owner</option></select></label>
+        <button type="submit">Grant access</button>
+      </div>
+      <p class="subtle share-role-note">Reviewers can leave feedback. Viewers can read. Owners can also manage sharing.</p>
+    </form>
+  </section>
+  <section class="share-option">
+    <h3>Share by email</h3>
+    <p class="subtle">{% if can_invite_beta %}Invite someone new, or share with an existing member. New members receive a link you can copy and send.{% else %}Share with an existing beta member. Ask a Trusted User or site admin to invite someone new.{% endif %}</p>
+    <form class="share-form" data-share-form="email" method="post" action="{{ url_for('invites.document_create', document_id=document.document_id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <label><span>Google email</span><input type="email" name="email" maxlength="320" autocomplete="email" required placeholder="name@example.com"></label>
+      <div class="share-submit-row">
+        <label><span>Role</span><select name="role"><option value="reviewer">Reviewer</option><option value="viewer">Viewer</option></select></label>
+        <button type="submit">Share document</button>
+      </div>
+    </form>
+  </section>
+  <p class="dialog-error" role="alert" data-share-error hidden></p>
+  <div class="share-result" data-share-result aria-live="polite" hidden></div>
+</div>

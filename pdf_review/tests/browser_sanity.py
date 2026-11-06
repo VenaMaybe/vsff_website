@@ -81,6 +81,12 @@ def serve(root):
     authenticate(client, admin['user_id'], grant_documents=False)
     access.set_site_admin(app.config['DATABASE'], admin['user_id'], True)
     admin_cookie = client.get_cookie(app.config['SESSION_COOKIE_NAME']).value
+    if os.environ.get('PDF_REVIEW_TEST_INVITATIONS') == '1':
+        from review.invitations import record_join
+        from review.database import transaction
+        with transaction(app.config['DATABASE']) as connection:
+            for user in users + [admin]:
+                record_join(connection, user['user_id'], user['user_id'] + '@example.test', first_link=False)
     owned = create_document(app.config['DATABASE'], 'C1 owner fixture', owner_id=users[0]['user_id'])
     shared = create_document(app.config['DATABASE'], 'C1 shared fixture', owner_id=users[1]['user_id'])
     access.set_document_access(app.config['DATABASE'], shared, users[0]['user_id'], 'viewer')
@@ -188,7 +194,8 @@ def run():
             try:
                 server = subprocess.Popen([sys.executable, str(Path(__file__).resolve()), "--server", str(root)],
                                           stdout=log, stderr=log, creationflags=subprocess.CREATE_NO_WINDOW,
-                                          env=({**os.environ,'PDF_REVIEW_TEST_ZOOM':'1'} if '--zoom-layout' in sys.argv else
+                                          env=({**os.environ,'PDF_REVIEW_TEST_INVITATIONS':'1'} if '--invitations' in sys.argv else
+                                               {**os.environ,'PDF_REVIEW_TEST_ZOOM':'1'} if '--zoom-layout' in sys.argv else
                                                {**os.environ,'PDF_REVIEW_TEST_READING':'1'} if '--reading-ui' in sys.argv else
                                                {**os.environ,'PDF_REVIEW_TEST_PROPERTIES':'1'} if '--page-properties' in sys.argv else None))
                 deadline = time.monotonic() + 15
@@ -221,6 +228,21 @@ def run():
                     cdp.call("Page.navigate", {"url": base + f"/versions/{fixture['versions'][0]}/view"}, session)
                     cdp.wait(session, "document.querySelector('#realtime-status')?.textContent === 'Live'")
                 a, b = sessions
+                if '--share-dialog' in sys.argv:
+                    from tests.share_dialog_acceptance import run_share_dialog
+                    run_share_dialog(cdp, a, b, fixture, base)
+                    assert not cdp.exceptions, cdp.exceptions
+                    return
+                if '--document-controls' in sys.argv:
+                    from tests.document_controls_acceptance import run_document_controls
+                    run_document_controls(cdp, a, b, fixture, base)
+                    assert not cdp.exceptions, cdp.exceptions
+                    return
+                if '--invitations' in sys.argv:
+                    from tests.invitation_acceptance import run_invitations
+                    run_invitations(cdp, a, b, fixture, base)
+                    assert not cdp.exceptions, cdp.exceptions
+                    return
                 if '--zoom-layout' in sys.argv:
                     from tests.document_zoom import run_zoom
                     run_zoom(cdp,a,b,fixture,base,mobile_only='--touch-only' in sys.argv)
@@ -507,8 +529,8 @@ def account_checks(cdp, a, b, fixture, base):
     print('PASS C1 account, own display name and owned/shared dashboard', flush=True)
 
     navigate(a, manage, 'Add existing beta user')
-    # Directory exposes joined accounts only; owners have no email-invitation form.
-    assert cdp.evaluate(a, "!document.querySelector('input[name=email]') && document.body.innerText.includes('Document owners cannot invite')")
+    # Ordinary owners can share by email with existing members, but cannot admit new members.
+    assert cdp.evaluate(a, "!!document.querySelector('input[name=email]') && document.body.innerText.includes('Ask a Trusted User')")
     invalid = cdp.evaluate(a, """(async () => {
       const r = await fetch(location.pathname, {method:'POST', headers:{'X-CSRF-Token':document.querySelector('meta[name=csrf-token]').content},
         body:new URLSearchParams({action:'grant', user_id:'unknown@example.test', role:'owner'})});

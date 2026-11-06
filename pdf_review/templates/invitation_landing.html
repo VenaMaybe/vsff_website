@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}You're invited · PDF Review{% endblock %}
+{% block content %}
+<section class="panel compact-panel"><h1>You're invited to PDF Review</h1>
+<p>Continue with the Google account the invitation was sent to. An invitation only gives access to the beta and any document its owner chose to share.</p>
+<p>By using PDF Review, you agree to the <a href="{{ url_for('legal.terms') }}">Terms of service</a>. Read the <a href="{{ url_for('legal.privacy') }}">Privacy policy</a>, including author-visible reading activity.</p>
+<form id="invitation-open" method="post" action="{{ url_for('invites.open', invitation_id=invitation_id) }}">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="token" value="">
+<button disabled>Continue with Google</button><p role="status">Checking invitation link…</p></form>
+<noscript>Enable JavaScript to open this invitation securely.</noscript>
+</section>
+<script type="module" src="{{ url_for('static', filename='review/invitations.js') }}"></script>
+{% endblock %}

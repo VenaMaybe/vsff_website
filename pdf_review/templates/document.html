@@ -7,10 +7,23 @@
     <h1>{{ document.title }}</h1>
     <p class="mono subtle">Document ID: {{ document.document_id }}</p>
   </div>
+  <div class="document-controls">
+  {% if document_role == "owner" %}<a class="button primary" href="{{ url_for('accounts.access_page', document_id=document.document_id) }}" data-share-document>Share</a>{% endif %}
+  {% if document_role == "owner" %}<a class="button quiet" href="{{ url_for('accounts.access_page', document_id=document.document_id) }}">Manage access</a>{% endif %}
   <details class="toolbar-menu document-actions"><summary>Document actions</summary><div class="toolbar-popover" role="menu" aria-label="Document actions">
-    {% if document_role == "owner" %}<a role="menuitem" href="{{ url_for('accounts.access_page', document_id=document.document_id) }}">Manage access</a><hr>{% endif %}
     <a role="menuitem" href="{{ url_for('carry.migration_page', document_id=document.document_id) }}">Carry feedback forward / migration history</a>
+    {% if document_role == "owner" and versions %}
+    <hr>
+    <details class="toolbar-menu submenu delete-version-menu"><summary>Delete version</summary>
+      <div class="toolbar-popover" role="menu" aria-label="Choose a version to delete">
+      {% for version in versions %}
+        <a role="menuitem" href="{{ url_for('core.delete_version', version_id=version.version_id) }}"><span>{{ version.version_label or version.original_filename }}{% if version.version_id == main_version_id %} · Main version{% endif %}<small>{{ version.original_filename }} · {{ version.imported_at|replace('T', ' ')|replace('Z', ' UTC') }}</small></span></a>
+      {% endfor %}
+      </div>
+    </details>
+    {% endif %}
   </div></details>
+  </div>
 </div>
 
 {% if document_role == "owner" %}
@@ -40,6 +53,7 @@
       <div class="version-main">
         <div class="version-title-row">
           <h3>{{ version.version_label or 'Unlabeled version' }}</h3>
+          {% if version.version_id == main_version_id and document_role != 'owner' %}<span class="role-badge">Main version</span>{% endif %}
         </div>
         <dl class="metadata">
           <div><dt>Original file</dt><dd>{{ version.original_filename }}</dd></div>
@@ -56,13 +70,20 @@
         </details>
       </div>
       <div class="version-actions">
-        <a class="button primary" href="{{ url_for('core.view_version', version_id=version.version_id) }}">Open PDF</a>
+        <div class="version-open-controls">
+          <a class="button primary" href="{{ url_for('core.view_version', version_id=version.version_id) }}">Open PDF</a>
+        </div>
         {% if document_role == "owner" %}
+        <div class="version-secondary-controls">
         <form method="post" action="{{ url_for('core.verify_version', version_id=version.version_id) }}">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <button class="button quiet" type="submit">Verify integrity</button>
         </form>
-        <a class="button quiet danger" href="{{ url_for('core.delete_version',version_id=version.version_id) }}">Delete version</a>
+        <form method="post" action="{{ url_for('core.main_version', version_id=version.version_id) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button class="button quiet main-version-toggle" type="submit" aria-pressed="{{ 'true' if version.version_id == main_version_id else 'false' }}" title="Choose the main version for this document">{{ 'Main version' if version.version_id == main_version_id else 'Make main version' }}</button>
+        </form>
+        </div>
         {% endif %}
       </div>
     </article>
@@ -72,4 +93,5 @@
     </div>
   {% endfor %}
 </section>
+{% if document_role == "owner" %}<script type="module" src="{{ url_for('static', filename='review/share_document.js') }}"></script>{% endif %}
 {% endblock %}

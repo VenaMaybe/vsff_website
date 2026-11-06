@@ -2,6 +2,75 @@
 
 These are permanent extension constraints, not temporary implementation details.
 
+The owner-only document Share dialog reuses `AppDialog`, `appFetch`, and the
+`_share_options.html` fragment also used by Manage access. The existing protected
+access route returns that fragment for `?share=1`; no new public endpoint exists.
+Existing sharing/invitation POSTs negotiate JSON with `Accept: application/json`
+while retaining their HTML redirect behavior. Server-side owner/trust and CSRF
+checks are unchanged. Inline pending-invitation links are returned only after an
+authorized invitation creation. Errors preserve form input; native modal focus,
+Escape, close/busy controls and return-to-opener behavior use the shared shell.
+
+## Main-version designation (migration 15)
+
+`document_main_versions` stores a single active version per logical document,
+with selecting user/time. It does not change immutable version rows or anchor
+identity. Foreign keys and insert/update triggers reject cross-document or
+withdrawn version selections. Existing documents receive their newest active
+version at migration; first import initializes a new document. Later imports
+preserve the selection. Owner-only CSRF POST changes reauthorize within BEGIN
+IMMEDIATE, preserve idempotence and append audit events atomically. Withdrawal
+of the main version selects the newest active remainder or clears an empty
+document's designation in the same transaction. Historical pre-15 offline
+fixtures remain supported without implicitly applying migrations.
+
+The dashboard exposes owner display names only on ACL-visible documents. Delete
+version selection reuses canonical nested menus and the existing exact-version
+confirmation/deletion service. No PDF bytes, comment geometry, invitation grants,
+or real private runtime data are changed by this source task.
+
+## Trusted Users and invitations (migration 14)
+
+Trust is a site-level capability independent of document Owner/Reviewer/Viewer.
+Only admins change trust or reinstate suspended membership. Trusted Users can
+invite beta members and read a narrowly serialized member directory, without
+additional document access. Site admins also retain ordinary document ACL checks.
+
+`invitations.py` owns transactional membership, invitations, directory and history.
+`invitation_routes.py` supplies thin form routes with explicit auth registries.
+All writes use BEGIN IMMEDIATE and current actor eligibility/trust/ownership.
+Membership blocks survive allowlist removal, preventing re-invitation from
+silently undoing an admin suspension. Directory/history are separately authorized.
+
+Invitations bind a normalized email, optional logical document and Viewer/Reviewer
+role. A random nonce and invitation ID yield an HMAC signature under SECRET_KEY.
+The signature is not stored or logged; links carry it in a fragment. A generic
+public landing page consumes nothing and reveals no recipient/document data.
+A CSRF POST verifies the signature and stores only ID/nonce through Google OAuth.
+Validated OIDC email must match. Identity linking, beta admission, document grant
+and acceptance audit are atomic; wrong accounts, bad OIDC, concurrent redemption
+or stale authority cannot partially grant access. Existing grants are preserved.
+Immediate sharing and recipient acceptance have distinct audit events.
+
+Links expire after seven days. Renewal revokes/reissues atomically. Authority
+mutations retire affected pending invites; acceptance rechecks authority even for
+external/offline changes. Accepted grants remain until explicitly changed.
+GET listings derive expiry without writes; creation/revocation and the optional
+`expire-invitations` CLI record expiry events. Audit history is append-only.
+
+Migration adds trusted_users, beta_memberships and invitations only, preserving
+existing users, site admins, ACLs, immutable PDFs and history. Per user instruction,
+a sole existing admin is the historical inviter; ambiguous cases retain known
+creators and offer explicit attribution for unassigned records. Allowlist dates
+are access records, not exact invitations; last login is only a joined-by bound.
+Future first identity links record exact joins, preserved across email changes.
+Backfill audit events are dated at migration, not fabricated historical sends.
+
+Dashboard refresh uses a visible-tab 15-second poll and focus/visibility refresh
+of the authorized HTML document grid, preserving creation drafts. No global
+document directory, email service, new OAuth scope, private persistent cache or
+reusable anyone-can-join link is introduced. See INVITATIONS_REPORT.md.
+
 ## Repository and production separation (Private Beta B1)
 
 PDF Review may share a repository and VPS with VSFF but remains a separate

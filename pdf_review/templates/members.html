@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Beta members · PDF Review{% endblock %}
+{% block content %}
+<div class="page-heading"><h1>Beta members</h1><a href="{{ url_for('invites.manage') }}">Invitations</a></div>
+<p>Site roles control beta invitations. Document owners separately choose who can view or review each document.</p>
+<p class="subtle">Dates are shown in UTC. Historical access records and “Joined by” dates are not exact invitation or first sign-in times.</p>
+{% for member in members %}
+<article class="access-row">
+  <div class="access-person"><strong>{{ member.display_name or 'Not yet joined' }}</strong><span>{{ member.email }}</span><span>{{ member.site_role }} · {{ member.membership_status }}</span></div>
+  <div class="access-person"><span>Invited by {{ member.inviter or 'Unknown' }}</span>
+    <span>{{ 'Invited' if member.date_source == 'invitation' else 'Beta access recorded' }}: {{ member.invited_at or 'Unknown' }}</span>
+    <span>{% if member.joined_at %}Joined: {{ member.joined_at }}{% elif member.joined_by_at %}Joined by: {{ member.joined_by_at }}{% else %}Join date unknown / not yet joined{% endif %}</span>
+  </div>
+</article>
+{% else %}<p>No membership records yet.</p>{% endfor %}
+{% if is_site_admin %}
+<section class="panel compact-panel"><h2>Historical invitation attribution</h2>
+<p>Existing members are attributed to the sole site admin during migration. If no sole admin existed, assign unassigned historical records to yourself here. Dates remain unchanged.</p>
+<form method="post" action="{{ url_for('invites.legacy') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+<label class="confirmation"><input type="checkbox" name="confirm" value="yes" required>I invited these existing members.</label>
+<button>Attribute unassigned historical invitations to me</button></form></section>
+{% endif %}
+{% endblock %}

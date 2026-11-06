@@ -18,12 +18,6 @@
 </article>
 {% endfor %}
 </div></section>
-<section class="panel"><h2>Add existing beta user</h2>
-<p>Only people who have already signed in to the private beta can be selected. If someone is missing, ask the site administrator to invite them, then ask them to sign in once. Document owners cannot invite new beta members.</p>
-<form class="access-actions" method="post" action="{{ url_for('accounts.access_mutation', document_id=document.document_id) }}">
-  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="grant">
-  <label class="access-person"><span>Existing active beta account</span><select name="user_id" required><option value="">Choose a person</option>{% for user in shareable %}<option value="{{ user.user_id }}">{{ user.display_name }} — {{ user.email }}</option>{% endfor %}</select></label>
-  <label><span>Role</span><select name="role"><option value="viewer">Viewer</option><option value="reviewer" selected>Reviewer</option><option value="owner">Owner</option></select></label>
-  <button type="submit">Grant access</button>
-</form></section>
+<section class="panel compact-panel">{% include "_share_options.html" %}</section>
+<section class="panel"><h2>Document invitations</h2>{% include "_invitation_list.html" %}</section>
 {% endblock %}
