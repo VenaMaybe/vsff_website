@@ -75,6 +75,44 @@ def run_properties(cdp,a,b,fixture,base):
       return {cache:cached.cacheHits,words:cached.rows.every((r,i)=>r.words===store.rows[i].words),images,unknown,blank:store.rows[136].words,mixed:store.rows[0].area!==store.rows[10].area};
     })()""")
     assert result==dict(cache=138,words=True,images=7,unknown=None,blank=0,mixed=True),result
+    recovery=ev("""(async()=>{
+      const {PageProperties}=await import('/static/review/page_properties_data.js');
+      const config=JSON.parse(document.querySelector('#anchor-config').textContent);
+      const app=document.querySelector('iframe').contentWindow.PDFViewerApplication;
+      const original=new PageProperties(app.pdfDocument,config);await original.ready;await original.scan();
+      // Wait for any in-progress upload as well as the final batch.
+      while(original.uploading)await new Promise(r=>setTimeout(r,20));await original.flush();
+      const shared=new PageProperties({numPages:138,fingerprints:['new-browser-cache-key'],getPage(){throw Error('Should reuse server metrics');}},
+        {...config,currentUserId:'different-browser-cache'});
+      await shared.scan();
+      if(shared.rows.some(row=>!row.textDone))throw Error('Shared immutable metrics were not reused');
+      let calls=0,active=0,peak=0;
+      const fake={numPages:4,fingerprints:['recovery-'+Date.now()],async getPage(number){
+        const call=++calls;active++;peak=Math.max(peak,active);await new Promise(r=>setTimeout(r,5));active--;
+        if(call===1)throw Error('Transient PDF range failure');
+        return {view:[0,0,600,800],getTextContent:async()=>({items:number===4?[]:[{str:'one two',transform:[1,0,0,1,0,700],height:12}]}),getViewport:()=>({width:600,height:800})};
+      }};
+      const local=new PageProperties(fake,{currentUserId:'fixture'});
+      await Promise.all([local.scan(),local.wordCount(2),local.wordCount(3),local.wordCount(4)]);
+      if(peak>2||local.rows[3].words!==0||local.rows.slice(0,3).some(r=>r.words!==2)||local.pending.size)throw Error('Recovery, zero, or concurrency failure');
+      const before=calls;await local.scan();if(calls!==before)throw Error('Successful metrics recalculated');
+      await local.flush();
+      const reload=new PageProperties({...fake,getPage(){throw Error('Single-page cache miss');}},{currentUserId:'fixture'});
+      await reload.wordCount(1);if(reload.rows[0].words!==2)throw Error('Successful result not persisted');
+      const singlePdf={...fake,numPages:1,fingerprints:['single-'+Date.now()]};
+      const single=new PageProperties(singlePdf,{currentUserId:'single'});
+      await single.wordCount(1);await single.flush();
+      const singleReload=new PageProperties({...singlePdf,getPage(){throw Error('Single-page result not persisted');}},{currentUserId:'single'});
+      if(await singleReload.wordCount(1)!==2)throw Error('Single-page extraction requires a full scan to persist');
+      let failures=0;
+      const broken=new PageProperties({numPages:1,getPage(){failures++;throw Error('Unavailable');}},{currentUserId:'failure'});
+      await broken.scan();await broken.scan();
+      if(failures!==3||broken.rows[0].textDone||broken.rows[0].words!==null||broken.pending.size)throw Error('Failure cached or unbounded retry');
+      broken.retryAfter.clear();broken.pdf=fake;await broken.wordCount(1);
+      if(!broken.rows[0].textDone)throw Error('Failed extraction could not recover');
+      return {shared:shared.cacheHits,peak,blank:local.rows[3].words};
+    })()""")
+    assert recovery==dict(shared=138,peak=2,blank=0),recovery
     for metric in ['time','comments','images','words']:
         ev(f"document.querySelector('[data-metric={metric}]').click()")
         wait("!document.querySelector('.properties-status').textContent.startsWith('Calculating')")

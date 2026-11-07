@@ -1037,3 +1037,12 @@ Run the existing synthetic acceptance environment with
 for the original audit and control classification; see
 [the refinement report](VIEWER_REFINEMENT_REPORT.md) for the current right-only
 rail, markers, menus, shared shell and verification results.
+
+
+PDF word counts are now shared successful PDF.js metadata per immutable version
+(migration 16), independent of reader activity. Time tracker and Statistics reuse
+the same cache, including blank-page zero counts. Transient extraction failures
+retry instead of being cached as completed; successful single-page extraction is
+also persisted. The cache contains counts, page area and numeric word positions,
+never extracted text. Network or PDF extraction failures may still temporarily
+leave a count unavailable. The normal application startup applies the migration.

@@ -75,3 +75,12 @@ def reader(version_id, reader_id):
     return jsonify(reading.reader_detail(database_path(), version_id, g.auth_user['user_id'], reader_id,
                                          int(request.args.get('start', 1)), int(request.args.get('limit', 50)),
                                          pages_only=request.args.get('pages_only')=='1'))
+
+
+@bp.route('/api/versions/<version_id>/page-properties', methods=['GET', 'POST'])
+@guarded
+def properties(version_id):
+    from . import page_properties
+    if request.method == 'POST':
+        return jsonify(page_properties.save(database_path(), version_id, g.auth_user['user_id'], json_payload(1048576)))
+    return jsonify(page_properties.cached(database_path(), version_id, g.auth_user['user_id'], int(request.args.get('after', 0))))

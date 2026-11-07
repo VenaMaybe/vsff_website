@@ -41,7 +41,7 @@ REVIEW_OWNER_ENDPOINTS = {'core.delete_version','core.main_version','review_opti
     'review_options.placement','review_options.shared_boundary','review_options.outline'}
 PROTECTED_ENDPOINTS.update(REVIEW_OWNER_ENDPOINTS | {'review_options.viewer_preferences',
     'review_options.context','review_options.response_create','review_options.response_reply','review_options.response_comment'})
-READING_ENDPOINTS = {'reading.summary', 'reading.consent', 'reading.session', 'reading.batch', 'reading.reader'}
+READING_ENDPOINTS = {'reading.summary', 'reading.consent', 'reading.session', 'reading.batch', 'reading.reader', 'reading.properties'}
 PROTECTED_ENDPOINTS.update(READING_ENDPOINTS)
 
 

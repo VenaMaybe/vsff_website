@@ -1,4 +1,5 @@
-﻿// Derived metadata only: never cache PDF bytes, extracted text or reading history.
+import { jsonRequest } from './thread_api.js';
+// Derived metadata only: never cache PDF bytes, extracted text or reading history.
 const stores=new WeakMap();
 const CACHE_SCHEMA=2,MAX_VERSIONS=12;
 let databasePromise;
@@ -114,6 +115,8 @@ export class PageProperties extends EventTarget {
     this.key=`${CACHE_SCHEMA}:${config.currentUserId}:${config.versionId}:${pdf.fingerprints?.[0]||''}:${pdf.numPages}`;
     this.rows=Array.from({length:pdf.numPages},(_,i)=>({page:i+1,words:null,area:null,images:null,wordRuns:[],imageRuns:[],textDone:false,imagesDone:false}));
     this.pending=new Map();this.scans=new Map();this.cacheHits=0;this.revision=0;
+    this.active=0;this.queue=[];this.retryAfter=new Map();this.uploads=new Map();this.uploadAttempts=0;
+    this.url=config.versionId?`/api/versions/${encodeURIComponent(config.versionId)}/page-properties`:null;
     this.ready=readCache(this.key).then(record=>{
       if(!Array.isArray(record?.rows)||record.rows.length!==pdf.numPages)return;
       record.rows.forEach((row,i)=>{
@@ -127,7 +130,61 @@ export class PageProperties extends EventTarget {
         if(words!==null)this.cacheHits++;
       });
       this.revision++;
-    }).catch(()=>{});
+    }).catch(()=>{}).then(async()=>{
+      if(!this.url)return;
+      const local=this.rows.filter(row=>row.textDone);
+      const shared=new Set();
+      // Reuse successful metrics from any authorized reader/device. Network or
+      // server-cache failure leaves PDF.js extraction available locally.
+      try {
+        let after=0;
+        do {
+          const result=await this.request(`${this.url}?after=${after}`);
+          for(const saved of result.rows||[]){
+            const row=this.rows[saved.page-1];
+            if(!row||saved.page_count!==pdf.numPages)continue;
+            shared.add(row.page);
+            if(!row.textDone){Object.assign(row,{words:saved.words,area:saved.area,wordRuns:saved.wordRuns,textDone:true});this.cacheHits++;}
+          }
+          if(result.next==null||result.next<=after)break;
+          after=result.next;
+        }while(after<pdf.numPages);
+      }catch{/* A failed request is not a failed page extraction. */}
+      // Also publish earlier successful local extractions, including old caches.
+      for(const row of local)if(!shared.has(row.page))this.uploads.set(row.page,this.textRow(row));
+      this.persist();
+    });
+  }
+  request(url,options={}) {
+    const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),8000);
+    return jsonRequest(url,{...options,signal:controller.signal}).finally(()=>clearTimeout(timer));
+  }
+  textRow(row) {const {page,words,area,wordRuns}=row;return {page,words,area,wordRuns};}
+  persist() {
+    clearTimeout(this.persistTimer);
+    this.persistTimer=setTimeout(()=>this.flush(),250);
+  }
+  async flush() {
+    await writeCache(this.key,this.rows.map(row=>({...row})));
+    if(!this.url||this.uploading||!this.uploads.size)return;
+    this.uploading=true;
+    try {
+      while(this.uploads.size){
+        const batch=[...this.uploads.values()].slice(0,8);
+        await this.request(this.url,{method:'POST',body:JSON.stringify({page_count:this.pdf.numPages,rows:batch})});
+        for(const row of batch)if(this.uploads.get(row.page)===row)this.uploads.delete(row.page);
+      }
+      this.uploadAttempts=0;
+    }catch{
+      // Retain successful local data when offline. Retry uploads a bounded number
+      // of times; a later visit can publish the persistent browser cache again.
+      if(++this.uploadAttempts<3)this.persistTimer=setTimeout(()=>this.flush(),2000);
+    }finally{this.uploading=false;}
+  }
+  async slot() {
+    if(this.active>=2)await new Promise(resolve=>this.queue.push(resolve));
+    else this.active++;
+    return ()=>{const next=this.queue.shift();if(next)next();else this.active--;};
   }
   async page(number,kind='text') {
     await this.ready;
@@ -135,20 +192,35 @@ export class PageProperties extends EventTarget {
     if(row[kind+'Done'])return row;
     const key=`${kind}:${number}`;
     if(this.pending.has(key))return this.pending.get(key);
+    if((this.retryAfter.get(key)||0)>Date.now())return row;
     const pending=(async()=>{
+      const release=await this.slot();
       try {
-        const page=await this.pdf.getPage(number);
-        if(kind==='text') {
-          const content=await page.getTextContent();Object.assign(row,await textMetadata(content,page.view));
-          // CropBox/view is the visible, usable area. Honor PDF UserUnit and rotation.
-          const viewport=page.getViewport({scale:1});row.area=viewport.width*viewport.height*(2.54/72)**2;
-          if(!Number.isFinite(row.area)||row.area<=0)row.area=null;
-        } else if(!page.isPureXfa) {
-          const list=await page.getOperatorList({intent:'display',annotationMode:0});
-          const metadata=artworkMetadata(list,this.ops,page.view);if(metadata)Object.assign(row,metadata);
+        for(let attempt=0;attempt<3;attempt++){
+          try {
+            const page=await this.pdf.getPage(number);
+            if(kind==='text') {
+              const content=await page.getTextContent(),metadata=await textMetadata(content,page.view);
+              // CropBox/view is the visible usable area; honor UserUnit/rotation.
+              const viewport=page.getViewport({scale:1}),area=viewport.width*viewport.height*(2.54/72)**2;
+              if(!Number.isFinite(area)||area<=0)throw Error('Invalid page area');
+              Object.assign(row,metadata,{area});
+            }else if(!page.isPureXfa){
+              const list=await page.getOperatorList({intent:'display',annotationMode:0});
+              const metadata=artworkMetadata(list,this.ops,page.view);if(metadata)Object.assign(row,metadata);
+            }
+            row[kind+'Done']=true;this.retryAfter.delete(key);
+            if(kind==='text')this.uploads.set(number,this.textRow(row));
+            this.persist();break;
+          }catch{
+            // Unknown is not zero or a completed result. Recover from transient
+            // PDF.js/range-loading failures without keeping a rejected/null promise.
+            if(attempt<2)await new Promise(resolve=>setTimeout(resolve,150*(attempt+1)));
+            else this.retryAfter.set(key,Date.now()+5000);
+          }
         }
-      } catch { /* Unknown stays null; it must never become an invented zero. */ }
-      row[kind+'Done']=true;this.revision++;this.dispatchEvent(new Event('change'));return row;
+        this.revision++;this.dispatchEvent(new Event('change'));return row;
+      }finally{release();this.pending.delete(key);}
     })();
     this.pending.set(key,pending);return pending;
   }
@@ -168,6 +240,7 @@ export class PageProperties extends EventTarget {
       await writeCache(this.key,this.rows.map(row=>({...row})));
       return this.rows;
     })();
-    this.scans.set(kind,promise);return promise;
+    this.scans.set(kind,promise);
+    promise.finally(()=>this.scans.delete(kind));return promise;
   }
 }

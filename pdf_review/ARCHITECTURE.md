@@ -962,8 +962,8 @@ prevent closed-card work and refresh churn from blocking long-document viewers.
 
 Version statistics retains the shared LeftCard/Tools registration (`properties`),
 available to everyone who can view the PDF. It uses the existing pin, drag, focus,
-collision, checkmark and account/version card-restoration paths. No new route,
-server table, migration, chart dependency or PDF.js/vendor modification is needed.
+collision, checkmark and account/version card-restoration paths. The histogram
+uses no chart dependency or PDF.js/vendor modification.
 `page_properties_card.js` maintains stable SVG bars across metric switches;
 Pages/Sections changes the row layer; axis and section brackets update independently.
 `version_statistics.js` aggregates canonical placements and authorized messages.
@@ -972,7 +972,8 @@ uses the same `viewingPages` helper as presence and reading analytics.
 
 `page_properties_data.js` owns one metadata store per loaded PDFDocumentProxy.
 It shares word-count extraction with ReadingTracker, deduplicates concurrent
-requests, scans at two pages at a time with event-loop yields, and builds the chart
+requests, limits all consumers together to two extractions at a time with event-loop
+yields, and builds the chart
 only when opened. Images scan only when selected. Persistent aggregate metadata
 is keyed by account, immutable version, PDF fingerprint, page count and calculation
 schema in browser IndexedDB, retaining at most 12 recent version records. Calculation
@@ -981,6 +982,27 @@ so partial-page section totals can be computed without re-extraction. No raw
 PDF bytes, page text, reader activity or extracted image data is stored. Storage
 failure falls back to the per-document memory cache. The existing server ACL read
 endpoint is still required before a viewer can construct/use the store.
+
+Migration 16 adds `version_text_properties`, shared successful PDF.js text metrics
+per immutable version/page/calculation schema, independent of reading consent,
+reader visits and dwell time. `/api/versions/<id>/page-properties` uses existing
+ACL/CSRF transport and rechecks active-version/current-reader access in the service;
+Viewer-role users may contribute derived metrics. Counts, area and numeric vertical
+word-position pairs are bounded and validated atomically; no text is uploaded.
+These remain browser-supplied estimates (as reading word counts already were), not
+trusted evidence. First successful writes win; this never overwrites PDF bytes,
+anchors or activity. Withdrawn versions cannot read/write this cache. A new schema
+identifier is required if the extraction algorithm changes.
+
+Hydration pages through cached results; missing results fall back to PDF.js. A
+successful extraction is persisted even when only one page is requested, and is
+uploaded in small batches for subsequent readers/devices. Cached zero is valid.
+Text failures are not marked complete or retained as resolved pending promises;
+three short retries and a cooldown prevent both permanent failure and retry storms.
+Uploads retry a bounded number of times, retaining the optional local cache when
+offline. Completed scans can be re-entered to recover previously failed pages.
+Network, malformed/encrypted PDF, browser eviction, or extraction failures can
+still temporarily leave metrics unavailable; unknown values are never invented.
 
 Words use PDF.js text runs and word segmentation. ERT uses the existing server
 reading policy (400 WPM / 5-second minimum), independently of measured dwell time.
