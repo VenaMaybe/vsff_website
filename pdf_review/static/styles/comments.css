@@ -1,5 +1,5 @@
 .thread-card {
-  background: #e9ecea;
+  background: var(--card-surface,#e9ecea);
   border: 1px solid var(--line);
   border-left: 3px solid transparent;
   border-radius: 3px;
@@ -8,9 +8,9 @@
   
 }
 .thread-card:hover { border-color: #b9bdb9; }
-.thread-card.active { border-left-color: var(--accent); background: #f7faf8; box-shadow: 0 3px 12px #182a2426; z-index: 2; }
+.thread-card.active { border-left-color: var(--accent); background: var(--card-active,#f7faf8); box-shadow: 0 3px 12px #182a2426; z-index: 2; }
 .thread-card.resolved { color: #616762; }
-.thread-card.active.resolved { background: #f3f5f3; }
+.thread-card.active.resolved { background: var(--card-resolved,#f3f5f3); }
 .thread-card-header { align-items: baseline; display: flex; gap: 7px; justify-content: space-between; }
 .thread-card-header > .thread-card-location { min-width: 0; }
 .thread-card-header > .comment-actions { align-items: baseline; flex-shrink: 0; white-space: nowrap; }

@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-ui-theme="{{ auth_user.ui_theme }}" data-pdf-theme="{{ auth_user.pdf_theme }}" data-pdf-color-amount="{{ auth_user.pdf_color_amount }}" data-pdf-white-point="{{ auth_user.pdf_white_point }}">
 <head>
   <meta charset="utf-8">
   <meta name="csrf-token" content="{{ csrf_token() }}">
@@ -45,6 +45,13 @@
     <details class="toolbar-menu" id="review-view-menu">
       <summary>View</summary>
       <div class="toolbar-popover" role="menu">
+        <button type="button" id="review-pdf-dark" role="menuitemcheckbox" data-keep-menu-open aria-checked="{{ 'true' if auth_user.pdf_theme == 'dark' else 'false' }}">Dark PDF</button>
+        <div class="pdf-reading-controls" id="review-pdf-colors" role="group" aria-label="PDF colors" {{ 'hidden' if auth_user.pdf_theme!='dark' }}>
+            <label class="pdf-color-control">Color <output for="review-pdf-color">{{ auth_user.pdf_color_amount }}%</output><input type="range" id="review-pdf-color" min="0" max="100" value="{{ auth_user.pdf_color_amount }}"></label>
+            <label class="pdf-color-control">White point <output for="review-pdf-white-point">{{ auth_user.pdf_white_point }}%</output><input type="range" id="review-pdf-white-point" min="50" max="100" value="{{ auth_user.pdf_white_point }}"></label>
+        </div>
+        <button type="button" id="review-ui-dark" role="menuitemcheckbox" aria-checked="{{ 'true' if auth_user.ui_theme == 'dark' else 'false' }}">Dark UI</button>
+        <hr>
         <button type="button" data-pdf-control="pageRotateCw">Rotate clockwise</button>
         <button type="button" data-pdf-control="pageRotateCcw">Rotate counterclockwise</button>
 <hr>

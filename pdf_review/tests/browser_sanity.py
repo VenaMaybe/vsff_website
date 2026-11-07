@@ -16,12 +16,14 @@ import time
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 
-def pdf_bytes(marker):
+def pdf_bytes(marker, colored=False):
     objects = [b"<< /Type /Catalog /Pages 2 0 R /Outlines 8 0 R >>",
                b"<< /Type /Pages /Kids [3 0 R 5 0 R] /Count 2 >>",
                b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 7 0 R >> >> /Contents 4 0 R >>"]
     for page in [1, 2]:
         stream = f"BT /F1 16 Tf 60 500 Td (Review sentence {marker} page {page}.) Tj ET".encode()
+        if colored:
+            stream=b'q .98 .95 .88 rg 0 0 612 792 re f .8 .15 .25 rg 60 400 100 40 re f .1 .5 .8 rg 180 400 100 40 re f Q\n'+stream
         objects.append(b"<< /Length " + str(len(stream)).encode() + b" >>\nstream\n" + stream + b"\nendstream")
         if page == 1:
             objects.append(b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 7 0 R >> >> /Contents 6 0 R >>")
@@ -51,6 +53,8 @@ def serve(root):
                       "GOOGLE_CLIENT_ID": "synthetic-browser-client", "GOOGLE_CLIENT_SECRET": "synthetic-browser-secret"})
     doc = create_document(app.config["DATABASE"], "Browser sanity")
     pdf_factory = pdf_bytes
+    if os.environ.get('PDF_REVIEW_TEST_APPEARANCE')=='1':
+        pdf_factory=lambda marker:pdf_bytes(marker,colored=True)
     if os.environ.get('PDF_REVIEW_TEST_ZOOM') == '1' or os.environ.get('PDF_REVIEW_TEST_READING') == '1':
         from tests.document_zoom import mixed_pdf
         pdf_factory = mixed_pdf
@@ -197,6 +201,7 @@ def run():
                                           env=({**os.environ,'PDF_REVIEW_TEST_INVITATIONS':'1'} if '--invitations' in sys.argv else
                                                {**os.environ,'PDF_REVIEW_TEST_ZOOM':'1'} if '--zoom-layout' in sys.argv else
                                                {**os.environ,'PDF_REVIEW_TEST_READING':'1'} if '--reading-ui' in sys.argv else
+                                               {**os.environ,'PDF_REVIEW_TEST_APPEARANCE':'1'} if '--appearance' in sys.argv else
                                                {**os.environ,'PDF_REVIEW_TEST_PROPERTIES':'1'} if '--page-properties' in sys.argv else None))
                 deadline = time.monotonic() + 15
                 while not (root / "fixture.json").exists():
@@ -268,6 +273,11 @@ def run():
                 if '--highlight-overlap' in sys.argv:
                     from tests.highlight_overlap import run_highlight_overlap
                     run_highlight_overlap(cdp,a,fixture)
+                    assert not cdp.exceptions,cdp.exceptions
+                    return
+                if '--appearance' in sys.argv:
+                    from tests.appearance_acceptance import run_appearance
+                    run_appearance(cdp,a,b,fixture,base)
                     assert not cdp.exceptions,cdp.exceptions
                     return
                 if '--section-card-packing' in sys.argv:

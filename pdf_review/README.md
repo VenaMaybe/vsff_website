@@ -1046,3 +1046,16 @@ retry instead of being cached as completed; successful single-page extraction is
 also persisted. The cache contains counts, page area and numeric word positions,
 never extracted text. Network or PDF extraction failures may still temporarily
 leave a count unavailable. The normal application startup applies the migration.
+
+Appearance: View has independent **Dark PDF** and **Dark UI** toggles for the
+current viewer. Account > Appearance saves the main UI theme and default PDF
+opening mode across devices (migration 17, applied on normal startup). Opening or
+reloading a viewer uses those account defaults. PDF dark mode changes display
+colors, including artwork, while printed/downloaded files retain original colors.
+
+Dark PDF reading colors: **View** shows instant **Color** (0% is
+black and white; 100% keeps color inversion) and **White point** sliders. Account
+Appearance autosaves the same opening defaults when dark PDFs are enabled.
+Defaults are 50% Color and 65% White point; existing saved choices stay intact.
+Highlights keep their author colors. Migrations
+18-19 preserve earlier appearance settings and run on normal startup.

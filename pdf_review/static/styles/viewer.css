@@ -31,7 +31,7 @@
 .viewer-frame-wrap, .viewer-frame { touch-action:pan-x pan-y; }
 .review-panel { position: absolute; inset: 0; pointer-events: none; z-index: var(--layer-rail); }
 .review-panel-header { position: absolute; right: 12px; top: 6px; display: flex; align-items: center; gap: var(--space-2); max-width: calc(100% - 24px); pointer-events: auto; }
-.review-status { color: var(--muted); background: #f7f8f7; border-radius: 2px; padding: 3px 5px; font-size: var(--ui-font-size-small); margin: 0; }
+.review-status { color: var(--muted); background: var(--toolbar-bg,#f7f8f7); border-radius: 2px; padding: 3px 5px; font-size: var(--ui-font-size-small); margin: 0; }
 .review-status:not(.error) { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
 .review-status.error { color: var(--danger); }
 .thread-list { position: absolute; inset: 0; pointer-events: none; }
@@ -73,7 +73,7 @@
     transform: scale(.8125); transform-origin: top left; resize: none;
   }
 }
-.comment-selection-button { position: fixed; z-index: var(--layer-popup); width: 32px; height: 30px; background: white; color: var(--accent); border: 1px solid var(--line); box-shadow: 0 1px 3px #0002; }
+.comment-selection-button { position: fixed; z-index: var(--layer-popup); width: 32px; height: 30px; background: var(--surface); color: var(--accent); border: 1px solid var(--line); box-shadow: 0 1px 3px #0002; }
 .comment-selection-button:hover { background: var(--surface-hover); }
 .selection-comment-label { display:none; }
 @media (pointer: coarse) {

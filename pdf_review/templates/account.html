@@ -19,6 +19,20 @@
     <button type="submit">Save review color</button>
   </form>
 </section>
+<section class="panel compact-panel">
+  <h2>Appearance</h2>
+  <form class="appearance-controls" id="appearance-form" method="post" action="{{ url_for('accounts.appearance') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label><input type="checkbox" name="ui_theme" value="dark" {{ 'checked' if auth_user.ui_theme=='dark' }}> Dark UI</label>
+    <label><input type="checkbox" name="pdf_theme" value="dark" {{ 'checked' if auth_user.pdf_theme=='dark' }}> Open PDFs in dark mode</label>
+    <div class="appearance-pdf-colors" {{ 'hidden' if auth_user.pdf_theme!='dark' }}>
+      <label class="pdf-color-control">Color <output for="account-pdf-color">{{ auth_user.pdf_color_amount }}%</output><input type="range" id="account-pdf-color" name="pdf_color_amount" min="0" max="100" value="{{ auth_user.pdf_color_amount }}"></label>
+      <label class="pdf-color-control">White point <output for="account-pdf-white-point">{{ auth_user.pdf_white_point }}%</output><input type="range" id="account-pdf-white-point" name="pdf_white_point" min="50" max="100" value="{{ auth_user.pdf_white_point }}"></label>
+    </div>
+  </form>
+  <small id="appearance-error" role="status" hidden></small>
+</section>
+<script type="module" src="{{ url_for('static',filename='review/account_appearance.js') }}"></script>
 {% for heading, documents in [('Owned by me', owned), ('Shared with me', shared)] %}
 <section class="panel"><h2>{{ heading }}</h2>
   <div class="document-grid">

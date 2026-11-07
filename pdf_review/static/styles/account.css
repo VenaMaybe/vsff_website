@@ -1,4 +1,10 @@
 /* C1 profile, sharing and administration inspectors; shared controls live in base.css. */
+.appearance-controls { display:flex; align-items:center; flex-wrap:wrap; gap:8px 20px; }
+.appearance-controls label { display:inline-flex; align-items:center; gap:5px; font-size:12px; cursor:pointer; }
+.appearance-controls input { margin:0; }
+.appearance-pdf-colors { flex-basis:100%; align-items:center; gap:8px 20px; flex-wrap:wrap; }
+.appearance-pdf-colors:not([hidden]) { display:flex; }
+.appearance-controls .pdf-color-control { display:grid; width:170px; }
 .admin-nav { display: flex; gap: 16px; margin: 12px 0; }
 .access-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 0; border-bottom: 1px solid var(--line); }
 .access-person { display: flex; flex: 1 1 200px; min-width: 0; flex-direction: column; gap: 3px; overflow-wrap: anywhere; }

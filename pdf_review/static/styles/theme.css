@@ -1,0 +1,32 @@
+/* Account theme applies to application chrome, never to PDF page artwork. */
+:root[data-ui-theme=dark] {
+  color-scheme:dark;
+  --bg:#1b1d1c;
+  --surface:#252927;
+  --surface-hover:#363d39;
+  --ink:#e7eae8;
+  --muted:#adb3af;
+  --line:#49514c;
+  --accent:#8cc9ad;
+  --accent-dark:#b1ddc8;
+  --on-accent:#14261d;
+  --danger:#f2a09b;
+  --success:#96d5aa;
+  --toolbar-bg:#222623;
+  --field-border:#69736d;
+  --card-surface:#2c322e;
+  --card-active:#39413c;
+  --card-resolved:#2e3430;
+  --workspace-bg:#181a19;
+}
+:root[data-ui-theme=dark] .role-badge,
+:root[data-ui-theme=dark] .thread-status-badge,
+:root[data-ui-theme=dark] .left-card-pin[aria-pressed=true] { background:var(--surface-hover); color:var(--accent); }
+:root[data-ui-theme=dark] :is(.thread-comment,.thread-reply-form,.migration-panel) { border-color:var(--line); }
+:root[data-ui-theme=dark] :is(.thread-card.resolved,.section-prompt,.section-list-range,.section-master-item small) { color:var(--muted); }
+:root[data-ui-theme=dark] .section-master-item:hover,
+:root[data-ui-theme=dark] .section-master-item[aria-current=true] { background:var(--surface-hover); color:var(--ink); }
+:root[data-ui-theme=dark] :is(.anchor-debug-card,.anchor-technical-details pre) { background:var(--surface); }
+:root[data-ui-theme=dark] :is(.dialog-error,.edit-conflict,.collaboration-menu[data-connection=offline] > summary) { color:var(--danger); }
+:root[data-ui-theme=dark] .review-swatch input:checked + span { outline-color:var(--ink); }
+:root[data-ui-theme=dark] .properties-tabs button[aria-pressed=true] { color:var(--on-accent); }

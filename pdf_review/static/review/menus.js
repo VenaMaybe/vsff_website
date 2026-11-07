@@ -65,9 +65,12 @@ document.addEventListener("click", (event) => {
   // Keep required confirmation fields visible when browser validation blocks a POST.
   if (action?.form && !action.form.checkValidity()) return;
   if (action && !action.closest("[data-keep-menu-open]")) closeMenus(!action.hasAttribute('data-left-card'));
+  else if(action){const menu=action.closest('.toolbar-menu');if(menu)position(menu);}
 });
 document.addEventListener("change", syncMenuValues);
 document.addEventListener("keydown", (event) => {
+  // Sliders retain native arrow/Home/End controls inside a submenu.
+  if(event.target.matches?.('input[type=range]')&&['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Home','End','PageUp','PageDown'].includes(event.key))return;
   const trigger = event.target.closest("summary");
   const menu = event.target.closest(".toolbar-menu, .tools-panel");
   if (!menu) return;

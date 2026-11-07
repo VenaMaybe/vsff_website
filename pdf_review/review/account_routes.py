@@ -6,6 +6,7 @@ from . import access
 from .auth import IdentityDenied
 from .documents import get_document
 from .users import UserValidationError
+from .preferences import PreferenceError, save_appearance
 
 bp = Blueprint('accounts', __name__)
 
@@ -27,7 +28,7 @@ def permission_changed(error):
 def mutate(operation, destination, json_message='Change saved.', **arguments):
     try:
         operation()
-    except (access.AccessError, UserValidationError, IdentityDenied) as error:
+    except (access.AccessError, UserValidationError, IdentityDenied, PreferenceError) as error:
         if request.accept_mimetypes.best == 'application/json':
             return jsonify(error={'message': str(error)}), 422
         # Render errors as an explicit failure, preserving a useful safe explanation.
@@ -51,6 +52,21 @@ def profile():
     if set(request.form) - {'csrf_token', 'display_name'}:
         abort(400)
     return mutate(lambda: access.update_profile(database(), actor(), request.form.get('display_name')), 'accounts.account')
+
+
+@bp.post('/account/appearance')
+def appearance():
+    if set(request.form) - {'csrf_token', 'ui_theme', 'pdf_theme','pdf_monochrome','pdf_color_amount','pdf_white_point'}:
+        abort(400)
+    def save():
+        values={key:request.form.get(key) for key in ('ui_theme','pdf_theme')}
+        for key in ('pdf_monochrome','pdf_color_amount','pdf_white_point'):
+            if key not in request.form:continue
+            raw=request.form[key]
+            if len(raw)>3 or not raw.isascii() or not raw.isdecimal():raise PreferenceError('Invalid PDF color setting.')
+            values[key]=int(raw)
+        save_appearance(database(),actor(),values)
+    return mutate(save, 'accounts.account')
 
 
 @bp.get('/documents/<document_id>/access')

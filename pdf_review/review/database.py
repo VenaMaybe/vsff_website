@@ -387,6 +387,9 @@ MIGRATIONS.append((13, "version_deletion_ledger", Path(__file__).with_name("migr
 MIGRATIONS.append((14, "trusted_users_and_invitations", Path(__file__).with_name("migration14.sql").read_text(encoding="utf-8")))
 MIGRATIONS.append((15, "document_main_versions", Path(__file__).with_name("migration15.sql").read_text(encoding="utf-8")))
 MIGRATIONS.append((16, "immutable_pdf_text_properties", Path(__file__).with_name("migration16.sql").read_text(encoding="utf-8")))
+MIGRATIONS.append((17, "account_appearance", Path(__file__).with_name("migration17.sql").read_text(encoding="utf-8")))
+MIGRATIONS.append((18, "pdf_reading_colors", Path(__file__).with_name("migration18.sql").read_text(encoding="utf-8")))
+MIGRATIONS.append((19, "pdf_color_amount", Path(__file__).with_name("migration19.sql").read_text(encoding="utf-8")))
 
 
 def connect(database_path: Path | str) -> sqlite3.Connection:

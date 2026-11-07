@@ -2,6 +2,53 @@
 
 These are permanent extension constraints, not temporary implementation details.
 
+## Appearance (migrations 17-19)
+
+`account_appearance` stores independent light/dark UI and PDF defaults per user.
+Missing rows preserve existing light appearance. The Account form uses the
+existing authenticated/CSRF-protected mutation path, validates both choices and
+reauthorizes the current account inside its transaction. `current_user` joins
+defaults once; server-rendered root attributes apply the UI before scripts load.
+Migration 18 adds bounded PDF reading-color defaults; migration 19 replaces the
+binary monochrome control with a 0-100 color amount, preserving older choices.
+The legacy boolean remains compatible with older form submissions; new clients
+use color amount as the source of truth. Unconfigured accounts default to 50% color and a 65% white point; existing
+saved choices are preserved. Older theme-only saves preserve these settings.
+No preference is an authorization signal or document-wide setting. The compact
+Account checkboxes apply UI changes immediately and autosave through the same
+form endpoint using the shared CSRF transport. Writes are serialized and rapid
+changes coalesce; a failed final write restores the last saved state and exposes
+a small error only when necessary. There is no Save button or explanatory block.
+
+View exposes independent Dark PDF and Dark UI checkboxes using existing menus.
+While Dark PDF is on, the main View dropdown directly shows Color (0-100%) and
+White point (50-100%) sliders below the toggle. The dropdown remains open when
+toggling Dark PDF, and repositions to accommodate the controls. Color 0 is neutral grayscale; 100 keeps the color-inverted
+display. White point scales the brightest neutral text; it is not screen/device
+brightness. Sliders change the canvas-wrapper filter instantly without rebuilding
+canvases. Keyboard arrows adjust ranges without invoking menu navigation. Shared range
+styles use thin neutral tracks and small handles, with green hover/focus accents.
+Account shows the same sliders only when dark PDF defaults are enabled. It
+previews slider values on input and persists on change, avoiding network writes
+for every step while dragging.
+These override the current viewer only; opening/reloading a viewer starts with
+account defaults. The pre-run bootstrap passes the UI color scheme to PDF.js and
+synchronizes the iframe root. UI changes use shared semantic tokens for shell,
+cards, dialogs and controls. Runtime toggles also update native PDF.js chrome.
+PDF dark mode filters canvasWrapper (including detail canvases), XFA artwork and
+thumbnails only during normal screen display. It does not rebuild canvases or
+alter text-layer geometry, author highlight colors, files, printing or downloads.
+Artwork colors change with this reading aid. The ordered screen filter is
+`grayscale(1 - color/100) invert(.9) hue-rotate(180deg) brightness(whitePoint/90)`.
+Only PDF artwork is filtered; comment highlights retain author colors and use
+normal blending over dark pages so multiply blending cannot erase them.
+PDF.js's native pageColors option is intended for HCM and does not support live
+mutation (https://github.com/mozilla/pdf.js/issues/19687); it is not substituted
+for this live display filter. CSS grayscale and filter ordering follow MDN:
+https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Properties/filter . Forced-colors accessibility display
+retains native PDF.js handling. Browser coverage: `--appearance`; account boundary
+coverage: `tests.test_appearance`.
+
 The owner-only document Share dialog reuses `AppDialog`, `appFetch`, and the
 `_share_options.html` fragment also used by Manage access. The existing protected
 access route returns that fragment for `?share=1`; no new public endpoint exists.

@@ -22,6 +22,26 @@ DEFAULT_CHOICES = dict(visibility_policy=('shared','isolated'), default_scope=('
 PERSONAL_CHOICES = dict(scope=('all','mine'), spread=(0,1,2), display=('expanded','minimized','hidden','mobile'))
 
 
+def save_appearance(database, user_id, values):
+    validate(values, dict(ui_theme=('light','dark'), pdf_theme=('light','dark'),
+                         pdf_monochrome=(0,1),pdf_color_amount=tuple(range(101)),pdf_white_point=tuple(range(50,101))))
+    if not {'ui_theme','pdf_theme'} <= set(values):
+        raise PreferenceError('Choose a theme for the interface and PDF.')
+    with transaction(database) as c:
+        if not c.execute(ELIGIBLE+' AND u.user_id=?',(user_id,)).fetchone():
+            raise AccessDenied('Active account required.')
+        current=c.execute('SELECT pdf_color_amount,pdf_white_point FROM account_appearance WHERE user_id=?',(user_id,)).fetchone()
+        color=values.get('pdf_color_amount',current['pdf_color_amount'] if current else 50)
+        if 'pdf_color_amount' not in values and 'pdf_monochrome' in values:
+            color=0 if values['pdf_monochrome'] else 100
+        white=values.get('pdf_white_point',current['pdf_white_point'] if current else 65)
+        c.execute('''INSERT INTO account_appearance (user_id,ui_theme,pdf_theme,pdf_monochrome,pdf_white_point,pdf_color_amount)
+            VALUES(?,?,?,?,?,?) ON CONFLICT(user_id) DO UPDATE SET ui_theme=excluded.ui_theme,
+            pdf_theme=excluded.pdf_theme,pdf_monochrome=excluded.pdf_monochrome,
+            pdf_white_point=excluded.pdf_white_point,pdf_color_amount=excluded.pdf_color_amount''',
+                  (user_id,values['ui_theme'],values['pdf_theme'],int(color==0),white,color))
+
+
 def save_defaults(database, document_id, user_id, values, reader_pauses=None):
     validate(values, DEFAULT_CHOICES)
     with transaction(database) as c:

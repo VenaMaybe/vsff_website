@@ -28,7 +28,7 @@ PROTECTED_ENDPOINTS = {
     "carry.new_migration", "carry.migration_item", "carry.decide_item", "carry.finish_migration",
     "carry.thread_target_history",
 }
-ACCOUNT_ENDPOINTS = {'accounts.account', 'accounts.profile', 'review_options.color'}
+ACCOUNT_ENDPOINTS = {'accounts.account', 'accounts.profile', 'accounts.appearance', 'review_options.color'}
 ACCOUNT_ENDPOINTS.update({'invites.manage', 'invites.detail', 'invites.mutate'})
 TRUSTED_ENDPOINTS = {'invites.members', 'invites.beta_create'}
 INVITE_PUBLIC_ENDPOINTS = {'invites.landing', 'invites.open'}
@@ -75,8 +75,13 @@ def current_user():
         return None
     connection = connect(current_app.config["DATABASE"])
     try:
-        row = connection.execute("""SELECT u.* FROM users u JOIN allowed_emails a
+        row = connection.execute("""SELECT u.*, coalesce(p.ui_theme,'light') AS ui_theme,
+            coalesce(p.pdf_theme,'light') AS pdf_theme,
+            coalesce(p.pdf_monochrome,1) AS pdf_monochrome,
+            coalesce(p.pdf_color_amount,50) AS pdf_color_amount,
+            coalesce(p.pdf_white_point,65) AS pdf_white_point FROM users u JOIN allowed_emails a
             ON a.normalized_email = u.normalized_email
+            LEFT JOIN account_appearance p ON p.user_id=u.user_id
             WHERE u.user_id = ? AND u.is_active = 1 AND u.email_verified = 1
               AND u.google_subject IS NOT NULL AND a.enabled = 1""", (user_id,)).fetchone()
         return dict(row) if row else None

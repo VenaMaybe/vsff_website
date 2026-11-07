@@ -1,4 +1,5 @@
 @import url("tokens.css");
+@import url("theme.css");
 /* Thin integration stylesheet, injected via PDF.js's pre-run hook. Vendor unchanged. */
 :root { color-scheme: light; --toolbar-height: 0px; }
 /* Keep native popup DOM and event handlers; only the parent owns toolbar chrome. */
@@ -10,7 +11,7 @@
 #editorModeSeparator, #secondaryOpenFile, #viewsManagerAddFileButton,
 #viewsManagerStatus, .editorParamsToolbar, .annotationEditorLayer,
 .textLayer .editToolbar { display: none; }
-#viewerContainer { top: 0; left: 0; right: 0; background: #e4e6e5; overflow-anchor:none; scrollbar-gutter:stable; }
+#viewerContainer { top: 0; left: 0; right: 0; background: var(--workspace-bg,#e4e6e5); overflow-anchor:none; scrollbar-gutter:stable; }
 /* Reserve browser panning here; native PDF.js handles the two-touch pinch. */
 #viewerContainer { touch-action:pan-x pan-y; }
 /* Keep native text selection/handles, suppress its callout where WebKit permits. */
@@ -21,7 +22,7 @@
 /* Cards extend scrolling, never the width used to center the PDF pages. */
 #viewer { box-sizing:content-box; width:100%; min-width:0; }
 .review-document-extent { position:absolute; top:0; left:0; pointer-events:none; }
-#mainContainer { background: #e4e6e5; }
+#mainContainer { background: var(--workspace-bg,#e4e6e5); }
 #viewsManager { position: fixed; top: 4px; left: 8px; max-height: calc(100vh - 12px); visibility: visible; }
 #secondaryToolbar { display: none; }
 .review-comments-hidden .pdf-review-thread-highlight { visibility: hidden; }
@@ -30,3 +31,14 @@
 /* Owner policy covers native and attachment exports, including print fallback. */
 :root[data-downloads-allowed="false"] :is(#printButton,#secondaryPrint,#downloadButton,#secondaryDownload,#attachmentsViewMenu,#attachmentsView,.fileAttachmentAnnotation) { display:none !important; }
 @media print { :root[data-downloads-allowed="false"] body { display:none !important; visibility:hidden !important; } }
+/* Filter only artwork. Text selection, independent comment overlays and their
+   author colors retain their geometry/input and are never inverted. Detail
+   canvases share canvasWrapper, so zoom does not require a second render. */
+@media screen and (forced-colors: none) {
+  :root[data-pdf-theme=dark] .pdfViewer .page { --page-bg-color:#171b18; }
+  :root[data-pdf-theme=dark] :is(.pdfViewer .canvasWrapper,.pdfViewer .xfaLayer,.thumbnailImage) {
+    filter:grayscale(var(--pdf-grayscale,1)) invert(.9) hue-rotate(180deg) brightness(var(--pdf-dark-brightness,1));
+  }
+  /* Multiply blending would erase author colors against a dark page. */
+  :root[data-pdf-theme=dark] .pdf-review-anchor-highlight { mix-blend-mode:normal; }
+}
