@@ -59,7 +59,7 @@ class AppearanceTests(unittest.TestCase):
         with transaction(previous) as c:c.execute('INSERT INTO account_appearance VALUES(?,?,?)',(user,'dark','dark'))
         init_database(previous);init_database(previous)
         c=connect(previous)
-        try:self.assertEqual(dict(c.execute('SELECT * FROM account_appearance').fetchone()),dict(user_id=user,ui_theme='dark',pdf_theme='dark',pdf_monochrome=1,pdf_white_point=90,pdf_color_amount=0))
+        try:self.assertEqual(dict(c.execute('SELECT * FROM account_appearance').fetchone()),dict(user_id=user,ui_theme='dark',pdf_theme='dark',pdf_monochrome=1,pdf_white_point=90,pdf_color_amount=0,card_zoom_threshold=100))
         finally:c.close()
 
     def test_color_slider_upgrade_preserves_prior_color_choice(self):
@@ -72,6 +72,30 @@ class AppearanceTests(unittest.TestCase):
         c=connect(previous)
         try:self.assertEqual(dict(c.execute('SELECT pdf_color_amount,pdf_white_point FROM account_appearance').fetchone()),dict(pdf_color_amount=100,pdf_white_point=65))
         finally:c.close()
+
+
+    def test_card_zoom_default_override_inheritance_and_validation(self):
+        from review.preferences import read_preferences, save_preferences, PreferenceError
+        from review import access
+        access.set_document_access(self.db,self.doc,self.reader,'reviewer')
+        read=lambda user=self.owner:read_preferences(self.db,self.doc,user)['card_zoom_threshold']
+        self.assertEqual(read(),100)
+        settings=dict(ui_theme='light',pdf_theme='light',card_zoom_threshold='125')
+        self.assertEqual(self.post(self.owner,'/account/appearance',settings).status_code,303)
+        self.assertEqual(read(),125)
+        self.assertEqual(read(self.reader),100)
+        save_preferences(self.db,self.doc,self.owner,{'spread':1})
+        self.assertEqual(read(),125)  # Initializing other choices must retain inheritance.
+        save_preferences(self.db,self.doc,self.owner,{'card_zoom_threshold':150})
+        self.assertEqual(read(),150)
+        self.assertEqual(self.post(self.owner,'/account/appearance',{**settings,'card_zoom_threshold':'175'}).status_code,303)
+        self.assertEqual(read(),150)
+        save_preferences(self.db,self.doc,self.owner,{},reset=True)
+        self.assertEqual(read(),175)
+        for invalid in [49,201,True,100.5,'125']:
+            with self.assertRaises(PreferenceError):save_preferences(self.db,self.doc,self.owner,{'card_zoom_threshold':invalid})
+        for invalid in ['49','201','100.5']:
+            self.assertEqual(self.post(self.owner,'/account/appearance',{**settings,'card_zoom_threshold':invalid}).status_code,422)
 
 
 if __name__=='__main__':unittest.main()

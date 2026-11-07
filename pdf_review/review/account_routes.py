@@ -57,14 +57,14 @@ def profile():
 
 @bp.post('/account/appearance')
 def appearance():
-    if set(request.form) - {'csrf_token', 'ui_theme', 'pdf_theme','pdf_monochrome','pdf_color_amount','pdf_white_point'}:
+    if set(request.form) - {'csrf_token', 'ui_theme', 'pdf_theme','pdf_monochrome','pdf_color_amount','pdf_white_point','card_zoom_threshold'}:
         abort(400)
     def save():
         values={key:request.form.get(key) for key in ('ui_theme','pdf_theme')}
-        for key in ('pdf_monochrome','pdf_color_amount','pdf_white_point'):
+        for key in ('pdf_monochrome','pdf_color_amount','pdf_white_point','card_zoom_threshold'):
             if key not in request.form:continue
             raw=request.form[key]
-            if len(raw)>3 or not raw.isascii() or not raw.isdecimal():raise PreferenceError('Invalid PDF color setting.')
+            if len(raw)>3 or not raw.isascii() or not raw.isdecimal():raise PreferenceError('Invalid appearance setting.')
             values[key]=int(raw)
         save_appearance(database(),actor(),values)
     return mutate(save, 'accounts.account')

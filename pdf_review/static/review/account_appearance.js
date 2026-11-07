@@ -4,14 +4,14 @@ const form=document.getElementById('appearance-form');
 const error=document.getElementById('appearance-error');
 const values=()=>({
   ...Object.fromEntries(['ui_theme','pdf_theme'].map(key=>[key,form.elements[key].checked?'dark':'light'])),
-  ...Object.fromEntries(['pdf_color_amount','pdf_white_point'].map(key=>[key,form.elements[key].valueAsNumber])),
+  ...Object.fromEntries(['pdf_color_amount','pdf_white_point','card_zoom_threshold'].map(key=>[key,form.elements[key].valueAsNumber])),
 });
 let saved=values(),pending=false,running=false;
 
 function apply(settings){
   for(const key of ['ui_theme','pdf_theme'])form.elements[key].checked=settings[key]==='dark';
   document.documentElement.dataset.uiTheme=settings.ui_theme;
-  for(const key of ['pdf_color_amount','pdf_white_point']){
+  for(const key of ['pdf_color_amount','pdf_white_point','card_zoom_threshold']){
     const input=form.elements[key];input.value=settings[key];
     form.querySelector(`output[for="${input.id}"]`).textContent=`${settings[key]}%`;
   }

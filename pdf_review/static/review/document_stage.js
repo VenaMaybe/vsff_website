@@ -14,6 +14,7 @@ class DocumentStage {
     const syncCardScale = () => document.querySelector('.viewer-workspace')?.style.setProperty('--review-card-scale', cardScale(application));
     syncCardScale();
     application.eventBus.on('scalechanging', syncCardScale);
+    application.eventBus.on('reviewcardscalechanged', () => { syncCardScale(); this.schedule(); });
     this.origin = 0;
     this.originY = 0;
     this.bounds = new Map();

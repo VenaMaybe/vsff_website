@@ -217,7 +217,7 @@ export class CommentRail {
       const signature = page && [Math.round(page.left + this.scroller.scrollLeft), Math.round(page.width), Math.round(page.height), application.pdfViewer.spreadMode].join(":");
       if (signature !== this.geometrySignature) { this.geometrySignature = signature; this.schedule(); }
     });
-    for (const event of ["scalechanging", "rotationchanging", "pagerendered", "textlayerrendered", "scrollmodechanged", "spreadmodechanged", "pagesinit", "leftcardchanged"]) application.eventBus.on(event, () => this.schedule());
+    for (const event of ["scalechanging", "reviewcardscalechanged", "rotationchanging", "pagerendered", "textlayerrendered", "scrollmodechanged", "spreadmodechanged", "pagesinit", "leftcardchanged"]) application.eventBus.on(event, () => this.schedule());
     this.visibility.addEventListener("change", () => {
       this.mode = this.visibility.value;
       this.schedule();

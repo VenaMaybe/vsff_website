@@ -30,6 +30,10 @@
       <label class="pdf-color-control">Color <output for="account-pdf-color">{{ auth_user.pdf_color_amount }}%</output><input type="range" id="account-pdf-color" name="pdf_color_amount" min="0" max="100" value="{{ auth_user.pdf_color_amount }}"></label>
       <label class="pdf-color-control">White point <output for="account-pdf-white-point">{{ auth_user.pdf_white_point }}%</output><input type="range" id="account-pdf-white-point" name="pdf_white_point" min="50" max="100" value="{{ auth_user.pdf_white_point }}"></label>
     </div>
+    <div class="appearance-card-size">
+      <label class="pdf-color-control">Card size threshold <output for="account-card-zoom">{{ auth_user.card_zoom_threshold }}%</output><input type="range" id="account-card-zoom" name="card_zoom_threshold" min="50" max="200" step="5" value="{{ auth_user.card_zoom_threshold }}" aria-describedby="card-zoom-help"></label>
+      <small id="card-zoom-help">When zoomed in past this threshold, cards and comments stay full-size. Below it, they start to shrink with the PDF.</small>
+    </div>
   </form>
   <small id="appearance-error" role="status" hidden></small>
 </section>

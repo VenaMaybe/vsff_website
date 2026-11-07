@@ -784,8 +784,12 @@ thread controls have zero top margin. Card height observations recompute packing
 when responses or reply forms grow.
 
 Document-attached UI uses `card_scale.js`: its uniform visual scale is
-`min(1, pdfViewer.currentScale)`. The stage synchronizes a workspace-scoped CSS
-variable on native `scalechanging`; card layout and wrapping remain unscaled.
+`min(1, pdfViewer.currentScale * 100 / cardZoomThreshold)`. Migration 20 adds
+the account default (100%, bounded 50–200%) and a nullable personal document
+override in `viewer_preferences`; unset overrides continue inheriting the account
+default. View previews slider input immediately and saves on change. The stage
+synchronizes a workspace-scoped CSS variable on native `scalechanging` and
+`reviewcardscalechanged`; card layout and wrapping remain unscaled.
 Left-card packing, comment packing, endpoint alignment and reachability use scaled
 sizes while all positions and pointer deltas stay in screen CSS pixels. Independent
 CSS translate animations preserve those deltas before card scaling. PDF page

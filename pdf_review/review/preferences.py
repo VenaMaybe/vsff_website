@@ -19,27 +19,28 @@ def validate(values, choices):
 
 DEFAULT_CHOICES = dict(visibility_policy=('shared','isolated'), default_scope=('all','mine'),
                        default_spread=(0,1,2), default_display=('expanded','minimized','hidden'), downloads_allowed=(0,1), reading_tracking_enabled=(0,1))
-PERSONAL_CHOICES = dict(scope=('all','mine'), spread=(0,1,2), display=('expanded','minimized','hidden','mobile'))
+PERSONAL_CHOICES = dict(scope=('all','mine'), spread=(0,1,2), display=('expanded','minimized','hidden','mobile'), card_zoom_threshold=tuple(range(50,201)))
 
 
 def save_appearance(database, user_id, values):
     validate(values, dict(ui_theme=('light','dark'), pdf_theme=('light','dark'),
-                         pdf_monochrome=(0,1),pdf_color_amount=tuple(range(101)),pdf_white_point=tuple(range(50,101))))
+                         pdf_monochrome=(0,1),pdf_color_amount=tuple(range(101)),pdf_white_point=tuple(range(50,101)),card_zoom_threshold=tuple(range(50,201))))
     if not {'ui_theme','pdf_theme'} <= set(values):
         raise PreferenceError('Choose a theme for the interface and PDF.')
     with transaction(database) as c:
         if not c.execute(ELIGIBLE+' AND u.user_id=?',(user_id,)).fetchone():
             raise AccessDenied('Active account required.')
-        current=c.execute('SELECT pdf_color_amount,pdf_white_point FROM account_appearance WHERE user_id=?',(user_id,)).fetchone()
+        current=c.execute('SELECT pdf_color_amount,pdf_white_point,card_zoom_threshold FROM account_appearance WHERE user_id=?',(user_id,)).fetchone()
         color=values.get('pdf_color_amount',current['pdf_color_amount'] if current else 50)
         if 'pdf_color_amount' not in values and 'pdf_monochrome' in values:
             color=0 if values['pdf_monochrome'] else 100
         white=values.get('pdf_white_point',current['pdf_white_point'] if current else 65)
-        c.execute('''INSERT INTO account_appearance (user_id,ui_theme,pdf_theme,pdf_monochrome,pdf_white_point,pdf_color_amount)
-            VALUES(?,?,?,?,?,?) ON CONFLICT(user_id) DO UPDATE SET ui_theme=excluded.ui_theme,
+        threshold=values.get('card_zoom_threshold',current['card_zoom_threshold'] if current else 100)
+        c.execute('''INSERT INTO account_appearance (user_id,ui_theme,pdf_theme,pdf_monochrome,pdf_white_point,pdf_color_amount,card_zoom_threshold)
+            VALUES(?,?,?,?,?,?,?) ON CONFLICT(user_id) DO UPDATE SET ui_theme=excluded.ui_theme,
             pdf_theme=excluded.pdf_theme,pdf_monochrome=excluded.pdf_monochrome,
-            pdf_white_point=excluded.pdf_white_point,pdf_color_amount=excluded.pdf_color_amount''',
-                  (user_id,values['ui_theme'],values['pdf_theme'],int(color==0),white,color))
+            pdf_white_point=excluded.pdf_white_point,pdf_color_amount=excluded.pdf_color_amount,card_zoom_threshold=excluded.card_zoom_threshold''',
+                  (user_id,values['ui_theme'],values['pdf_theme'],int(color==0),white,color,threshold))
 
 
 def save_defaults(database, document_id, user_id, values, reader_pauses=None):
@@ -76,9 +77,12 @@ def read_preferences(database, document_id, user_id):
     try:
         role = require_reader(c, document_id, user_id)
         defaults = settings(c, document_id)
-        row = c.execute('SELECT scope,spread,display FROM viewer_preferences WHERE document_id=? AND user_id=?',
+        row = c.execute('SELECT scope,spread,display,card_zoom_threshold FROM viewer_preferences WHERE document_id=? AND user_id=?',
                         (document_id,user_id)).fetchone()
         values = dict(row) if row else dict(scope=defaults['default_scope'],spread=defaults['default_spread'],display=defaults['default_display'])
+        if values.get('card_zoom_threshold') is None:
+            appearance=c.execute('SELECT card_zoom_threshold FROM account_appearance WHERE user_id=?',(user_id,)).fetchone()
+            values['card_zoom_threshold']=appearance['card_zoom_threshold'] if appearance else 100
         hidden = [r[0] for r in c.execute('SELECT hidden_user_id FROM hidden_reviewers WHERE document_id=? AND user_id=?', (document_id,user_id))]
         enforced = defaults['visibility_policy'] == 'isolated' and role != 'owner'
         return dict(**values, hidden_reviewers=[] if enforced else hidden, initialized=bool(row), defaults=defaults,
@@ -100,9 +104,9 @@ def save_preferences(database, document_id, user_id, values, *, reset=False):
         row = None if reset else c.execute('SELECT * FROM viewer_preferences WHERE document_id=? AND user_id=?',(document_id,user_id)).fetchone()
         current = dict(row) if row else dict(scope=defaults['default_scope'],spread=defaults['default_spread'],display=defaults['default_display'])
         current.update(values)
-        c.execute('''INSERT INTO viewer_preferences VALUES(?,?,?,?,?) ON CONFLICT(document_id,user_id)
-            DO UPDATE SET scope=excluded.scope,spread=excluded.spread,display=excluded.display''',
-            (document_id,user_id,current['scope'],current['spread'],current['display']))
+        c.execute('''INSERT INTO viewer_preferences (document_id,user_id,scope,spread,display,card_zoom_threshold) VALUES(?,?,?,?,?,?) ON CONFLICT(document_id,user_id)
+            DO UPDATE SET scope=excluded.scope,spread=excluded.spread,display=excluded.display,card_zoom_threshold=excluded.card_zoom_threshold''',
+            (document_id,user_id,current['scope'],current['spread'],current['display'],current.get('card_zoom_threshold')))
         if reset or hidden is not None:
             c.execute('DELETE FROM hidden_reviewers WHERE document_id=? AND user_id=?',(document_id,user_id))
         if hidden is not None:

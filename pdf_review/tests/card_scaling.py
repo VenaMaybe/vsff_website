@@ -48,6 +48,20 @@ def run_card_scaling(cdp, session):
             assert actual['layoutW']==original['layoutW'],(zoom,original,actual)
             assert abs(actual['w']-original['w']*factor)<1,(zoom,original,actual)
             assert abs(actual['h']-actual['layoutH']*factor)<1,(zoom,actual)
+    # Changing the preferred threshold updates every open card immediately,
+    # retaining the same proportional zoom below it and capping at normal size.
+    for threshold,zoom in [(125,1),(125,1.25),(75,.5),(75,1),(200,1)]:
+        ev(f"document.querySelector('#review-card-zoom').value={threshold};document.querySelector('#review-card-zoom').dispatchEvent(new Event('input'));"+PDF+f'.currentScale={zoom}')
+        time.sleep(.25)
+        state=ev(measure)
+        factor=min(1,zoom*100/threshold)
+        assert state['nonoverlap'],(threshold,zoom,state)
+        for actual in state['rects']:
+            assert abs(actual['w']-actual['layoutW']*factor)<1,(threshold,zoom,actual)
+            assert abs(actual['h']-actual['layoutH']*factor)<1,(threshold,zoom,actual)
+        assert ev("document.querySelector('output[for=review-card-zoom]').textContent")==f'{threshold}%'
+    ev("document.querySelector('#review-card-zoom').value=100;document.querySelector('#review-card-zoom').dispatchEvent(new Event('input'));"+PDF+'.currentScale=.5')
+    time.sleep(.25)
     # A scaled header still follows the pointer in screen pixels.
     header=ev("(()=>{const r=document.querySelector('.settings-panel .dialog-header').getBoundingClientRect();return {x:r.left+20,y:r.top+5};})()")
     top=ev("document.querySelector('.settings-panel').getBoundingClientRect().top")

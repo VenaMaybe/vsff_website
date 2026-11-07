@@ -13,6 +13,8 @@
 .appearance-pdf-colors { flex-basis:100%; align-items:center; gap:8px 20px; flex-wrap:wrap; }
 .appearance-pdf-colors:not([hidden]) { display:flex; }
 .appearance-controls .pdf-color-control { display:grid; width:170px; }
+.appearance-card-size { flex-basis:100%; display:grid; gap:4px; }
+.appearance-card-size small { color:var(--muted); font-size:11px; }
 .admin-nav { display: flex; gap: 16px; margin: 12px 0; }
 .access-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 0; border-bottom: 1px solid var(--line); }
 .access-person { display: flex; flex: 1 1 200px; min-width: 0; flex-direction: column; gap: 3px; overflow-wrap: anywhere; }

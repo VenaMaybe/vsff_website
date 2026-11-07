@@ -52,6 +52,9 @@
             <label class="pdf-color-control">White point <output for="review-pdf-white-point">{{ auth_user.pdf_white_point }}%</output><input type="range" id="review-pdf-white-point" min="50" max="100" value="{{ auth_user.pdf_white_point }}"></label>
         </div>
         <button type="button" id="review-ui-dark" role="menuitemcheckbox" aria-checked="{{ 'true' if auth_user.ui_theme == 'dark' else 'false' }}">Dark UI</button>
+        <div class="pdf-reading-controls" role="group" aria-label="Card sizing">
+          <label class="pdf-color-control" title="Cards reach normal size at this PDF zoom level and shrink proportionally below it.">Card size threshold <output for="review-card-zoom">{{ auth_user.card_zoom_threshold }}%</output><input type="range" id="review-card-zoom" min="50" max="200" step="5" value="{{ auth_user.card_zoom_threshold }}"></label>
+        </div>
         <hr>
         <button type="button" data-pdf-control="pageRotateCw">Rotate clockwise</button>
         <button type="button" data-pdf-control="pageRotateCcw">Rotate counterclockwise</button>

@@ -173,9 +173,10 @@ section feedback. See [BETA_C2_REPORT.md](BETA_C2_REPORT.md) for the audit and c
   updates already-open review viewers. Downloads are allowed by default.
   This is a viewer restriction: PDF rendering still requires the read endpoint,
   so browser menus, developer tools or screen capture can still save content.
-- Below **100% PDF zoom**, left cards and comment cards/markers shrink by the
-  same factor as the PDF (50% zoom gives half-size cards). At 100% and above,
-  they keep their normal size. Packing, rail gaps and dragging use scaled bounds;
+- Below the **Card size threshold** (100% by default), left cards and comment
+  cards/markers shrink proportionally with the PDF. Set it in View for this
+  document, or Account → Appearance for the default (50–200%). At the threshold
+  and above, cards keep their normal size. Packing, rail gaps and dragging use scaled bounds;
   the toolbar and mobile keyboard composer retain their screen size.
   Layout measures each open card once per pass and batches position updates;
   section dividers likewise batch measurements and retain unchanged labels.

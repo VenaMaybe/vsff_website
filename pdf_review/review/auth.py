@@ -79,7 +79,8 @@ def current_user():
             coalesce(p.pdf_theme,'light') AS pdf_theme,
             coalesce(p.pdf_monochrome,1) AS pdf_monochrome,
             coalesce(p.pdf_color_amount,50) AS pdf_color_amount,
-            coalesce(p.pdf_white_point,65) AS pdf_white_point FROM users u JOIN allowed_emails a
+            coalesce(p.pdf_white_point,65) AS pdf_white_point,
+            coalesce(p.card_zoom_threshold,100) AS card_zoom_threshold FROM users u JOIN allowed_emails a
             ON a.normalized_email = u.normalized_email
             LEFT JOIN account_appearance p ON p.user_id=u.user_id
             WHERE u.user_id = ? AND u.is_active = 1 AND u.email_verified = 1
