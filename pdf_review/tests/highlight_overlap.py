@@ -155,6 +155,8 @@ def run_highlight_overlap(cdp,a,fixture):
     assert cursor_timing==dict(down=True,up=True,quickClick=True,hold=False),cursor_timing
     for index in range(4):click(p,p['ids'][index%3])
     assert ev("(()=>{const w=document.querySelector('iframe').contentWindow,node=w.document.querySelector('.review-highlight-cursor');return !!node&&w.getComputedStyle(node).cursor==='pointer';})()")
+    from tests.highlight_touch import check_touch
+    check_touch(cdp,a,p)
     # Clicking another part of the line cycles only through coverage there.
     p=point(.75)
     assert len(p['ids'])==2,p

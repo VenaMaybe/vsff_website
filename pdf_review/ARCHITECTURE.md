@@ -216,6 +216,21 @@ Hover applies the clickable hand cursor to the underlying text hit target. A
 primary mouse press retains it for a quick click; movement or a 200ms hold clears
 it. Release cancels the timer, and scrolling/cancellation/tool changes clear it.
 This cosmetic delay never delays native selection, hit testing or click handling.
+
+Short single-touch taps activate on pointer-up rather than depending on a later
+compatibility click. The matching click is consumed once so outside-click handling
+cannot immediately deselect the thread or cycle an overlap twice. New pointer-down
+clears that guard, including rapid repeated taps. Touch release uses geometric
+hit testing rather than the implicitly captured starting span. Exact painted hits
+take priority over a nearest-region allowance of 4 CSS pixels for thin highlights.
+Subpixel scroll settling up to 1 CSS pixel is tolerated only for touch; actual
+scrolling, movement over 8px, multi-pointer/cancelled gestures, focus loss, context
+menus, holds over 450ms and newly changed noncollapsed selections do not activate.
+An unchanged selection left from an earlier interaction does not block a short
+tap. No pointer-down/up/move default is cancelled by this touch recognizer; native
+selection and PDF.js pan/zoom retain their input. Focused browser coverage includes
+native touch input, compatibility-click deduplication and controlled cancellation
+cases in `tests/highlight_touch.py`, run with `--highlight-overlap`.
 Thread IDs are deduplicated so multiple rectangles from one conversation count
 once. With no selected conversation at the click point, selection starts at the
 topmost hit; otherwise it advances and wraps around. Only highlights covering
