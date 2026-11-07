@@ -183,6 +183,9 @@ export class CommentRail {
         if (card.style.left) card.style.left = `${parseFloat(card.style.left)+dx}px`;
         if (card.style.top) card.style.top = `${parseFloat(card.style.top)+dy}px`;
       }
+      // Animation snapshots use the same document coordinates as card.top.
+      // Rebasing moves content and scroll together; it is not card movement.
+      for (const position of this.commentPositions?.values() || []) position.top += dy;
       if (this.composerPlacement) { this.composerPlacement.left += dx; this.composerPlacement.top += dy; }
       this.translate();
     });

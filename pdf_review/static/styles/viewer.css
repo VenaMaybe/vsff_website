@@ -108,5 +108,9 @@
 .viewer-page[data-downloads-allowed="false"] :is([data-pdf-control="downloadButton"],[data-pdf-control="printButton"]) { display:none !important; }
 @media print { .viewer-page[data-downloads-allowed="false"] { display:none !important; visibility:hidden !important; } }
 
-:root { --section-comment-extra-width:30px; }
-.section-feedback-card { width:calc(var(--comment-width) + var(--section-comment-extra-width)); }
+:root { --section-comment-extra-width:36px; }
+.thread-card.section-feedback-card {
+  width:calc(var(--comment-width) + var(--section-comment-extra-width));
+  border-left-width:6px;
+  padding-left:5px;
+}

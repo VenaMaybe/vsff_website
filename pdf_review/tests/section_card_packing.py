@@ -1,10 +1,10 @@
 """Ordered normal comments with section groups inserted near their endpoints."""
 import time
-from tests.viewer_acceptance import PDF, SELECT, viewport, change, screenshot
+from tests.viewer_acceptance import PDF, SELECT, viewport, change, screenshot, key
 from tests.beta_c2_acceptance import request
 
 
-def run_section_card_packing(cdp,a,b,fixture,base):
+def run_section_card_packing(cdp,a,b,fixture,base, *, editing_only=False):
     def ev(script):return cdp.evaluate(a,script)
     def wait(script):return cdp.wait(a,script)
     viewport(cdp,a,1600,1000)
@@ -34,6 +34,9 @@ def run_section_card_packing(cdp,a,b,fixture,base):
     for session in [a,b]:
         assert request(cdp,session,f'/api/versions/{version}/sections/{sid}/responses','POST',{'body':'Section feedback with room to consider the ending.'})['status']==201
     wait("document.querySelectorAll('.section-feedback-card').length===2")
+    if editing_only:
+        check_comment_editing(cdp,a)
+        return
     check="""(()=>{const cards=[...document.querySelectorAll('#thread-list .thread-card')].filter(c=>!c.hidden),
       sections=cards.filter(c=>c.classList.contains('section-feedback-card')),normal=cards.filter(c=>!c.classList.contains('section-feedback-card'));
       const ordered=[...cards].sort((a,b)=>a.offsetTop-b.offsetTop),p=PDF.getPageView(0),r=p.div.getBoundingClientRect(),
@@ -51,7 +54,7 @@ def run_section_card_packing(cdp,a,b,fixture,base):
         time.sleep(.25)
         result=ev(check)
         assert result['normalOrder']==list(range(5)) and result['contiguous'],result
-        assert result['nonoverlap'] and result['margins'] and result['width']==30,result
+        assert result['nonoverlap'] and result['margins'] and result['width']==36,result
         return result
     result=verify()
     # Compare every insertion boundary in the original ordinary-comment list.
@@ -99,3 +102,34 @@ def run_section_card_packing(cdp,a,b,fixture,base):
         sections:cards.filter(c=>c.classList.contains('section-feedback-card')).map(c=>c.textContent.includes('Second section feedback')?'second':'first')};})()""")
     assert multiple==dict(order=list(range(5)),nonoverlap=True,sections=['first','first','second']),multiple
     print('PASS preserved normal-comment order, closest section insertion, grouped responses, scroll stability, selection/reply resizing, width/margin, zoom/spreads and visibility modes',flush=True)
+
+
+def check_comment_editing(cdp,a):
+    def ev(script):return cdp.evaluate(a,script)
+    def wait(script):return cdp.wait(a,script)
+    assert ev("(()=>{const s=getComputedStyle(document.querySelector('.section-feedback-card')),n=getComputedStyle(document.querySelector('.thread-card:not(.section-feedback-card)'));return s.borderLeftWidth==='6px'&&parseFloat(s.borderLeftWidth)+parseFloat(s.paddingLeft)===parseFloat(n.borderLeftWidth)+parseFloat(n.paddingLeft);})()"), 'Section edge doubles without shifting text'
+    # Edit selects an inactive ordinary/section card in one click, focuses its
+    # retained editor, and keeps Edit/Delete below the form on every render.
+    for section in [False,True]:
+        ev("window.editCardId=[...document.querySelectorAll('#thread-list .thread-card')].find(c=>c.classList.contains('section-feedback-card')==="+str(section).lower()+"&&c.querySelector('.thread-comments .comment-actions button')).dataset.threadId")
+        target="[...document.querySelectorAll('#thread-list .thread-card')].find(c=>c.dataset.threadId===editCardId)"
+        for initially_active in [False,True]:
+            ev("document.querySelector('iframe').contentDocument.body.dispatchEvent(new MouseEvent('click',{bubbles:true}))")
+            assert ev("!document.querySelector('#thread-list .thread-card.active')")
+            if initially_active:
+                ev(target+".click()")
+            ev(target+".querySelector('.thread-comments .comment-actions button').click()")
+            wait("document.querySelector('.thread-card.active')?.dataset.threadId===editCardId&&document.activeElement.matches('.inline-edit-form textarea')")
+            assert ev("(()=>{const f=document.activeElement.closest('form'),a=f.nextElementSibling;return a.matches('.comment-actions')&&a.textContent.includes('Edit')&&a.textContent.includes('Delete')&&a.getBoundingClientRect().top>=f.querySelector('textarea').getBoundingClientRect().bottom;})()")
+            ev("document.activeElement.value='One click edited feedback'")
+            if initially_active:
+                key(cdp,a,'Enter',13,10)
+                wait(target+".textContent.includes('One click edited feedback')&&!"+target+".querySelector('.inline-edit-form')")
+            else:
+                # Selecting the card again reconstructs it without losing its
+                # draft, focus or consistent action placement.
+                ev(target+".click()")
+                assert ev("document.activeElement.matches('.inline-edit-form textarea')&&document.activeElement.value==='One click edited feedback'&&document.activeElement.closest('form').nextElementSibling.matches('.comment-actions')")
+                ev(target+".querySelector('.inline-edit-form button[type=button]').click()")
+                assert ev("!"+target+".querySelector('.inline-edit-form')")
+    print('PASS one-click editing inactive/active regular and section comments, editor focus, action placement, retained drafts, cancel and keyboard save',flush=True)

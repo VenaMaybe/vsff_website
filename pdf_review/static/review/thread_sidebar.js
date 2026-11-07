@@ -89,7 +89,7 @@ function inlineEdit(comment, actions) {
   return form;
 }
 
-function commentNode(comment, actions) {
+function commentNode(comment, thread, actions) {
   const node = element("div", "thread-comment");
   const meta = element("div", "thread-comment-meta");
   meta.append(
@@ -113,7 +113,12 @@ function commentNode(comment, actions) {
     edit.type = "button";
     edit.addEventListener("click", (event) => {
       stopCardClick(event);
-      node.append(inlineEdit(comment, actions));
+      // Selection rebuilds the sidebar. Register the editor first so the new
+      // card adopts the same form, always before its Edit/Delete controls.
+      const form = inlineEdit(comment, actions);
+      node.insertBefore(form, controls);
+      actions.select(thread, false);
+      form.querySelector("textarea").focus({ preventScroll: true });
     });
     const remove = element("button", "text-action danger", "Delete");
     remove.type = "button";
@@ -172,7 +177,7 @@ function threadCard(thread, selectedThreadId, actions) {
   const comments = element("div", "thread-comments");
   const expanded = expandedThreads.has(thread.thread_id);
   thread.comments.forEach((comment, index) => {
-    const node = commentNode(comment, actions);
+    const node = commentNode(comment, thread, actions);
     node.hidden = !expanded && index > 0 && index < thread.comments.length - 2;
     comments.append(node);
   });
