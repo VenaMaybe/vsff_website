@@ -5,6 +5,7 @@
   <meta name="csrf-token" content="{{ csrf_token() }}">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{{ version.version_label or version.original_filename }} | PDF Review</title>
+  <script src="{{ url_for('static',filename='review/theme_memory.js') }}"></script>
   <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='styles/viewer.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='styles/comments.css') }}">

@@ -42,9 +42,10 @@ def mutate(operation, destination, json_message='Change saved.', **arguments):
 @bp.get('/account')
 def account():
     from .preferences import palette
+    from .shortcuts import SHORTCUTS
     documents = access.account_documents(database(), actor())
     return render_template('account.html', owned=[d for d in documents if d['role'] == 'owner'],
-                           shared=[d for d in documents if d['role'] != 'owner'], palette=palette(database()))
+                           shared=[d for d in documents if d['role'] != 'owner'], palette=palette(database()), shortcuts=SHORTCUTS)
 
 
 @bp.post('/account/profile')

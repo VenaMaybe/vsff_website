@@ -1,5 +1,9 @@
 # PDF Review
 
+Keyboard bindings are listed in Account's help panel. Keep
+[review/shortcuts.py](review/shortcuts.py) up to date when handlers change;
+[KEYBOARD_SHORTCUTS.md](KEYBOARD_SHORTCUTS.md) records navigation rules and handler locations.
+
 ## Document controls and main version (current)
 
 The green **Share** button beside Manage access opens a responsive native dialog

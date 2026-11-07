@@ -1,4 +1,12 @@
 /* C1 profile, sharing and administration inspectors; shared controls live in base.css. */
+.account-overview { display:grid; grid-template-columns:minmax(0,760px) minmax(280px,1fr); gap:12px; align-items:start; }
+.account-overview > div { min-width:0; }
+.keyboard-help ul { list-style:none; padding:0; margin:0; font-size:11px; }
+.keyboard-help li { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1.2fr); gap:10px; padding:5px 0; border-bottom:1px solid var(--line); }
+.keyboard-help li:last-child { border-bottom:0; }
+.keyboard-help kbd { font:inherit; color:var(--ink); overflow-wrap:anywhere; }
+.keyboard-help li > span { color:var(--muted); }
+@media (max-width:1000px) { .account-overview { grid-template-columns:minmax(0,1fr); } }
 .appearance-controls { display:flex; align-items:center; flex-wrap:wrap; gap:8px 20px; }
 .appearance-controls label { display:inline-flex; align-items:center; gap:5px; font-size:12px; cursor:pointer; }
 .appearance-controls input { margin:0; }

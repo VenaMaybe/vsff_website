@@ -82,4 +82,19 @@ def run_appearance(cdp,a,b,fixture,base):
     viewport(cdp,a,390,844)
     screenshot(cdp,a,'viewer-dark-mobile')
     assert ev("document.documentElement.scrollWidth<=innerWidth")
+    # Public legal pages follow both temporary viewer choices and saved account
+    # appearance without loading account data on those public routes.
+    ev("document.querySelector('#review-ui-dark').click()")
+    wait("document.cookie.split(';').some(c=>c.trim()==='pdf_review_ui_theme=light')")
+    cdp.call('Page.navigate',{'url':base+'/privacy'},a)
+    wait("document.readyState==='complete'&&document.querySelector('.legal-policy')!=null")
+    assert ev("document.documentElement.dataset.uiTheme==='light'&&getComputedStyle(document.documentElement).colorScheme==='light'")
+    cdp.call('Page.navigate',{'url':base+'/account'},a)
+    wait("document.readyState==='complete'&&document.documentElement.dataset.uiTheme==='dark'")
+    for path in ['/privacy','/tos']:
+        cdp.call('Page.navigate',{'url':base+path},a)
+        wait("document.readyState==='complete'&&document.querySelector('.legal-policy')!=null")
+        assert ev("document.documentElement.dataset.uiTheme==='dark'&&getComputedStyle(document.documentElement).colorScheme==='dark'&&!document.querySelector('meta[name=csrf-token]')")
+        assert ev("document.documentElement.scrollWidth<=innerWidth")
+    screenshot(cdp,a,'terms-dark-mobile')
     print('PASS independent PDF/UI themes, immediate toggle without canvas rebuild, print colors, saved account defaults, mobile layout',flush=True)

@@ -96,6 +96,16 @@ def run_tools(cdp, a, b, fixture, base):
     assert ev("document.querySelector('.tools-panel').dataset.pinned==='true'")
     ev("document.querySelector('.tools-panel .dialog-header button:last-child').click()")
     wait("!document.querySelector('.tools-panel')&&document.querySelector('#review-tools-menu > .toolbar-popover')===originalToolsContent")
+    # The shortcut works from document focus and a keyboard-focused dropdown row,
+    # not just the Tools summary. Repeated openings reuse the same card.
+    ev("document.querySelector('iframe').contentWindow.focus();document.querySelector('iframe').contentDocument.body.focus()")
+    key(cdp,a,'Enter',13,8)
+    wait("document.querySelector('.tools-panel')!==null")
+    ev("document.querySelector('.tools-panel .dialog-header button:last-child').click();document.querySelector('#review-tools-menu').open=true;document.querySelector('#review-tools-menu [data-left-card=filters]').focus()")
+    key(cdp,a,'Enter',13,8)
+    wait("document.querySelector('.tools-panel')!==null&&!document.querySelector('#review-tools-menu').open")
+    assert ev("document.querySelectorAll('.tools-panel').length===1&&!document.querySelector('.comment-filter-panel')")
+    ev("document.querySelector('.tools-panel .dialog-header button:last-child').click()")
     ev("document.querySelector('#review-tools-menu > summary').focus()")
     key(cdp,a,'Enter',13,8)
     wait("document.querySelector('.tools-panel')!==null")

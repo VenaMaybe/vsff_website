@@ -18,7 +18,10 @@ export class SelectionCommentComposer {
       await onSubmit(this.payload, body.value);
     });
     body.addEventListener("keydown", (event) => {
-      if ((event.ctrlKey || event.metaKey) && event.key === "Enter") { event.preventDefault(); form.requestSubmit(); }
+      if (event.ctrlKey && event.shiftKey && !event.altKey && !event.metaKey &&
+          event.key === "Enter" && !event.isComposing && !event.defaultPrevented) {
+        event.preventDefault(); form.requestSubmit();
+      }
     });
     body.addEventListener("pointerdown", (event) => {
       if (event.pointerType !== 'touch' || !event.isPrimary ||

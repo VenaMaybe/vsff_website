@@ -345,6 +345,7 @@ export class AnchorOverlay {
   }
 
   navigateTo(anchor) {
+    const revision=this.navigationRevision=(this.navigationRevision??0)+1;
     const firstSegment = anchor.segments[0];
     const pageNumber = firstSegment?.page_number;
     const firstRectangle = firstSegment?.rectangles?.[0];
@@ -357,8 +358,10 @@ export class AnchorOverlay {
         center: "vertical",
       });
       this.window.requestAnimationFrame(() => {
+        if(this.navigationRevision!==revision)return;
         this.renderPage(pageNumber);
         this.window.requestAnimationFrame(() => {
+          if(this.navigationRevision!==revision)return;
           const pageView = this.application.pdfViewer.getPageView(pageNumber - 1);
           const highlight = Array.from(
             pageView?.div?.querySelectorAll(".pdf-review-anchor-highlight") ?? []

@@ -2,6 +2,7 @@
 {% block title %}Account · PDF Review{% endblock %}
 {% block content %}
 <div class="page-heading"><h1>Account</h1></div>
+<div class="account-overview"><div>
 <section class="panel compact-panel">
   <h2>Your profile</h2>
   <dl class="metadata"><div><dt>Verified Google email</dt><dd>{{ auth_user.email }}</dd></div><div><dt>Account status</dt><dd>Active private beta account</dd></div></dl>
@@ -33,6 +34,12 @@
   <small id="appearance-error" role="status" hidden></small>
 </section>
 <script type="module" src="{{ url_for('static',filename='review/account_appearance.js') }}"></script>
+</div>
+<section class="panel keyboard-help">
+  <h2>Keyboard shortcuts</h2>
+  <ul>{% for keys, action in shortcuts %}<li><kbd>{{ keys }}</kbd><span>{{ action }}</span></li>{% endfor %}</ul>
+</section>
+</div>
 {% for heading, documents in [('Owned by me', owned), ('Shared with me', shared)] %}
 <section class="panel"><h2>{{ heading }}</h2>
   <div class="document-grid">

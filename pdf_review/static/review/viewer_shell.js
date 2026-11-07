@@ -70,7 +70,19 @@ function installToolsCard(frame,application){
   registerLeftCard('tools',open);
   summary.title='Tools (double-click or Shift+Enter to open as a card)';
   summary.addEventListener('dblclick',event=>{event.preventDefault();open();});
-  summary.addEventListener('keydown',event=>{if(event.key==='Enter'&&event.shiftKey){event.preventDefault();open();}});
+  const shortcut=event=>{
+    if(event.key!=='Enter'||!event.shiftKey||event.ctrlKey||event.metaKey||event.altKey||
+        event.isComposing||event.defaultPrevented)return;
+    const target=event.target;
+    // Keep editor newlines, Search's previous-match shortcut and other controls.
+    if(target.isContentEditable||target.closest('input,textarea,select,[contenteditable="true"],[role="textbox"]'))return;
+    if(!menu.contains(target)&&!card.element.contains(target)&&
+        target.closest('button,a,summary,[role="button"],[role="dialog"],.toolbar-menu'))return;
+    event.preventDefault();event.stopImmediatePropagation();
+    if(!event.repeat)open();
+  };
+  document.addEventListener('keydown',shortcut,true);
+  frame.contentDocument.addEventListener('keydown',shortcut,true);
 }
 
 export function installViewerControls(frame, application) {

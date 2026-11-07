@@ -1,7 +1,7 @@
 """Comment presentation is independent of device-specific composer docking."""
 import json
 import time
-from tests.viewer_acceptance import PDF, viewport, change
+from tests.viewer_acceptance import PDF, viewport, change, key
 
 
 def run_composer_modes(cdp, session):
@@ -103,7 +103,12 @@ def run_composer_modes(cdp, session):
         ev("document.querySelector('#comment-selection-button').click()")
         wait("!document.querySelector('#selection-comment-composer').hidden")
         message='Saved in '+mode
-        ev("document.querySelector('#selection-comment-body').value="+json.dumps(message)+";document.querySelector('#selection-comment-form').requestSubmit()")
+        ev("document.querySelector('#selection-comment-body').value="+json.dumps(message)+";document.querySelector('#selection-comment-body').focus()")
+        # Shift+Enter remains an editor gesture; Ctrl+Enter no longer submits.
+        for modifiers in [8,2,4]:
+            key(cdp,session,'Enter',13,modifiers)
+            assert ev("!document.querySelector('#selection-comment-composer').hidden&&!document.querySelector('.tools-panel')&&document.querySelectorAll('#thread-list .thread-card').length==="+str(index-1))
+        key(cdp,session,'Enter',13,10)
         wait("document.querySelector('#selection-comment-composer').hidden&&document.querySelectorAll('#thread-list .thread-card').length==="+str(index))
         time.sleep(.2)
         assert ev("document.querySelector('#comments-visibility').value==="+json.dumps(mode))

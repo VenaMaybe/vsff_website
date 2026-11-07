@@ -2,6 +2,30 @@
 
 These are permanent extension constraints, not temporary implementation details.
 
+## Comment keyboard navigation and shortcut inventory
+
+`comment_navigation.js` owns Shift+Down/Right (next) and Shift+Up/Left (previous)
+in both the outer viewer and PDF iframe. Capture handles these before native PDF.js
+caret movement, while text selection/editing, controls, menus and modal dialogs
+retain native behavior. It reuses `ReviewState.visibleThreads()` and the existing
+selection/reveal path, so author/status filters and server confidentiality still
+apply. Only anchored threads enter the cycle; section response placeholders do not.
+Document ordering uses page/text offsets, rectangle position and a stable ID tie
+break. Order is cached by canonical thread-array identity and status filter.
+
+Any visible segment/rectangle in the last selected thread continues the cycle;
+otherwise choose the paint nearest the current PDF viewport center. Visibility
+checks both axes. Per-key page metrics are read once per page, without interleaved
+DOM writes. Ordinary deselection retains the last-thread reference. Keyboard
+navigation explicitly centers/reveals the selected highlight; ordinary clicking
+retains its existing no-scroll behavior. `AnchorOverlay.navigateTo` invalidates
+earlier deferred reveal callbacks so rapid navigation cannot jump back afterward.
+
+Account places a plain shortcut list alongside profile/appearance on wide screens,
+stacking below them on narrow screens. `review/shortcuts.py` is the single rendered
+inventory; update it when a handler changes. `KEYBOARD_SHORTCUTS.md` records scope,
+behavior and handler ownership. Focused browser regression: `--comment-navigation`.
+
 ## Appearance (migrations 17-19)
 
 `account_appearance` stores independent light/dark UI and PDF defaults per user.
@@ -158,6 +182,13 @@ CSRF token creation or flash consumption. Public policy access also works with
 an expired/revoked session. Only those exact endpoints bypass authentication;
 the default-deny policy and production host/security headers remain in force.
 Policy links belong in the shared footer and account menu, with a notice at sign-in.
+Authenticated pages mirror their current UI appearance in a host-only, SameSite
+`pdf_review_ui_theme` presentation cookie (`light`/`dark` only; Secure on HTTPS).
+The head script observes UI-theme changes, including viewer overrides and failed
+autosave rollback. Public legal routes validate this cookie and render the matching
+theme before scripts/paint, without reading identity or setting cookies. The cookie
+contains no account identifier and has no authorization role; absent/invalid values
+use light mode. Public pages do not run the theme-mirroring script themselves.
 
 ## Immutable artifacts and versions
 

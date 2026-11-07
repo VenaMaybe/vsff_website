@@ -44,6 +44,19 @@ class LegalTests(unittest.TestCase):
                 self.assertNotIn(b"revoked-synthetic-account", response.data)
                 self.assertNotIn(b"/auth/logout", response.data)
 
+    def test_theme_cookie_only_controls_presentation_without_private_reads(self):
+        with patch('review.auth.current_user',side_effect=AssertionError('identity read')), \
+             patch('review.auth.connect',side_effect=AssertionError('database read')):
+            for cookie,theme in [('dark','dark'),('light','light'),('invalid','light')]:
+                self.client.set_cookie('pdf_review_ui_theme',cookie)
+                for path in ('/privacy','/tos'):
+                    response=self.client.get(path)
+                    self.assertEqual(response.status_code,200)
+                    self.assertIn(f'data-ui-theme="{theme}"'.encode(),response.data)
+                    self.assertNotIn('Set-Cookie',response.headers)
+                    self.assertNotIn(b'theme_memory.js',response.data)
+                    self.assertNotIn(b'/auth/logout',response.data)
+
     def test_only_exact_read_routes_are_public(self):
         for path in ("/privacy", "/tos"):
             for method in ("POST", "PUT", "PATCH", "DELETE", "OPTIONS"):

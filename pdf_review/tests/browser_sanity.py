@@ -280,6 +280,11 @@ def run():
                     run_appearance(cdp,a,b,fixture,base)
                     assert not cdp.exceptions,cdp.exceptions
                     return
+                if '--comment-navigation' in sys.argv:
+                    from tests.comment_navigation_acceptance import run_comment_navigation
+                    run_comment_navigation(cdp,a,b,fixture,base)
+                    assert not cdp.exceptions,cdp.exceptions
+                    return
                 if '--section-card-packing' in sys.argv:
                     from tests.section_card_packing import run_section_card_packing
                     run_section_card_packing(cdp,a,b,fixture,base)

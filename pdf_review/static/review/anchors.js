@@ -27,6 +27,7 @@ import { ViewerPreferences } from './viewer_preferences.js';
 import { registerManagement } from './management.js';
 import { ReadingCards } from './reading_cards.js';
 import { PagePropertiesCard } from './page_properties_card.js';
+import { CommentNavigation } from './comment_navigation.js';
 
 const config = JSON.parse(document.getElementById("anchor-config").textContent);
 const frame = document.getElementById("pdf-viewer-frame");
@@ -51,6 +52,7 @@ let sectionViewer = null;
 let viewerPreferences = null;
 let readingCards = null;
 let pagePropertiesCard = null;
+let commentNavigation = null;
 let selectionDismissed = false;
 let selectionActionBeforeComposer = null;
 let restoredSelectionAction = null;
@@ -205,6 +207,7 @@ function selectThread(threadId, navigate, revealHidden = true) {
     threadFilter.value = "all";
   }
   state.selectedThreadId = threadId;
+  commentNavigation?.remember(threadId);
   refreshSidebar();
   refreshOverlay();
   if (revealHidden) rail?.showThread(threadId);
@@ -467,6 +470,10 @@ async function initialize() {
   window.visualViewport?.addEventListener('scroll', positionSelectionButton);
   state.currentReviewer = reviewerData.current_reviewer;
   overlay = new AnchorOverlay(frame.contentWindow, viewerApplication);
+  commentNavigation=new CommentNavigation(frame,application,state,(id,anchor)=>{
+    selectThread(id,false);
+    overlay.navigateTo(anchor);
+  });
   configureLeftCards(config);
   installViewerControls(frame, application);
   sectionViewer=new SectionViewer(frame,application,config,state,()=>threadRefresh.request(),setReviewStatus);
@@ -491,7 +498,8 @@ async function initialize() {
       }
     });
     doc.addEventListener("keydown", (event) => {
-      if (event.ctrlKey && event.shiftKey && event.key === "Enter" && !event.defaultPrevented) {
+      if (event.ctrlKey && event.shiftKey && !event.altKey && !event.metaKey &&
+          event.key === "Enter" && !event.isComposing && !event.defaultPrevented) {
         const form = event.target.closest?.(".thread-reply-form, .inline-edit-form");
         if (form && event.target.matches("textarea")) {
           event.preventDefault();
