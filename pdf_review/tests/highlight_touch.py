@@ -58,8 +58,23 @@ def check_touch(cdp, session, point):
         send('pointerdown',{clientX:25});send('pointerup',{clientX:155});click();expect(6,'Release over different thread');
         send('pointerdown');regions.forEach((r,i)=>r.node.dataset.threadId='replacement'+i);
         send('pointerup');click();expect(6,'Same point with changed thread identity');
+        regions.forEach((r,i)=>r.node.dataset.threadId=['a','b'][i]);
+        // Safari ordering: native TouchManager intercepts pointerdown at the
+        // window; pointerup is prevented, then a normal compatibility click.
+        const nativeGuard=new w.AbortController();
+        w.addEventListener('pointerdown',e=>{e.preventDefault();e.stopPropagation();},
+          {capture:true,signal:nativeGuard.signal});
+        w.addEventListener('pointerup',e=>e.preventDefault(),
+          {capture:true,signal:nativeGuard.signal});
+        send('pointerdown');send('pointerup');expect(6,'Prevented release waits for click');
+        click();expect(7,'Window-intercepted press still opens on click');
+        send('pointerdown');send('pointermove',{clientX:110,buttons:1});send('pointerup');click();
+        expect(7,'Intercepted press preserves drag rejection');
+        send('pointerdown');send('pointercancel');send('pointerup');click();
+        expect(7,'Intercepted press preserves cancellation');
+        nativeGuard.abort();
         return opened;
       }finally{frame.remove();}
     })()""")
-    assert result==['a','b','a','b','a','b'],result
+    assert result==['a','b','a','b','a','b','a'],result
     print('PASS native touch taps, single activation, rapid repeats, narrow hits, replaced targets; pan/pinch/long-press/selection cancellation',flush=True)

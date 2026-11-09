@@ -87,7 +87,10 @@ export class AnchorOverlay {
       this.application.reviewTouchDiagnostics?.record('highlight-activated', { threads });
       return true;
     };
-    document.addEventListener("pointerdown", event => {
+    // PDF.js TouchManager stops touch pointer propagation at window capture.
+    // Observe there too: document listeners can miss the entire press while
+    // still receiving its compatibility click. Do not cancel native input.
+    this.window.addEventListener("pointerdown", event => {
       cancelCursorDelay();
       this.hoverPoint = null;
       const highlight = event.button === 0 && event.pointerType !== "touch" ? this.highlightsAt(event)[0] : null;
@@ -113,8 +116,11 @@ export class AnchorOverlay {
         scale: this.application.pdfViewer.currentScale,
         threads: event.pointerType === 'touch' ? this.highlightsAt(event,4).map(node=>node.dataset.threadId) : [],
       } : null;
+      this.application.reviewTouchDiagnostics?.record('highlight-press', {
+        x:event.clientX,y:event.clientY,pointer:event.pointerType,
+        prevented:event.defaultPrevented,threads:this.pointerGesture?.threads ?? [] });
     }, true);
-    document.addEventListener("pointermove", event => {
+    this.window.addEventListener("pointermove", event => {
       const gesture = this.pointerGesture;
       if (gesture && event.pointerId === gesture.id &&
           Math.hypot(event.clientX - gesture.x, event.clientY - gesture.y) > gesture.tolerance) {
@@ -147,7 +153,7 @@ export class AnchorOverlay {
         this.setHoveredHighlight(null);
       }
     }, true);
-    document.addEventListener("pointercancel", () => {
+    this.window.addEventListener("pointercancel", () => {
       cancelCursorDelay();
       if (this.pointerGesture) this.pointerGesture.cancelled = true;
       this.hoverPoint = null;

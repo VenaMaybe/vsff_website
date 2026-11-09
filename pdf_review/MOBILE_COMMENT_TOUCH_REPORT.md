@@ -1,5 +1,30 @@
 # Mobile comment taps and detail loading — November 8, 2026
 
+## Live-site highlight tap trace (November 9)
+
+The second supplied trace (`pdf-review-touch-trace(1).json`) is useful without
+access to the live database. It contains 12 `highlight-rejected: no-gesture`
+events on pages 179/180, 18 compatibility clicks, and no recorded pointer-down
+events. Stationary taps show unchanged scroll offsets and scale. Touch starts
+and pointer-up events reach the document; the latter are default-prevented.
+
+PDF.js TouchManager installs window-capture pointer-down handlers that call
+`preventDefault()` and `stopPropagation()`. In Safari's observed ordering our
+document-capture handler therefore misses the press, and the later click fails
+because no gesture was recorded. Observing pointer-down, movement and cancellation
+at window capture fixes that propagation gap without suppressing PDF.js input
+or bypassing the existing movement, selection, scale and scroll checks. A
+prevented pointer-up still waits for a valid compatibility click.
+
+Changed `static/review/anchor_overlay.js` and `tests/highlight_touch.py`. The
+overlay also records `highlight-press` with hit thread IDs when diagnostics are
+enabled. The `--highlight-overlap` regression passes with a native-style window
+interceptor, prevented release, compatibility click, drag and cancellation.
+`--comment-touch` also passes 64 real Chrome touch cases across all four modes
+on pages 1 and 101, before/after repeated pinches and immediately/after settling.
+The live-site trace proves the rejection condition; this local change still
+needs a physical Safari retest and is not automatically deployed to the live site.
+
 ## Physical iPhone trace follow-up (November 8)
 
 The supplied `pdf-review-touch-trace.json` contains 4,321 events over 26.8 seconds
