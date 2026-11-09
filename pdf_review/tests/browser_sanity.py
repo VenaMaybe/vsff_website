@@ -311,6 +311,11 @@ def run():
                     run_comment_motion(cdp,a)
                     assert not cdp.exceptions,cdp.exceptions
                     return
+                if '--deleted-comments' in sys.argv:
+                    from tests.deleted_comments import run_deleted_comments
+                    run_deleted_comments(cdp,a,b,fixture)
+                    assert not cdp.exceptions,cdp.exceptions
+                    return
                 if '--comment-navigation' in sys.argv:
                     from tests.comment_navigation_acceptance import run_comment_navigation
                     run_comment_navigation(cdp,a,b,fixture,base)

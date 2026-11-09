@@ -16,7 +16,7 @@ export class ReviewState {
     }
     this.anchors = [...anchors.values()];
     this.threads = threads;
-    if (this.selectedThreadId && ![...threads,...this.sectionThreads].some((thread) => thread.thread_id === this.selectedThreadId)) {
+    if (this.selectedThreadId && ![...threads,...this.sectionThreads].some((thread) => thread.thread_id === this.selectedThreadId && this.hasVisibleComments(thread))) {
       this.selectedThreadId = null;
     }
   }
@@ -40,7 +40,20 @@ export class ReviewState {
     const text = this.filter === "all"
       ? this.threads
       : this.threads.filter((thread) => thread.status === "open");
-    return [...text,...this.sectionThreads];
+    return [...text,...this.sectionThreads]
+      .filter((thread) => this.hasVisibleComments(thread))
+      .map((thread) => ({...thread, comments:thread.comments.filter((comment,index) => !comment.is_deleted || index === 0)}));
+  }
+
+  hasVisibleComments(thread) {
+    // Keep the empty section prompt where a reader can add their first response.
+    return (thread.section && !thread.response_id) || thread.comments.some((comment) => !comment.is_deleted);
+  }
+
+  visibleAnchors() {
+    const hidden = new Set(this.threads.filter((thread) => !this.hasVisibleComments(thread))
+      .flatMap((thread) => thread.targets.map((target) => target.anchor.anchor_id)));
+    return this.anchors.filter((anchor) => !hidden.has(anchor.anchor_id));
   }
 
   threadStates() {

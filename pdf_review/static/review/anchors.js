@@ -105,7 +105,7 @@ function threadAnchor(thread) {
 
 function refreshOverlay() {
   if (!overlay) return;
-  overlay.setAnchors(state.anchors);
+  overlay.setAnchors(state.visibleAnchors());
   overlay.setThreadStates(
     state.threadStates(),
     state.selectedThreadId,

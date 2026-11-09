@@ -136,6 +136,7 @@ function commentNode(comment, thread, actions) {
 }
 
 function threadCard(thread, selectedThreadId, actions) {
+  const commentCount = thread.comments.filter(comment => !comment.is_deleted).length;
   const card = element(
     "article",
     `thread-card${thread.thread_id === selectedThreadId ? " active" : ""}${
@@ -187,7 +188,7 @@ function threadCard(thread, selectedThreadId, actions) {
     const syncExpanded = () => {
       const showAll = expandedThreads.has(thread.thread_id);
       [...comments.querySelectorAll(".thread-comment")].forEach((node, index) => { node.hidden = !showAll && index > 0 && index < thread.comments.length - 2; });
-      toggle.textContent = showAll ? "Show less" : `Show all ${thread.comments.length} comments`;
+      toggle.textContent = showAll ? "Show less" : `Show all ${commentCount} comments`;
       toggle.setAttribute("aria-expanded", String(showAll));
       if (showAll) comments.append(toggle);
       else comments.querySelector(".thread-comment").after(toggle);
@@ -253,7 +254,7 @@ function threadCard(thread, selectedThreadId, actions) {
     stopCardClick(event);
     await actions.resolution(thread);
   });
-  controls.append(element("span", "thread-card-location", `${thread.comments.length} comment${thread.comments.length === 1 ? "" : "s"}`));
+  controls.append(element("span", "thread-card-location", `${commentCount} comment${commentCount === 1 ? "" : "s"}`));
   if (actions.canMutate) {
     const replyButton = element("button", "quiet-control reply-control", replyForm.hidden ? "Reply" : "Post reply");
     replyButton.type = replyForm.hidden ? "button" : "submit";
@@ -317,7 +318,8 @@ export function renderThreadSidebar(container, threads, selectedThreadId, action
     svg.append(path);
     const content = element("span", "thread-marker-content");
     content.append(svg);
-    if (thread.comments.length > 1) content.append(element("span", "thread-marker-count", String(thread.comments.length)));
+    const commentCount = thread.comments.filter(comment => !comment.is_deleted).length;
+    if (commentCount > 1) content.append(element("span", "thread-marker-count", String(commentCount)));
     marker.append(content);
     marker.addEventListener("click", () => actions.select(thread, true));
     container.append(marker, threadCard(thread, selectedThreadId, actions));
