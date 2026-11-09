@@ -58,6 +58,9 @@ def serve(root):
     if os.environ.get('PDF_REVIEW_TEST_ZOOM') == '1' or os.environ.get('PDF_REVIEW_TEST_READING') == '1':
         from tests.document_zoom import mixed_pdf
         pdf_factory = mixed_pdf
+    if os.environ.get('PDF_REVIEW_TEST_COMMENT_TOUCH') == '1':
+        from tests.document_zoom import mixed_pdf
+        pdf_factory = lambda marker: mixed_pdf(marker, page_count=128)
     if os.environ.get('PDF_REVIEW_TEST_PROPERTIES')=='1':
         from tests.page_properties_acceptance import properties_pdf
         pdf_factory=properties_pdf
@@ -199,6 +202,7 @@ def run():
                 server = subprocess.Popen([sys.executable, str(Path(__file__).resolve()), "--server", str(root)],
                                           stdout=log, stderr=log, creationflags=subprocess.CREATE_NO_WINDOW,
                                           env=({**os.environ,'PDF_REVIEW_TEST_INVITATIONS':'1'} if '--invitations' in sys.argv else
+                                               {**os.environ,'PDF_REVIEW_TEST_COMMENT_TOUCH':'1'} if any(flag in sys.argv for flag in ['--comment-touch','--touch-recorder','--zoom-rollback']) else
                                                {**os.environ,'PDF_REVIEW_TEST_ZOOM':'1'} if '--zoom-layout' in sys.argv else
                                                {**os.environ,'PDF_REVIEW_TEST_READING':'1'} if '--reading-ui' in sys.argv else
                                                {**os.environ,'PDF_REVIEW_TEST_APPEARANCE':'1'} if '--appearance' in sys.argv else
@@ -233,6 +237,28 @@ def run():
                     cdp.call("Page.navigate", {"url": base + f"/versions/{fixture['versions'][0]}/view"}, session)
                     cdp.wait(session, "document.querySelector('#realtime-status')?.textContent === 'Live'")
                 a, b = sessions
+                if '--zoom-rollback' in sys.argv:
+                    from tests.zoom_rollback import run_zoom_rollback
+                    run_zoom_rollback(cdp, a)
+                    assert not cdp.exceptions, cdp.exceptions
+                    return
+                if '--touch-recorder' in sys.argv:
+                    from tests.touch_recorder import run_touch_recorder
+                    run_touch_recorder(cdp, a, base, fixture)
+                    assert not cdp.exceptions, cdp.exceptions
+                    return
+                if '--comment-touch' in sys.argv:
+                    from tests.comment_touch_zoom import seed_touch_comment, run_comment_touch_zoom
+                    for page in [1, 101]:
+                        seed_touch_comment(cdp, a, page)
+                        run_comment_touch_zoom(cdp, a)
+                    assert not cdp.exceptions, cdp.exceptions
+                    return
+                if '--detail-loading' in sys.argv:
+                    from tests.detail_loading import run_detail_loading
+                    run_detail_loading(cdp, a)
+                    assert not cdp.exceptions, cdp.exceptions
+                    return
                 if '--share-dialog' in sys.argv:
                     from tests.share_dialog_acceptance import run_share_dialog
                     run_share_dialog(cdp, a, b, fixture, base)
@@ -378,6 +404,9 @@ def run():
                 if "--comment-ui" in sys.argv:
                     from tests.viewer_acceptance import comment_ui_checks
                     comment_ui_checks(cdp, a)
+                    from tests.comment_touch_zoom import seed_touch_comment, run_comment_touch_zoom
+                    seed_touch_comment(cdp, a, 2)
+                    run_comment_touch_zoom(cdp, a)
                     assert not cdp.exceptions, cdp.exceptions
                     return
                 from tests.viewer_acceptance import empty_checks, populated_checks, single_thread_checks, shared_page_checks, inspection_sheets, comment_interaction_checks

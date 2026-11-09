@@ -485,6 +485,10 @@ async function initialize() {
   pagePropertiesCard=new PagePropertiesCard(application,frame,config,readingCards.tracker.policy);
   await viewerPreferences.initialize();
   rail = new CommentRail(frame, application, state, composer, positionSelectionButton);
+  if (new URLSearchParams(location.search).get('debug') === 'touch') {
+    const { installTouchDiagnostics } = await import('./touch_diagnostics.js');
+    installTouchDiagnostics(frame, application, { controls:true, autoStart:false });
+  }
   await threadRefresh.request();
   await restoreLeftCards(viewerApplication.pdfDocument.numPages);
   new MutationObserver(() => rail.schedule()).observe(composer.container, { attributes: true, attributeFilter: ["hidden"] });

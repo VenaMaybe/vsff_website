@@ -501,11 +501,14 @@ def comment_ui_checks(cdp, session):
     time.sleep(.2)
     assert cdp.evaluate(session, """(async()=>{
       const pdf=document.querySelector('iframe').contentWindow.PDFViewerApplication.pdfViewer;
-      const before=pdf.container.scrollTop;
+      // A tall stack may rebase both document and scroll origins. Compare the
+      // visual camera, as comment_motion.py does, rather than raw scrollTop.
+      const stage=document.querySelector('iframe').contentWindow.PDFViewerApplication.reviewStage;
+      const before=pdf.container.scrollTop-stage.originY;
       const target=[...document.querySelectorAll('.thread-card')].find(c=>c.textContent.includes('Sliding neighbor 2'));
       [...document.querySelector('iframe').contentDocument.querySelectorAll('.pdf-review-thread-highlight')].find(h=>h.dataset.threadId===target.dataset.threadId).click();
       await new Promise(done=>requestAnimationFrame(()=>requestAnimationFrame(done)));
-      return [...document.querySelectorAll('.thread-card:not(.active)')].some(c=>c.getAnimations().some(a=>a.playState==='running')) && pdf.container.scrollTop===before;
+      return [...document.querySelectorAll('.thread-card:not(.active)')].some(c=>c.getAnimations().some(a=>a.playState==='running')) && Math.abs(pdf.container.scrollTop-stage.originY-before)<.01;
     })()"""), 'Neighboring comments should animate without scrolling the PDF'
     time.sleep(.2)
     # Left-card controls retain the selected comment, even when a row replaces

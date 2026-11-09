@@ -1,0 +1,57 @@
+diff --git a/pdf_review/static/vendor/pdfjs/web/viewer.mjs b/pdf_review/static/vendor/pdfjs/web/viewer.mjs
+index 80bc5ea..de8666d 100644
+--- a/pdf_review/static/vendor/pdfjs/web/viewer.mjs
++++ b/pdf_review/static/vendor/pdfjs/web/viewer.mjs
+@@ -12192,6 +12192,9 @@ class BasePDFPageView extends RenderableView {
+     this.imagesRightClickMinSize = options.imagesRightClickMinSize ?? -1;
+     this.minDurationToUpdateCanvas = options.minDurationToUpdateCanvas ?? 500;
+   }
++  get loadingIconDiv() {
++    return this.div;
++  }
+   get renderingState() {
+     return this.#renderingState;
+   }
+@@ -12206,21 +12209,23 @@ class BasePDFPageView extends RenderableView {
+     }
+     switch (state) {
+       case RenderingStates.PAUSED:
+-        this.div.classList.remove("loading");
++        this.loadingIconDiv?.classList.remove("loading");
+         this.#startTime = 0;
+         this.#showCanvas?.(false);
+         break;
+       case RenderingStates.RUNNING:
+-        this.div.classList.add("loadingIcon");
+-        this.#loadingId = setTimeout(() => {
+-          this.div.classList.add("loading");
+-          this.#loadingId = null;
+-        }, 0);
++        if (this.loadingIconDiv) {
++          this.loadingIconDiv.classList.add("loadingIcon");
++          this.#loadingId = setTimeout(() => {
++            this.loadingIconDiv?.classList.add("loading");
++            this.#loadingId = null;
++          }, 0);
++        }
+         this.#startTime = Date.now();
+         break;
+       case RenderingStates.INITIAL:
+       case RenderingStates.FINISHED:
+-        this.div.classList.remove("loadingIcon", "loading");
++        this.loadingIconDiv?.classList.remove("loadingIcon", "loading");
+         this.#startTime = 0;
+         break;
+     }
+@@ -12428,6 +12433,11 @@ class PDFPageDetailView extends BasePDFPageView {
+   get pdfPage() {
+     return this.pageView.pdfPage;
+   }
++  get loadingIconDiv() {
++    // Local patch: a detail tile refines an already visible base canvas. It
++    // must neither display nor clear the base page's loading indicator.
++    return null;
++  }
+   get renderingState() {
+     return super.renderingState;
+   }

@@ -1,5 +1,62 @@
 # Temporary iPhone testing
 
+## Phone-trace follow-up: pinch camera
+
+The supplied trace identified old scroll positions replayed during an active
+pinch. Reload the viewer to load the camera fix, then record the same sequence
+on page 109 or 120. Also pause with both fingers down, reverse direction, lift
+one finger before the other, and scroll/tap a highlight immediately afterward.
+Try all four comment modes. The exported JSON now contains
+`revision: "pinch-camera-1"` and `zoomscrollreconciled` records when a stale
+position is corrected. Send the export even if the motion looks better so we
+can check for remaining rollback after release. Chrome's injected rollback
+regression does not replace this physical Safari check.
+
+## November 8 comment taps and spinner check
+
+### Record a phone trace without developer tools
+
+Open the viewer with `?debug=touch` appended to its URL and reload. A **Zoom
+diagnostics** panel appears at the bottom. It starts idle:
+
+1. Navigate to page 100 or 120 (or whichever page glitches).
+2. Tap **Start recording**, pinch in/out several times, then tap a comment.
+3. Tap **Stop** as soon as the problem happens. The trace is now frozen.
+4. Tap **Download trace**, or **Share trace** to use the phone's share sheet.
+   Save `pdf-review-touch-trace.json` to Files and attach it in this chat.
+5. Download before reloading or closing the tab. **Record again** replaces the
+   previous trace after confirmation. A separate recording near page 1 is useful
+   for comparison.
+
+The recorder stops at two minutes, 6,000 records, or when the page is hidden.
+It records touch coordinates, PDF scale, scroll and stage origins, nearby page
+geometry, rendering state and animation-frame intervals. Geometry sampling is
+limited to four nearby pages at 20Hz, avoiding full-document scans. Recording
+itself has some overhead; compare behavior with recording stopped as well.
+No PDF/comment text, sign-in tokens or full page URL is included, and nothing is
+uploaded automatically. Controls and listeners are installed only with the debug
+query. Reload without it to remove the recorder.
+
+Verified with `tests/browser_sanity.py --touch-recorder`: actual Chrome touch
+Start/Stop, native pinch on page 100 of a 128-page PDF, captured geometry and
+frame timing, frozen data, real downloaded JSON, event cap and cleanup. Physical
+iOS Share/Download behavior still needs device confirmation.
+
+See [the investigation report](MOBILE_COMMENT_TOUCH_REPORT.md) for the reproduced
+1px tap-rejection condition, detail-render spinner fix, automated coverage and
+limits. On a physical iPhone, test Expanded, Minimized, Mobile and Hidden modes
+near page 1 and far down a long PDF. Tap existing highlights and reachable
+markers/cards before zoom, immediately after repeated pinch reversals, and after
+one-finger scrolling settles. Also select text, drag, long-press, cancel a gesture
+and open/close comments to check native behavior and animations.
+
+For developer inspection, use `?debug=touch`, start recording, and inspect the parent page's
+`reviewTouchDiagnostics.entries` in Safari Web Inspector. The report explains
+how to distinguish a wrong hit, missing click, recognizer rejection and stale
+geometry. Diagnostics are disabled without that query and never upload traces.
+Physical Safari verification is still outstanding. The previously supplied
+Cloudflare hostname did not resolve during this investigation.
+
 ## Reading tools (migrations 11–12)
 
 The local app currently runs at http://127.0.0.1:5000/ on the laptop; the old public

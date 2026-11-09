@@ -3,8 +3,9 @@ import time
 from tests.viewer_acceptance import PDF, SELECT, viewport, change
 
 
-def mixed_pdf(marker):
+def mixed_pdf(marker, page_count=8):
     sizes=[(612,792),(792,612),(500,900),(900,500),(612,792),(792,612),(500,900),(900,500)]
+    sizes=(sizes*((page_count+7)//8))[:page_count]
     font=3+len(sizes)*2
     objects=[b'<< /Type /Catalog /Pages 2 0 R >>',
         ('<< /Type /Pages /Kids ['+' '.join(f'{3+i*2} 0 R' for i in range(len(sizes)))+f'] /Count {len(sizes)} >>').encode()]
@@ -352,3 +353,7 @@ def run_zoom(cdp,a,b,fixture,base,mobile_only=False):
       return {pdf:pdf.defaultPrevented,chrome:chrome.defaultPrevented};})()""")
     assert result==dict(pdf=True,chrome=False),result
     print(f'PASS live highlights during contact ({live_error:.2f}px max), pinch/reversal, detached targets; one-finger 120px drag moved {pan_distance:.2f}px with no app scroll writes; touch drift {touch_worst:.2f}px; physical iPhone Safari UNVERIFIED',flush=True)
+    from tests.comment_touch_zoom import run_comment_touch_zoom
+    run_comment_touch_zoom(cdp,a)
+    from tests.detail_loading import run_detail_loading
+    run_detail_loading(cdp,a)

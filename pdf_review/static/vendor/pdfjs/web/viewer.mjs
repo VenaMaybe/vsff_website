@@ -12192,6 +12192,9 @@ class BasePDFPageView extends RenderableView {
     this.imagesRightClickMinSize = options.imagesRightClickMinSize ?? -1;
     this.minDurationToUpdateCanvas = options.minDurationToUpdateCanvas ?? 500;
   }
+  get loadingIconDiv() {
+    return this.div;
+  }
   get renderingState() {
     return this.#renderingState;
   }
@@ -12206,21 +12209,23 @@ class BasePDFPageView extends RenderableView {
     }
     switch (state) {
       case RenderingStates.PAUSED:
-        this.div.classList.remove("loading");
+        this.loadingIconDiv?.classList.remove("loading");
         this.#startTime = 0;
         this.#showCanvas?.(false);
         break;
       case RenderingStates.RUNNING:
-        this.div.classList.add("loadingIcon");
-        this.#loadingId = setTimeout(() => {
-          this.div.classList.add("loading");
-          this.#loadingId = null;
-        }, 0);
+        if (this.loadingIconDiv) {
+          this.loadingIconDiv.classList.add("loadingIcon");
+          this.#loadingId = setTimeout(() => {
+            this.loadingIconDiv?.classList.add("loading");
+            this.#loadingId = null;
+          }, 0);
+        }
         this.#startTime = Date.now();
         break;
       case RenderingStates.INITIAL:
       case RenderingStates.FINISHED:
-        this.div.classList.remove("loadingIcon", "loading");
+        this.loadingIconDiv?.classList.remove("loadingIcon", "loading");
         this.#startTime = 0;
         break;
     }
@@ -12427,6 +12432,11 @@ class PDFPageDetailView extends BasePDFPageView {
   }
   get pdfPage() {
     return this.pageView.pdfPage;
+  }
+  get loadingIconDiv() {
+    // Local patch: a detail tile refines an already visible base canvas. It
+    // must neither display nor clear the base page's loading indicator.
+    return null;
   }
   get renderingState() {
     return super.renderingState;
@@ -15449,6 +15459,7 @@ class PDFViewer {
     if (this.pagesCount === 0) {
       return;
     }
+    this.#reconcileZoomPosition();
     if (this.#scrollTimeoutId) {
       clearTimeout(this.#scrollTimeoutId);
     }
@@ -15489,6 +15500,7 @@ class PDFViewer {
       // Preserve the same requested fractional position as native panBy.
       this.#panPosition[0] = position.left;
       this.#panPosition[1] = position.top;
+      this.#rememberZoomPosition(position.left, position.top);
       this.#staleLocation = true;
     }
     if (!this._currentScaleValue && this._location) {
@@ -15507,12 +15519,14 @@ class PDFViewer {
       scrollLeft,
       scrollTop
     } = container;
-    const left = (Math.abs(scrollLeft - position[0]) < 1 ? position[0] : scrollLeft) - dx;
-    const top = (Math.abs(scrollTop - position[1]) < 1 ? position[1] : scrollTop) - dy;
+    const camera = this.#zoomGesture?.position;
+    const left = (camera?.[0] ?? (Math.abs(scrollLeft - position[0]) < 1 ? position[0] : scrollLeft)) - dx;
+    const top = (camera?.[1] ?? (Math.abs(scrollTop - position[1]) < 1 ? position[1] : scrollTop)) - dy;
     position[0] = left;
     position[1] = top;
     container.scrollLeft = left;
     container.scrollTop = top;
+    this.#rememberZoomPosition(left, top);
     this.#staleLocation = true;
   }
   #refreshLocation() {
@@ -15529,7 +15543,33 @@ class PDFViewer {
   beginZoomGesture() {
     this.#zoomGesture ||= { page: null };
   }
+  #rememberZoomPosition(left, top) {
+    if (!this.#zoomGesture) {
+      return;
+    }
+    const c = this.container;
+    // Keep real scroll limits, but not delayed acknowledgements of an earlier
+    // scroll. On iOS those can arrive after a newer scale transaction completed.
+    this.#zoomGesture.position = [
+      Math.max(0, Math.min(left, c.scrollWidth - c.clientWidth)),
+      Math.max(0, Math.min(top, c.scrollHeight - c.clientHeight))
+    ];
+  }
+  #reconcileZoomPosition() {
+    const position = this.#zoomGesture?.position;
+    if (!position) {
+      return;
+    }
+    const c = this.container;
+    const observed = [c.scrollLeft, c.scrollTop];
+    if (Math.abs(c.scrollLeft - position[0]) >= 1) c.scrollLeft = position[0];
+    if (Math.abs(c.scrollTop - position[1]) >= 1) c.scrollTop = position[1];
+    if (Math.abs(observed[0] - position[0]) >= 1 || Math.abs(observed[1] - position[1]) >= 1) {
+      this.eventBus.dispatch("zoomscrollreconciled", { source: this, observed, intended: [...position] });
+    }
+  }
   endZoomGesture() {
+    this.#reconcileZoomPosition();
     this.#zoomGesture = null;
   }
   #setScaleUpdatePages(newScale, newValue, {
@@ -15560,8 +15600,9 @@ class PDFViewer {
       const [top, left] = this.containerTopLeft;
       const viewportX = origin[0] - left;
       const viewportY = origin[1] - top;
-      const x = this.container.scrollLeft + viewportX;
-      const y = this.container.scrollTop + viewportY;
+      const camera = this.#zoomGesture?.position;
+      const x = (camera?.[0] ?? this.container.scrollLeft) + viewportX;
+      const y = (camera?.[1] ?? this.container.scrollTop) + viewportY;
       let anchor = this.#zoomGesture?.page;
       if (!anchor?.div.isConnected || this._pages[anchor.id - 1] !== anchor) {
         anchor = null;
@@ -15592,7 +15633,7 @@ class PDFViewer {
       if (anchor) {
         const div = anchor.div;
         // Extrapolate outside the page; never clamp/snap the origin to its edge.
-        // Resample the actual camera each step so real scroll limits don't drift.
+        // Resample the gesture's clamped camera, not a stale async scroll echo.
         const [pdfX, pdfY] = anchor.getPagePoint(x - div.offsetLeft - div.clientLeft,
           y - div.offsetTop - div.clientTop);
         focalLocation = { pageNumber: anchor.id, pdfX, pdfY, viewportX, viewportY };

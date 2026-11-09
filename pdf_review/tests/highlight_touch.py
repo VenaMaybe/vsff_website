@@ -50,8 +50,16 @@ def check_touch(cdp, session, point):
         send('pointerup');expect(5,'Replaced text target');
         send('pointerdown');w.dispatchEvent(new w.Event('blur'));send('pointerup');click();expect(5,'Lost focus');
         d.documentElement.classList.add('review-comments-hidden');send('pointerdown');send('pointerup');click();expect(5,'Hidden comments');
+        d.documentElement.classList.remove('review-comments-hidden');
+        send('pointerdown');scroller.scrollTop=2;send('pointerup');click();expect(6,'Stationary tap with native settling');scroller.scrollTop=0;
+        send('pointerdown');instance.application.pdfViewer.currentScale=2;send('pointerup');click();expect(6,'Scale changed during tap');
+        send('pointerdown');scroller.scrollTop=20;scroller.dispatchEvent(new w.Event('scroll'));scroller.scrollTop=0;
+        send('pointerup');click();expect(6,'Scroll moved away and returned');
+        send('pointerdown',{clientX:25});send('pointerup',{clientX:155});click();expect(6,'Release over different thread');
+        send('pointerdown');regions.forEach((r,i)=>r.node.dataset.threadId='replacement'+i);
+        send('pointerup');click();expect(6,'Same point with changed thread identity');
         return opened;
       }finally{frame.remove();}
     })()""")
-    assert result==['a','b','a','b','a'],result
+    assert result==['a','b','a','b','a','b'],result
     print('PASS native touch taps, single activation, rapid repeats, narrow hits, replaced targets; pan/pinch/long-press/selection cancellation',flush=True)

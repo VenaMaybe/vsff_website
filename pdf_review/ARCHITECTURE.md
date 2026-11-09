@@ -301,8 +301,11 @@ cannot immediately deselect the thread or cycle an overlap twice. New pointer-do
 clears that guard, including rapid repeated taps. Touch release uses geometric
 hit testing rather than the implicitly captured starting span. Exact painted hits
 take priority over a nearest-region allowance of 4 CSS pixels for thin highlights.
-Subpixel scroll settling up to 1 CSS pixel is tolerated only for touch; actual
-scrolling, movement over 8px, multi-pointer/cancelled gestures, focus loss, context
+Scroll settling within the existing 8 CSS pixel touch movement budget is tolerated
+only when the same thread is hit at press and release and scale is unchanged.
+The former 1px scroll gate rejected a stationary tap during a controlled native
+2px pan. Scroll movement beyond the budget is remembered even if it returns;
+movement over 8px, multi-pointer/cancelled gestures, focus loss, context
 menus, holds over 450ms and newly changed noncollapsed selections do not activate.
 An unchanged selection left from an earlier interaction does not block a short
 tap. No pointer-down/up/move default is cancelled by this touch recognizer; native

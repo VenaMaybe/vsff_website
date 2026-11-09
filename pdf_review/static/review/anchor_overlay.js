@@ -55,22 +55,36 @@ export class AnchorOverlay {
       const selection=this.window.getSelection();
       const currentSelection=selectionState();
       const unchanged=touch&&gesture?.selection.every((value,i)=>value===currentSelection[i]);
-      if(event.defaultPrevented||!gesture||gesture.moved||gesture.cancelled||
-          event.ctrlKey||event.metaKey||event.altKey||event.shiftKey||
-          Math.hypot(event.clientX-gesture.x,event.clientY-gesture.y)>gesture.tolerance||
-          Math.abs(scroller.scrollLeft-gesture.left)>(touch?1:0)||
-          Math.abs(scroller.scrollTop-gesture.top)>(touch?1:0)||
-          (touch&&performance.now()-gesture.started>450)||
-          (selection&&!selection.isCollapsed&&!unchanged))return false;
+      const reject = reason => {
+        this.application.reviewTouchDiagnostics?.record('highlight-rejected', { reason,
+          x:event.clientX, y:event.clientY, scrollDelta:gesture && [scroller.scrollLeft-gesture.left,scroller.scrollTop-gesture.top] });
+        return false;
+      };
+      if(event.defaultPrevented)return reject('default-prevented');
+      if(!gesture)return reject('no-gesture');
+      if(gesture.moved)return reject('pointer-moved');
+      if(gesture.cancelled)return reject('cancelled-or-multitouch');
+      if(touch&&gesture.scale!==this.application.pdfViewer.currentScale)return reject('scale-changed');
+      if(event.ctrlKey||event.metaKey||event.altKey||event.shiftKey)return reject('modifier');
+      if(Math.hypot(event.clientX-gesture.x,event.clientY-gesture.y)>gesture.tolerance)return reject('release-moved');
+      // Native post-zoom scrolling may settle while a new finger is stationary.
+      // Use the same small movement budget as the touch itself, and require the
+      // same thread under both ends below. Larger pans still reject the tap.
+      if(gesture.scrolled||Math.hypot(scroller.scrollLeft-gesture.left,
+          scroller.scrollTop-gesture.top)>(touch?gesture.tolerance:0))return reject('scroll-changed');
+      if(touch&&performance.now()-gesture.started>450)return reject('long-press');
+      if(selection&&!selection.isCollapsed&&!unchanged)return reject('selection-changed');
       // Touch pointers implicitly capture their starting text span. Hit-test the
       // release position instead, including when PDF.js replaced that span.
       const point=touch?{target:document.elementFromPoint(event.clientX,event.clientY),clientX:event.clientX,clientY:event.clientY}:event;
       const highlights=this.highlightsAt(point,touch?4:0);
-      const threads=[...new Set(highlights.map(node=>node.dataset.threadId))];
-      if(!threads.length)return false;
+      const threads=[...new Set(highlights.map(node=>node.dataset.threadId))]
+        .filter(id=>!touch||gesture.threads.includes(id));
+      if(!threads.length)return reject('no-highlight-at-release');
       if(!touch){this.hoverPoint={target:event.target,clientX:event.clientX,clientY:event.clientY};this.setHoveredHighlight(highlights[0]);}
       const current=threads.indexOf(this.selectedThreadId);
       this.onThreadSelect?.(threads[(current+1)%threads.length]);
+      this.application.reviewTouchDiagnostics?.record('highlight-activated', { threads });
       return true;
     };
     document.addEventListener("pointerdown", event => {
@@ -96,6 +110,8 @@ export class AnchorOverlay {
         touch:event.pointerType==='touch',started:performance.now(),selection:selectionState(),
         tolerance: event.pointerType === "touch" ? 8 : 4,
         left: scroller.scrollLeft, top: scroller.scrollTop,
+        scale: this.application.pdfViewer.currentScale,
+        threads: event.pointerType === 'touch' ? this.highlightsAt(event,4).map(node=>node.dataset.threadId) : [],
       } : null;
     }, true);
     document.addEventListener("pointermove", event => {
@@ -156,7 +172,12 @@ export class AnchorOverlay {
       if(activate(event,gesture,gesture?.touch)){event.preventDefault();event.stopPropagation();}
     }, true);
     const clearHover = () => { cancelCursorDelay(); this.hoverPoint = null; this.setHoveredHighlight(null); };
-    document.addEventListener("scroll", clearHover, { capture: true, passive: true });
+    document.addEventListener("scroll", () => {
+      clearHover();
+      const gesture=this.pointerGesture,scroller=this.application.pdfViewer.container;
+      if(gesture&&Math.hypot(scroller.scrollLeft-gesture.left,scroller.scrollTop-gesture.top)>
+          (gesture.touch?gesture.tolerance:0))gesture.scrolled=true;
+    }, { capture: true, passive: true });
     document.addEventListener("pointerleave", clearHover);
     this.window.addEventListener('blur',()=>{clearHover();if(this.pointerGesture)this.pointerGesture.cancelled=true;this.touchClick=null;});
     document.addEventListener('contextmenu',()=>{if(this.pointerGesture)this.pointerGesture.cancelled=true;},true);
