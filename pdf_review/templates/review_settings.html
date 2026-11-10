@@ -11,6 +11,9 @@
 <details><summary>Tracking by reader</summary>
 {% for reader in reading_readers %}<label>{{ reader.display_name }} <select name="tracking_reader_{{ reader.user_id }}"><option value="0" {{ 'selected' if not reader.paused }}>On</option><option value="1" {{ 'selected' if reader.paused }}>Paused</option></select></label>{% endfor %}
 <p class="subtle">Reader pauses apply across this document's PDF versions. Document tracking must also be On.</p></details>
+<h2>Section prompts</h2>
+<label>Show section prompts in Compact and Pop-up modes <select name="section_prompts_in_compact"><option value="1" {{ 'selected' if settings.section_prompts_in_compact }}>Yes</option><option value="0" {{ 'selected' if not settings.section_prompts_in_compact }}>No</option></select></label>
+<p class="subtle">Keep unanswered section thought prompts visible as cards when comments are Compact or Pop-up.</p>
 <h2>First-open viewer defaults</h2><p class="subtle">Established personal preferences are retained when defaults change.</p>
 {% for name,label,choices in [('default_scope','Review scope',[('all','Everyone'),('mine','Mine')]),('default_spread','Spreads',[(0,'No spreads'),(1,'Odd spreads'),(2,'Even spreads')]),('default_display','Comments',[('expanded','Expanded'),('minimized','Compact'),('hidden','Hidden')])] %}
 <label>{{ label }} <select name="{{ name }}">{% for value,title in choices %}<option value="{{ value }}" {{ 'selected' if settings[name]==value }}>{{ title }}</option>{% endfor %}</select></label>

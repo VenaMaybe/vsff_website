@@ -41,7 +41,7 @@ export async function openSettings(documentId, opener, options = {}) {
         const data = await saved.json();
         if (!saved.ok) throw new Error(data.error?.message || 'Settings could not be saved.');
         await viewer?.refresh();
-        dialog.setBusy(false); dialog.close();
+        dialog.setBusy(false);
       } catch (failure) { error.textContent = failure.message; dialog.setBusy(false); }
     };
   } catch (error) { dialog.body.textContent = error.message; }

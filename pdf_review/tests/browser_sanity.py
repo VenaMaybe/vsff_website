@@ -401,6 +401,11 @@ def run():
                     run_management(cdp,a,fixture,base)
                     assert not cdp.exceptions,cdp.exceptions
                     return
+                if '--compact-prompts' in sys.argv:
+                    from tests.beta_c2_acceptance import run_compact_prompts
+                    run_compact_prompts(cdp,a,b,fixture,base)
+                    assert not cdp.exceptions,cdp.exceptions
+                    return
                 if '--beta-c2' in sys.argv:
                     from tests.beta_c2_acceptance import run_c2
                     run_c2(cdp,a,b,fixture,base)

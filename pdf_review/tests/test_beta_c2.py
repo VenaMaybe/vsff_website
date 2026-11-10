@@ -42,6 +42,18 @@ class BetaC2Tests(unittest.TestCase):
     def defaults(self,**values):
         preferences.save_defaults(self.db,self.doc,self.users[0],values)
 
+    def test_compact_section_prompts_default_and_owner_setting(self):
+        url=f'/documents/{self.doc}/review-settings'
+        self.assertEqual(self.context(1)['preferences']['defaults']['section_prompts_in_compact'],1)
+        self.assertIn('name="section_prompts_in_compact"',self.clients[0].get(url).get_data(as_text=True))
+        self.assertEqual(self.clients[1].post(url,data={'section_prompts_in_compact':'0'}).status_code,403)
+        self.assertEqual(self.clients[0].post(url,data={'section_prompts_in_compact':'2'}).status_code,422)
+        self.assertEqual(self.clients[0].post(url,data={'section_prompts_in_compact':'0'}).status_code,200)
+        self.defaults(default_scope='mine')
+        self.assertEqual(self.context(1)['preferences']['defaults']['section_prompts_in_compact'],0)
+        self.assertEqual(self.clients[0].post(url,data={'section_prompts_in_compact':'1'}).status_code,200)
+        self.assertEqual(self.context(1)['preferences']['defaults']['section_prompts_in_compact'],1)
+
     def test_download_policy_owner_validation_and_rendering(self):
         url=f'/documents/{self.doc}/review-settings'
         self.assertEqual(self.context(1)['preferences']['defaults']['downloads_allowed'],1)
@@ -83,6 +95,7 @@ class BetaC2Tests(unittest.TestCase):
             row=dict(c.execute('SELECT * FROM document_review_settings').fetchone())
             self.assertEqual((row['visibility_policy'],row['default_scope'],row['default_spread'],row['default_display'],row['downloads_allowed']),('isolated','mine',2,'hidden',1))
             self.assertEqual(c.execute('SELECT COUNT(*) FROM schema_migrations WHERE version=10').fetchone()[0],1)
+            self.assertEqual(row['section_prompts_in_compact'],1)
         finally: c.close()
 
     def thread_ids(self,index):

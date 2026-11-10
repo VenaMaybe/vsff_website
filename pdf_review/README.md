@@ -4,6 +4,16 @@ Keyboard bindings are listed in Account's help panel. Keep
 [review/shortcuts.py](review/shortcuts.py) up to date when handlers change;
 [KEYBOARD_SHORTCUTS.md](KEYBOARD_SHORTCUTS.md) records navigation rules and handler locations.
 
+## Section prompts in Compact and Pop-up modes
+
+Settings in the viewer's left card includes **Show section prompts in Compact and Pop-up modes**,
+set to Yes by default for new and existing documents (migration 21). Unanswered
+section thought prompts stay visible as cards while comments use Compact or Pop-up markers.
+Owners can choose No to collapse those prompts too. Hidden mode keeps
+its existing behavior. The setting applies to all readers and updates live.
+Verify with `python -m unittest tests.test_beta_c2` and
+`python tests/browser_sanity.py --compact-prompts`.
+
 ## Document controls and main version (current)
 
 The green **Share** button beside Manage access opens a responsive native dialog

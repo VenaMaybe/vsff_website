@@ -273,22 +273,25 @@ export class CommentRail {
       const marker = markers.get(thread.thread_id);
       const active = thread.thread_id === this.state.selectedThreadId;
       if (!visible) { marker.hidden = true; card.hidden = true; continue; }
-      marker.hidden = !minimized;
-      card.hidden = minimized && !active;
-      card.classList.toggle("floating-thread-card", minimized && active);
+      const keepPrompt = minimized && thread.section && !thread.response_id &&
+        this.application.reviewSectionPromptsInCompact !== false;
+      const collapsed = minimized && !keepPrompt;
+      marker.hidden = !collapsed;
+      card.hidden = collapsed && !active;
+      card.classList.toggle("floating-thread-card", collapsed && active);
       card.style.removeProperty("width");
       card.style.removeProperty("max-height");
-      const item = minimized ? marker : card;
+      const item = collapsed ? marker : card;
       card.setAttribute("aria-label", `Review thread, page ${geometry?.pageNumber || "unknown"}`);
       if (!this.observed.has(item)) { this.observer.observe(item); this.observed.add(item); }
       if (active && !this.observed.has(card)) { this.observer.observe(card); this.observed.add(card); }
       if (!geometry) { item.hidden = true; card.hidden = true; continue; }
       const railLeft = this.spreadRight(geometry.pageNumber) + 6*cardScale(this.application);
       const x = (mobile && !thread.section ? Math.min(railLeft, this.scroller.clientWidth - 42*cardScale(this.application)) : railLeft) + this.scroller.scrollLeft;
-      items.push({ card: item, page: geometry.pageNumber, sectionId:thread.section?.section_id, bottomAligned:!!thread.section, y: geometry.top + this.scroller.scrollTop - (thread.section&&!minimized?cardSize(item, this.application).height:0),
+      items.push({ card: item, page: geometry.pageNumber, sectionId:thread.section?.section_id, bottomAligned:!!thread.section, y: geometry.top + this.scroller.scrollTop - (thread.section&&!collapsed?cardSize(item, this.application).height:0),
         center: (geometry.top + geometry.bottom) / 2 + this.scroller.scrollTop,
-        active: active && !minimized, x, height: cardSize(item, this.application).height });
-      if (active && minimized) this.floating = { card, geometry, railLeft };
+        active: active && !collapsed, x, height: cardSize(item, this.application).height });
+      if (active && collapsed) this.floating = { card, geometry, railLeft };
     }
     const gap = (minimized ? 3 : 6) * cardScale(this.application);
     const composerGeometry = composing && anchorGeometry(this.application, this.composer.payload);
@@ -301,8 +304,8 @@ export class CommentRail {
       height: cardSize(this.composer.container, this.application).height });
     const compare=(a,b)=>a.page-b.page || a.y-b.y || (a.card.dataset.threadId||'').localeCompare(b.card.dataset.threadId||'');
     items.sort(compare);
-    const sections=minimized?[]:items.filter(item=>item.bottomAligned);
-    const normal=sections.length?items.filter(item=>!item.bottomAligned):items;
+    const sections=items.filter(item=>item.bottomAligned && item.card.classList.contains("thread-card"));
+    const normal=sections.length?items.filter(item=>!sections.includes(item)):items;
     const pivot = normal.findIndex((item) => item.active);
     if (pivot >= 0) {
       const selected = normal[pivot];

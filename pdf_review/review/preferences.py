@@ -18,7 +18,7 @@ def validate(values, choices):
 
 
 DEFAULT_CHOICES = dict(visibility_policy=('shared','isolated'), default_scope=('all','mine'),
-                       default_spread=(0,1,2), default_display=('expanded','minimized','hidden'), downloads_allowed=(0,1), reading_tracking_enabled=(0,1))
+                       default_spread=(0,1,2), default_display=('expanded','minimized','hidden'), downloads_allowed=(0,1), reading_tracking_enabled=(0,1), section_prompts_in_compact=(0,1))
 PERSONAL_CHOICES = dict(scope=('all','mine'), spread=(0,1,2), display=('expanded','minimized','hidden','mobile'), card_zoom_threshold=tuple(range(50,201)))
 
 
@@ -65,11 +65,11 @@ def save_defaults(database, document_id, user_id, values, reader_pauses=None):
             c.execute('UPDATE reading_consents SET generation=generation+1 WHERE version_id IN (SELECT version_id FROM document_versions WHERE document_id=?)',(document_id,))
             c.execute('DELETE FROM reading_leases WHERE session_id IN (SELECT s.session_id FROM reading_sessions s JOIN document_versions v USING(version_id) WHERE v.document_id=?)',(document_id,))
         current.update(values)
-        c.execute('''INSERT INTO document_review_settings (document_id,visibility_policy,default_scope,default_spread,default_display,downloads_allowed,reading_tracking_enabled) VALUES(?,?,?,?,?,?,?)
+        c.execute('''INSERT INTO document_review_settings (document_id,visibility_policy,default_scope,default_spread,default_display,downloads_allowed,reading_tracking_enabled,section_prompts_in_compact) VALUES(?,?,?,?,?,?,?,?)
             ON CONFLICT(document_id) DO UPDATE SET visibility_policy=excluded.visibility_policy,
             default_scope=excluded.default_scope,default_spread=excluded.default_spread,
-            default_display=excluded.default_display,downloads_allowed=excluded.downloads_allowed,reading_tracking_enabled=excluded.reading_tracking_enabled''', tuple(current[k] for k in
-            ('document_id','visibility_policy','default_scope','default_spread','default_display','downloads_allowed','reading_tracking_enabled')))
+            default_display=excluded.default_display,downloads_allowed=excluded.downloads_allowed,reading_tracking_enabled=excluded.reading_tracking_enabled,section_prompts_in_compact=excluded.section_prompts_in_compact''', tuple(current[k] for k in
+            ('document_id','visibility_policy','default_scope','default_spread','default_display','downloads_allowed','reading_tracking_enabled','section_prompts_in_compact')))
 
 
 def read_preferences(database, document_id, user_id):

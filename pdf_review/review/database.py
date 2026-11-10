@@ -391,6 +391,7 @@ MIGRATIONS.append((17, "account_appearance", Path(__file__).with_name("migration
 MIGRATIONS.append((18, "pdf_reading_colors", Path(__file__).with_name("migration18.sql").read_text(encoding="utf-8")))
 MIGRATIONS.append((19, "pdf_color_amount", Path(__file__).with_name("migration19.sql").read_text(encoding="utf-8")))
 MIGRATIONS.append((20, "card_zoom_threshold", Path(__file__).with_name("migration20.sql").read_text(encoding="utf-8")))
+MIGRATIONS.append((21, "section_prompts_in_compact", Path(__file__).with_name("migration21.sql").read_text(encoding="utf-8")))
 
 
 def connect(database_path: Path | str) -> sqlite3.Connection:

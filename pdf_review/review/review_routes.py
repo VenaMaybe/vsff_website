@@ -63,7 +63,7 @@ def settings_save(document_id):
         abort(400)
     values={k:request.form[k] for k in preferences.DEFAULT_CHOICES if k in request.form}
     try:
-        for key in ('default_spread','downloads_allowed','reading_tracking_enabled'):
+        for key in ('default_spread','downloads_allowed','reading_tracking_enabled','section_prompts_in_compact'):
             if key in values:
                 values[key]=int(values[key])
     except ValueError:

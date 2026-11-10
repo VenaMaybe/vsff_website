@@ -181,3 +181,49 @@ def galleries(cdp,session):
         cdp.call('Page.navigate',{'url':'data:text/html;base64,'+base64.b64encode(markup.encode()).decode()},session)
         cdp.wait(session,"document.images.length>0 && [...document.images].every(i=>i.complete)")
         screenshot(cdp,session,f'c2-gallery-{index//6+1}')
+
+
+def run_compact_prompts(cdp,a,b,fixture,base):
+    """Exercise compact prompt layout and the owner setting on a disposable PDF."""
+    doc=fixture['document_id'];version=fixture['versions'][0]
+    sid=request(cdp,a,f'/api/documents/{doc}/sections','POST',{'name':'Compact prompt','prompt':'What did you think?'})['data']['section_id']
+    box=cdp.evaluate(a,PDF+'.getPageView(0).viewport.viewBox')
+    assert request(cdp,a,f'/api/versions/{version}/sections/{sid}/placement','POST',{
+        'start_page':1,'start_y':None,'start_view_box':box,'end_page':1,'end_y':400,'end_view_box':box,
+        'page_count':cdp.evaluate(a,PDF+'.pagesCount'),'expected_revision':0})['status']==200
+    prompt=f'.thread-card[data-thread-id="section:{sid}:new"]'
+    marker=f'.thread-marker[data-thread-id="section:{sid}:new"]'
+    def visible(selector):
+        return f"document.querySelector({json.dumps(selector)})?.hidden===false"
+    change(cdp,b,'#comments-visibility','minimized')
+    cdp.wait(b,visible(prompt))
+    assert cdp.evaluate(b,f"document.querySelector({json.dumps(marker)}).hidden")
+    cdp.evaluate(a,"document.querySelector('[data-review-settings]').click()")
+    cdp.wait(a,"document.querySelector('[name=section_prompts_in_compact]')!==null")
+    assert cdp.evaluate(a,"document.querySelector('[name=section_prompts_in_compact]').value==='1'")
+    cdp.evaluate(a,"document.querySelector('[name=section_prompts_in_compact]').value='0';document.querySelector('.settings-form').requestSubmit()")
+    cdp.wait(b,visible(marker))
+    assert cdp.evaluate(b,f"document.querySelector({json.dumps(prompt)}).hidden")
+    change(cdp,b,'#comments-visibility','mobile')
+    cdp.wait(b,visible(marker))
+    assert cdp.evaluate(b,f"document.querySelector({json.dumps(prompt)}).hidden")
+    cdp.wait(a,"document.querySelector('.settings-form button[type=submit]')?.disabled===false")
+    assert cdp.evaluate(a,"document.querySelector('.settings-panel')!==null && document.querySelector('[name=section_prompts_in_compact]').value==='0'")
+    cdp.evaluate(a,"document.querySelector('[name=section_prompts_in_compact]').value='1';document.querySelector('.settings-form').requestSubmit()")
+    cdp.wait(b,visible(prompt))
+    cdp.wait(a,"document.querySelector('.settings-form button[type=submit]')?.disabled===false")
+    assert cdp.evaluate(a,"document.querySelector('.settings-panel')!==null")
+    cdp.evaluate(a,"document.querySelector('.settings-form [data-dialog-cancel]').click()")
+    cdp.wait(a,"!document.querySelector('.settings-panel')")
+    navigate(cdp,b,base+f'/versions/{version}/view',True)
+    cdp.wait(b,visible(prompt))
+    change(cdp,b,'#comments-visibility','hidden')
+    cdp.wait(b,f"document.querySelector({json.dumps(prompt)}).hidden")
+    change(cdp,b,'#comments-visibility','mobile')
+    cdp.wait(b,visible(prompt))
+    assert cdp.evaluate(b,f"document.querySelector({json.dumps(marker)}).hidden")
+    change(cdp,b,'#comments-visibility','minimized')
+    cdp.wait(b,visible(prompt))
+    change(cdp,b,'#comments-visibility','expanded')
+    cdp.wait(b,visible(prompt))
+    print('PASS Compact and Pop-up section prompts, live owner setting, persistence and Hidden mode',flush=True)
