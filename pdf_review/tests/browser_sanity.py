@@ -391,6 +391,11 @@ def run():
                     run_properties(cdp,a,b,fixture,base)
                     assert not cdp.exceptions,cdp.exceptions
                     return
+                if '--reading-live' in sys.argv:
+                    from tests.reading_live import run_reading_live
+                    run_reading_live(cdp,a,b,fixture)
+                    assert not cdp.exceptions,cdp.exceptions
+                    return
                 if '--reading-ui' in sys.argv:
                     from tests.reading_acceptance import run_reading
                     run_reading(cdp,a,b,fixture,base)

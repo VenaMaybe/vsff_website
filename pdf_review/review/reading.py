@@ -17,9 +17,9 @@ from .review_policy import require_reader
 WORDS_PER_MINUTE = 400
 MIN_PAGE_SECONDS = 5
 SECTION_READ_PERCENT = 90
-BATCH_SECONDS = 15
+BATCH_SECONDS = 1
 LEASE_SECONDS = 25
-IDLE_SECONDS = 60
+IDLE_SECONDS = 300
 MAX_BATCH_MS = 20000
 
 
@@ -87,6 +87,7 @@ def change_consent(database, version_id, user_id, action, page_count, reader_id=
 
 
 def start_session(database, version_id, user_id, generation, page_count=None):
+    integer(generation,1,1000000000)
     with transaction(database) as c:
         version_reader(c, version_id, user_id)
         state = consent(c, version_id, user_id)
@@ -107,7 +108,28 @@ def start_session(database, version_id, user_id, generation, page_count=None):
         return dict(session_id=sid, sequence=0)
 
 
-def record_batch(database, version_id, user_id, payload, *, clock=None):
+def claim_session(database, version_id, user_id, session_id, *, clock=None):
+    """A fresh foreground interaction transfers the user's single time budget."""
+    if not isinstance(session_id,str) or len(session_id)>80:raise ReadingError('Invalid session.')
+    with transaction(database) as c:
+        now = time.time() if clock is None else clock
+        version_reader(c, version_id, user_id)
+        state = consent(c, version_id, user_id)
+        session = c.execute('SELECT * FROM reading_sessions WHERE session_id=? AND version_id=? AND user_id=?',
+                            (session_id, version_id, user_id)).fetchone()
+        if not session or state['status'] != 'active' or session['generation'] != state['generation']:
+            raise ReadingError('Author tracking settings changed.')
+        lease=c.execute('SELECT * FROM reading_leases WHERE user_id=?',(user_id,)).fetchone()
+        if lease and lease['session_id']==session_id and lease['expires_at']>=now:
+            c.execute('UPDATE reading_leases SET expires_at=? WHERE user_id=?',(now+LEASE_SECONDS,user_id))
+        else:
+            c.execute('''INSERT INTO reading_leases VALUES(?,?,?,?,NULL) ON CONFLICT(user_id) DO UPDATE SET
+                session_id=excluded.session_id,received_at=excluded.received_at,expires_at=excluded.expires_at,current_page=NULL''',
+                      (user_id,session_id,now,now+LEASE_SECONDS))
+    return dict(granted=True,claimed_at=now)
+
+
+def record_batch(database, version_id, user_id, payload, *, clock=None, live=False):
     allowed = {'session_id', 'sequence', 'active', 'current_page', 'pages'}
     if set(payload) != allowed or type(payload['active']) is not bool:
         raise ReadingError('Invalid reading batch fields.')
@@ -154,6 +176,8 @@ def record_batch(database, version_id, user_id, payload, *, clock=None):
         budget = min(MAX_BATCH_MS, max(0, int((now - lease['received_at']) * 1000))) if owns else 0
         factor = min(1, budget / requested) if requested else 0
         accepted, new_pages, new_read, furthest = 0, 0, 0, 0
+        updates=[]
+        previous_total=c.execute('SELECT active_ms FROM reading_totals WHERE version_id=? AND user_id=?',(version_id,user_id)).fetchone()
         for page, visit, ms, words in normalized:
             amount = math.floor(ms * factor)
             if amount <= 0:
@@ -176,6 +200,12 @@ def record_batch(database, version_id, user_id, payload, *, clock=None):
                       (version_id, user_id, page, word_count, total, first, stamp, read_at,
                        (old['visit_count'] if old else 0) + inserted))
             accepted += amount
+            if live:
+                updates.append(dict(page_number=page,active_ms=total,word_count=word_count,
+                    first_visited=first,last_visited=stamp,read_at=read_at,
+                    visit_count=(old['visit_count'] if old else 0)+inserted,
+                    threshold_ms=threshold_ms(word_count) if word_count is not None else None,
+                    state='read' if read_at else 'partial',delta_ms=amount,new_read=bool(read_at and not (old and old['read_at']))))
             new_pages += int(old is None)
             furthest = max(furthest, page)
         if accepted:
@@ -185,7 +215,11 @@ def record_batch(database, version_id, user_id, payload, *, clock=None):
                 pages_read=pages_read+excluded.pages_read,furthest_page=max(furthest_page,excluded.furthest_page),
                 last_page=excluded.last_page,last_activity=excluded.last_activity''',
                       (version_id, user_id, accepted, new_pages, new_read, furthest, current or furthest, stamp, stamp))
-        granted = bool(payload['active'] and (owns or not lease or lease['expires_at'] < now))
+        # Socket clients acquire only on a foreground interaction, never by
+        # repeatedly heartbeating an older tab/device after the winner expires.
+        granted = bool(payload['active'] and (owns or
+            (live and lease and lease['session_id']==session['session_id']) or
+            (not live and (not lease or lease['expires_at'] < now))))
         if granted:
             c.execute('''INSERT INTO reading_leases VALUES(?,?,?,?,?) ON CONFLICT(user_id) DO UPDATE SET
                 session_id=excluded.session_id,received_at=excluded.received_at,expires_at=excluded.expires_at,current_page=excluded.current_page''',
@@ -195,7 +229,15 @@ def record_batch(database, version_id, user_id, payload, *, clock=None):
             # acquires with an empty batch and cannot backfill the previous time.
             c.execute('UPDATE reading_leases SET received_at=?,expires_at=?,current_page=NULL WHERE user_id=?', (now, now - .001, user_id))
         c.execute('UPDATE reading_sessions SET last_seq=?,updated_at=? WHERE session_id=?', (seq, stamp, session['session_id']))
-        return dict(sequence=seq, granted=granted, accepted_ms=accepted, duplicate=False)
+        result=dict(sequence=seq, granted=granted, accepted_ms=accepted, duplicate=False)
+        if live:
+            total=c.execute('SELECT * FROM reading_totals WHERE version_id=? AND user_id=?',(version_id,user_id)).fetchone()
+            user=c.execute('SELECT display_name,review_color FROM users WHERE user_id=?',(user_id,)).fetchone()
+            totals=dict(total) if total else dict(active_ms=0,pages_read=0,pages_visited=0,furthest_page=0,last_page=None,last_activity=None)
+            result['activity']=dict(reader_id=user_id,previous_total_ms=previous_total['active_ms'] if previous_total else 0,
+                totals=totals,pages=updates,reader=dict(user_id=user_id,**dict(user),**{k:v for k,v in totals.items() if k not in ('user_id','version_id')},
+                page_count=state['page_count'],status=state['status'],online=granted,current_page=current if granted else None))
+        return result
 
 
 def section_ranges(c, version_id):

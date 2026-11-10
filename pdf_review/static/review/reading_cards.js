@@ -4,7 +4,7 @@ import { jsonRequest } from './thread_api.js';
 
 function node(tag,text,cls='') {const e=document.createElement(tag);if(text!==undefined)e.textContent=text;e.className=cls;return e;}
 function button(text,fn,cls='') {const b=node('button',text,cls);b.type='button';b.onclick=fn;return b;}
-function duration(ms) {const seconds=Math.floor(ms/1000),minutes=Math.floor(seconds/60);return minutes>=60?`${Math.floor(minutes/60)}h ${minutes%60}m`:minutes?`${minutes}m`: `${seconds}s`;}
+function duration(ms) {const seconds=Math.floor(ms/1000),minutes=Math.floor(seconds/60);return minutes>=60?`${Math.floor(minutes/60)}h ${minutes%60}m ${seconds%60}s`:minutes?`${minutes}m ${seconds%60}s`: `${seconds}s`;}
 function when(value) {return value?new Date(value).toLocaleString(undefined,{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}):'No recorded activity';}
 function color(reader) {return /^#[0-9a-f]{6}$/i.test(reader?.review_color)?reader.review_color:'#4e79a7';}
 function percent(reader) {return reader?.page_count?Math.round(reader.pages_read/reader.page_count*100):0;}
@@ -100,6 +100,10 @@ export class ReadingCards {
     return this.refreshRunning;
   }
   attachRealtime(socket) {
+    this.tracker.attachRealtime(socket);
+    socket.on('reading.activity',event=>{
+      if(event?.schema_version===1&&event.version_id===this.config.versionId)this.applyActivity(event.activity);
+    });
     socket.on('reading.changed',event=>{
       if(event?.schema_version===1&&event.version_id===this.config.versionId)this.requestRefresh();
     });
@@ -114,6 +118,37 @@ export class ReadingCards {
     });
     socket.on('connect',()=>{this.positions=null;this.requestRefresh();});
     socket.on('disconnect',()=>{this.positions=new Map();this.scheduleRender();});
+  }
+  applyActivity(activity) {
+    if(!activity||!this.tracker.summary)return;
+    const reader=this.tracker.summary.readers.find(r=>r.user_id===activity.reader_id);
+    if(!reader){this.requestRefresh();return;}
+    const previous=reader.active_ms||0,total=activity.totals.active_ms;
+    if(total<previous)return; // Ignore stale messages, including another socket's delayed emit.
+    Object.assign(reader,activity.reader);
+    if(previous!==activity.previous_total_ms&&total!==previous){this.requestRefresh();return;}
+    if(this.detail?.reader_id===activity.reader_id){
+      const old=this.detail.totals.active_ms||0;
+      if(old!==activity.previous_total_ms&&old!==total){this.requestRefresh();return;}
+      this.detail.totals={...activity.totals};
+      if(old!==total)for(const page of activity.pages)for(const section of this.detail.sections){
+        const overlap=Math.max(0,Math.min(section.end,page.page_number)-Math.max(section.start,page.page_number-1));
+        if(!overlap)continue;
+        section.active_ms+=page.delta_ms*overlap;
+        if(page.new_read)section.pages_read++;
+        section.percentage=section.page_count?Math.round(1000*section.pages_read/section.page_count)/10:0;
+        section.is_read=!!section.page_count&&section.pages_read*100>90*section.page_count;
+      }
+      // Patch loaded page windows in place; collapsed/unloaded groups still use
+      // their normal bounded canonical fetch when opened.
+      for(const pages of [this.detail.pages,...[...this.windows.values()].map(w=>w.pages)]){
+        for(const page of activity.pages){
+          const row=pages.find(p=>p.page_number===page.page_number);
+          if(row&&page.active_ms>=row.active_ms)Object.assign(row,page);
+        }
+      }
+    }
+    this.scheduleRender();
   }
   scheduleRender(){
     if(this.renderPending||(!this.spine.element.isConnected&&!this.analytics.element.isConnected))return;
@@ -259,6 +294,7 @@ export class ReadingCards {
     try {
       const result=await jsonRequest(`${this.tracker.url}/readers/${encodeURIComponent(selected)}`);
       if(this.selected!==selected)return;
+      if(this.detail?.reader_id===selected&&(this.detail.totals.active_ms||0)>(result.totals.active_ms||0))return;
       this.detail=result;
       for(const data of this.windows.values())data.stale=true;
       this.analyticsError.textContent='';this.render();
@@ -359,6 +395,10 @@ export class ReadingCards {
           pages.push(...result.pages);
         }
         if(this.windows.get(key)!==data)return;
+        for(const page of pages){
+          const live=data.pages.find(p=>p.page_number===page.page_number);
+          if(live&&live.active_ms>page.active_ms)Object.assign(page,live);
+        }
         data.pages=more?[...data.pages,...pages]:pages;
         const last=data.pages.at(-1)?.page_number;
         data.next=last<section.end_page?last+1:null;

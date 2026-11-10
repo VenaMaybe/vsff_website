@@ -37,16 +37,16 @@ def run_reading(cdp,a,b,fixture,base):
     assert sum(r['ms'] for r in result if r['page']==1)==500,result
     assert sum(r['ms'] for r in result if r['page']==2)==1500,result
     gates=ev("""(async()=>{const {ReadingTracker}=await import('/static/review/reading_tracker.js');
-      const t={tracking:{status:'active'},policy:{idle_seconds:60},lastInput:100,connected:()=>true};
+      const t={tracking:{status:'active'},policy:{idle_seconds:300},lastInput:100,connected:()=>true};
       const hidden=Object.getOwnPropertyDescriptor(document,'hidden'),focused=Object.getOwnPropertyDescriptor(document,'hasFocus');
       const set=(name,value)=>Object.defineProperty(document,name,{configurable:true,value});
       try{set('hidden',false);set('hasFocus',()=>true);const check=()=>ReadingTracker.prototype.active.call(t,1000),r=[check()];
         set('hidden',true);r.push(check());set('hidden',false);set('hasFocus',()=>false);r.push(check());
-        set('hasFocus',()=>true);t.lastInput=-61000;r.push(check());t.lastInput=100;t.connected=()=>false;r.push(check());
+        set('hasFocus',()=>true);t.lastInput=-61000;r.push(check());t.lastInput=-301000;r.push(check());t.lastInput=100;t.connected=()=>false;r.push(check());
         t.connected=()=>true;t.tracking.status='paused';r.push(check());return r;
       }finally{for(const [name,descriptor] of [['hidden',hidden],['hasFocus',focused]]){if(descriptor)Object.defineProperty(document,name,descriptor);else delete document[name];}}
     })()""")
-    assert gates==[True,False,False,False,False,False],gates
+    assert gates==[True,False,False,True,False,False,False],gates
     url=f"/api/versions/{fixture['versions'][0]}/reading"
     assert request(cdp,a,url)['data']['tracking']['status']=='active'
     ev("document.querySelector('[data-left-card=reading]').click();document.querySelector('[data-left-card=analytics]').click()")

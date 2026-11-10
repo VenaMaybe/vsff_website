@@ -1,4 +1,4 @@
-"""Ephemeral version rooms and presence; permanent writes belong to HTTP services."""
+"""Version rooms, presence and acknowledged reading writes through shared services."""
 
 from threading import RLock
 from uuid import uuid4
@@ -158,6 +158,49 @@ def init_realtime(app):
             remove(request.sid)
         app.logger.debug("Review socket disconnected: %s", request.sid)
 
+    @socketio.on('reading.session')
+    @socketio.on('reading.claim')
+    @socketio.on('reading.batch')
+    def reading_message(payload=None):
+        import hmac,json
+        from flask import session
+        from . import reading
+        from .access import AccessDenied
+        try:
+            valid=isinstance(payload,dict) and len(json.dumps(payload).encode())<=16384
+        except (TypeError,ValueError):valid=False
+        if not valid:
+            return dict(ok=False,error='Invalid reading message.')
+        token=payload.get('csrf_token')
+        if not isinstance(token,str) or not hmac.compare_digest(token.encode(),session.get('csrf_token','').encode()):
+            return dict(ok=False,error='Invalid CSRF token.')
+        entry=presence.connections.get(request.sid)
+        user=current_user()
+        if not entry or user is None or payload.get('version_id')!=entry['version_id']:
+            return dict(ok=False,error='Join an authorized version first.')
+        version_id=entry['version_id'];uid=user['user_id'];data=payload.get('data')
+        if not isinstance(data,dict):return dict(ok=False,error='Invalid reading data.')
+        try:
+            kind=request.event['message']
+            if kind=='reading.session':
+                if set(data)!={'generation','page_count'}:raise reading.ReadingError('Invalid session fields.')
+                result=reading.start_session(app.config['DATABASE'],version_id,uid,**data)
+            elif kind=='reading.claim':
+                if set(data)!={'session_id'}:raise reading.ReadingError('Invalid claim fields.')
+                result=reading.claim_session(app.config['DATABASE'],version_id,uid,**data)
+                # No activity crosses documents here; only stop this user's old
+                # tab/device. Heartbeats cannot claim ownership back.
+                with presence.lock:
+                    recipients=[sid for sid,e in presence.connections.items() if e['user']['user_id']==uid]
+                for sid in recipients:socketio.emit('reading.owner',dict(session_id=data['session_id'],claimed_at=result['claimed_at']),to=sid)
+            else:
+                result=reading.record_batch(app.config['DATABASE'],version_id,uid,data,live=True)
+                activity=result.pop('activity',None)
+                if activity:notify_reading_changed(version_id,uid,activity)
+            return dict(ok=True,result=result)
+        except (AccessDenied,LookupError,reading.ReadingError,ValueError,TypeError) as error:
+            return dict(ok=False,error=str(error))
+
     return socketio
 
 
@@ -254,10 +297,10 @@ def notify_user_presentation_changed(user_id):
         current_app.logger.exception('Committed presentation invalidation failed')
 
 
-def notify_reading_changed(version_id, reader_id=None):
-    """Committed reading invalidation to eligible owners and the reader only.
+def notify_reading_changed(version_id, reader_id=None, activity=None):
+    """Committed activity goes only to currently eligible owners and its reader.
 
-    No reading data travels in the event; canonical HTTP reads recheck access.
+    Ordinary HTTP writes/policy changes retain canonical-read invalidations.
     Policy changes reach everyone in the version so closed tools also stop timing.
     """
     try:
@@ -271,8 +314,9 @@ def notify_reading_changed(version_id, reader_id=None):
                     if entry['version_id']==version_id and
                     (reader_id is None or entry['user']['user_id']==reader_id or entry['user']['user_id'] in owners)]
             for sid in recipients:
-                current_app.extensions['socketio'].emit('reading.changed',
-                    {'schema_version':1,'version_id':version_id},to=sid)
+                event={'schema_version':1,'version_id':version_id}
+                if activity is not None:event['activity']=activity
+                current_app.extensions['socketio'].emit('reading.activity' if activity is not None else 'reading.changed',event,to=sid)
         finally:
             c.close()
     except Exception:

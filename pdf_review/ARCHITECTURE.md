@@ -1003,13 +1003,19 @@ not itself persist viewing time. `reading_clock.js` owns monotonic eligible-time
 `reading_tracker.js` owns visibility/focus/idle/connectivity gates, PDF.js counts
 and batched transport. No zoom, native touch, page layout or gesture code changes.
 One spread shares elapsed time by visible area. Active sampling requires a recent
-interaction, settled scrolling and a user-wide server lease. Timer suspension and
+interaction within five minutes and a user-wide server lease. Scrolling introduces
+no pause. The clock is seeded on acquisition and sampled every 250ms; timer gaps
+over 2.5 seconds are discarded. Timer suspension and
 offline periods never backfill time.
 
-HTTP batches normally arrive every 15 seconds, with sequenced idempotency and a
+Acknowledged Socket.IO batches normally arrive every second, with sequenced idempotency and a
 single transactional server receipt-time budget bounded at 20 seconds. The global
 25-second reader lease excludes simultaneous full-rate accumulation across tabs,
-versions and devices. Cumulative page/reader totals update incrementally; visit
+versions and devices. Explicit foreground claims transfer immediately to the
+last interacted tab/device; older heartbeats cannot steal ownership back. Socket
+mutations bind the joined version and server session identity, validate CSRF,
+and recheck account, document access and tracking policy on every write. HTTP
+remains the lifecycle keepalive release path. Cumulative page/reader totals update incrementally; visit
 rows update per session/visit/page. Client timing, metadata and inferred completion
 remain approximate. Policy is centralized at 400 words/minute and a 5-second page
 minimum; considered-read timestamps are separate from measured time.
@@ -1026,8 +1032,10 @@ Completion as the default for old/absent/invalid preferences. Tracking, completi
 thresholds and server data are unchanged.
 
 The reading summary pages at 100 readers, per-page detail at 50 rows by default
-(100 max). Committed batches send targeted, content-free `reading.changed` WebSocket
-invalidations to authorized authors and the reader. Policy changes reach all
+(100 max). Committed socket batches send targeted `reading.activity` totals and
+page increments to authorized authors and the reader, patching retained card
+rows/section values without polling each tick. Duplicates/older totals are ignored;
+gaps fall back to canonical reads. HTTP writes retain `reading.changed` invalidations. Policy changes reach all
 viewers across versions; live positions reuse presence. A 30-second open-card
 poll and reconnect refresh remain recovery paths; page-only windows
 skip section aggregate work. Section prefix sums and canonical boundary fractions

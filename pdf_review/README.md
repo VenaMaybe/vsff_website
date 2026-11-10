@@ -167,8 +167,11 @@ section feedback. See [BETA_C2_REPORT.md](BETA_C2_REPORT.md) for the audit and c
   On/Off and per-reader Pause in **Tools > Settings**; changes apply across
   PDF versions and retain past history. Both reading cards are available to readers,
   who see only their own analytics. Authors can inspect eligible document readers.
-  WebSocket notifications refresh saved activity after each 15-second batch; live
-  positions reuse presence. Completion uses PDF.js word counts at 400 words/minute
+  Acknowledged WebSocket batches save and update activity about every second;
+  only changed values are patched in open cards. Tracking starts immediately
+  after foreground session acquisition, counts scrolling with no pause, and uses
+  a five-minute idle cutoff. The last interacted tab/device owns the single time
+  budget. Live positions reuse presence. Completion uses PDF.js word counts at 400 words/minute
   with a 5-second minimum. Spreads share one measured time budget.
   Time tracker > Sections defaults to **Completion** bars (pages considered read)
   and can switch to **Dwell time** bars. The metric choice is remembered for this

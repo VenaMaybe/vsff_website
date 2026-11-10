@@ -118,13 +118,15 @@ Policy constants live centrally in `review/reading.py` and are returned to the
 client. Read timestamps are sticky; a future estimation-policy change should
 explicitly rebuild derived completion values rather than silently reinterpret them.
 
-The client uses `performance.now()` and one-second samples. Eligibility requires
-author-enabled tracking, visible/focused document, recent input (60-second idle cutoff), online
-status, joined realtime connection and a valid reading lease. Scrolling plus the
-following 600ms, page/pair changes and timer gaps over 2.5 seconds are excluded.
+The client uses `performance.now()` and 250ms samples. Eligibility requires
+author-enabled tracking, visible/focused document, recent input (five-minute idle cutoff), online
+status, joined realtime connection and a valid reading lease. Timing is seeded
+immediately after lease acquisition, with no scroll settling delay. Same-page
+scrolling continues accumulating time; crossing a page/pair boundary starts a
+new sample interval. Timer gaps over 2.5 seconds are still excluded.
 Hidden/focus/pagehide lifecycle events stop/reset timing and attempt a final
 release. Background suspension never produces catch-up time. Slow continuous
-scrolling, conservative idle detection and lost updates can underestimate time.
+reading without input beyond five minutes and lost updates can underestimate time.
 
 `presence.js::viewingPages` factors the existing live-avatar page/spread logic into
 one shared source, as requested. Only that current page/adjacent pair participates,
@@ -162,32 +164,42 @@ erDiagram
     users ||--o| reading_leases : limits_parallel_time
 ```
 
-The client normally batches every 15 seconds, at most 32 visit rows/16KB.
+The client normally sends acknowledged Socket.IO batches every second, at most
+32 visit rows/16KB. `reading.session`, `reading.claim`, and `reading.batch` use the
+same transactional services as HTTP, with fresh account/document authorization,
+joined-version binding, CSRF checks and server-derived reader identity.
 Sequences make duplicate delivery idempotent. Invalid/out-of-order or stale
 sessions fail. A single SQLite write transaction updates visits, page/reader
 totals and the lease watermark. Accepted batch time is bounded by 20 seconds and
 the elapsed server receipt window, whichever is smaller. Overclaimed allocations
 are proportionally clamped. A 25-second exclusive global lease prevents concurrent
 full-rate accumulation by one reader, including different versions/devices.
-An abandoned lease may delay a successor until expiry; release normally avoids it.
+A foreground interaction claims immediately, notifying only that user's other
+tabs/devices via `reading.owner`; older heartbeats cannot take ownership back.
+An expired current owner can renew, but cannot backfill the suspended interval.
 
 Page counts and word counts are bounded browser observations, not a new trusted
 server PDF parser or forensic measurement. They cannot change another reader's
 thresholds; every record is tied to an immutable version FK. No OCR, persistent
 PDF caching, offline queue, service worker or reconnect replay is added. Failed
 updates discard unacknowledged in-memory timing. Crash/background shutdown or
-disconnection can lose the last batch (normally up to 15 seconds). Visit/read
+disconnection can lose pending/unacknowledged timing (normally about one second;
+longer during a failed acknowledgement). HTTP keepalive remains the final
+page-hide/blur release path. Visit/read
 dates are **server batch-receipt timestamps**, not exact first-view timestamps.
-Visit indices identify stable active viewing bouts; resuming after a scroll or
-idle pause can produce a new bout on the same page without increasing pages visited.
+Visit indices identify stable active viewing bouts; resuming after an idle pause
+can produce a new bout on the same page without increasing pages visited.
 
 Summaries use incrementally maintained totals and at most 100 readers per page.
-After committed batches, `reading.changed` WebSocket invalidations go only to
-currently authorized authors and the affected reader; the payload contains no
-reader identity or analytics. Open cards fetch canonical data immediately. Policy
+After committed socket batches, `reading.activity` goes only to currently
+authorized authors and the affected reader. It contains authoritative reader
+totals and changed page rows, with increments for fractional section aggregates.
+Cards patch retained DOM rows without a per-second HTTP fetch. Monotonic totals
+reject stale/duplicate updates; missing increments trigger a canonical refresh.
+HTTP batches and policy writes retain `reading.changed` invalidations. Policy
 changes notify everyone on every affected version, even with tools closed, so
 tracking stops promptly. Presence moves reader markers immediately. Persisted time
-and completion update after 15-second batches, not on every second. A 30-second
+and completion update about every second, including seconds in duration readouts. A 30-second
 visible/open-card poll remains as recovery. Reconnect also refreshes policy. Page lists use 50-row windows (server maximum 100). Section calculations
 use ordered page prefix sums and canonical boundary fractions; page-only requests
 skip rebuilding them. A shared page's time is apportioned by section fraction.

@@ -247,4 +247,66 @@ class ReadingTests(unittest.TestCase):
         self.assertEqual((result['pages_read'],result['page_count'],result['percentage'],result['is_read']),(1,2,50,False))
 
 
+    def test_latest_interaction_claims_immediately_without_heartbeat_takeback(self):
+        self.assertEqual(reading.policy()['idle_seconds'],300)
+        self.assertEqual(reading.policy()['batch_seconds'],1)
+        first=self.session();second=self.session(version=self.draft4)
+        def batch(sid,version,sequence,now):
+            return reading.record_batch(self.database,version,self.user,dict(session_id=sid,sequence=sequence,
+                active=True,current_page=1,pages=[self.page(1,1000)]),clock=now,live=True)
+        reading.claim_session(self.database,self.version,self.user,first,clock=1000)
+        self.assertEqual(batch(first,self.version,1,1001)['accepted_ms'],1000)
+        reading.claim_session(self.database,self.draft4,self.user,second,clock=1001)
+        self.assertEqual(batch(first,self.version,2,1002)['accepted_ms'],0)
+        self.assertEqual(batch(second,self.draft4,1,1002)['accepted_ms'],1000)
+        # Even expiration cannot make an older tab reclaim without fresh input.
+        rejected=batch(first,self.version,3,1040)
+        self.assertFalse(rejected['granted']);self.assertEqual(rejected['accepted_ms'],0)
+        reading.claim_session(self.database,self.version,self.user,first,clock=1040)
+        self.assertEqual(batch(first,self.version,4,1041)['accepted_ms'],1000)
+        with self.assertRaises(reading.ReadingError):reading.claim_session(self.database,self.version,self.beta['user_id'],first,clock=1042)
+
+    def test_socket_reading_writes_acknowledge_and_keep_activity_private(self):
+        io=self.app.extensions['socketio']
+        owner=io.test_client(self.app,flask_test_client=self.http)
+        reader=io.test_client(self.app,flask_test_client=self.other)
+        another=io.test_client(self.app,flask_test_client=self.http)
+        try:
+            for socket,version in [(owner,self.version),(reader,self.version),(another,self.draft4)]:
+                self.assertTrue(socket.emit('review.join',{'version_id':version},callback=True)['ok'])
+            def send(socket,kind,data,**extra):
+                return socket.emit('reading.'+kind,dict(version_id=self.version,csrf_token='fixture-csrf-token',data=data,**extra),callback=True)
+            self.assertFalse(owner.emit('reading.session',dict(version_id=self.version,data=dict(generation=1,page_count=10)),callback=True)['ok'])
+            self.assertFalse(send(another,'session',dict(generation=1,page_count=10))['ok'])
+            session=send(reader,'session',dict(generation=1,page_count=10))['result']['session_id']
+            self.assertTrue(send(reader,'claim',dict(session_id=session))['ok'])
+            for socket in (owner,reader,another):socket.get_received()
+            # A known receipt window avoids wall-clock sleeps in the service test.
+            import time
+            with transaction(self.database) as c:c.execute('UPDATE reading_leases SET received_at=? WHERE user_id=?',(time.time()-1,self.beta['user_id']))
+            payload=dict(session_id=session,sequence=1,active=True,current_page=1,pages=[self.page(1,1000)])
+            result=send(reader,'batch',payload)
+            self.assertTrue(result['ok']);self.assertEqual(result['result']['accepted_ms'],1000)
+            for socket in (owner,reader):
+                events=[e['args'][0] for e in socket.get_received() if e['name']=='reading.activity']
+                self.assertEqual(len(events),1)
+                self.assertEqual(events[0]['activity']['totals']['active_ms'],1000)
+                self.assertEqual(events[0]['activity']['pages'][0]['delta_ms'],1000)
+            self.assertFalse(any(e['name']=='reading.activity' for e in another.get_received()))
+            duplicate=send(reader,'batch',payload)
+            self.assertEqual(duplicate['result']['accepted_ms'],0)
+            # A reader never receives the author's private activity.
+            sid=send(owner,'session',dict(generation=1,page_count=10))['result']['session_id']
+            send(owner,'claim',dict(session_id=sid))
+            reader.get_received()
+            send(owner,'batch',dict(session_id=sid,sequence=1,active=True,current_page=1,pages=[]))
+            self.assertFalse(any(e['name']=='reading.activity' for e in reader.get_received()))
+            # Membership/account access is rechecked on every write.
+            with transaction(self.database) as c:c.execute('DELETE FROM document_access WHERE user_id=?',(self.beta['user_id'],))
+            self.assertFalse(send(reader,'batch',{**payload,'sequence':2})['ok'])
+        finally:
+            for socket in (owner,reader,another):
+                if socket.is_connected():socket.disconnect()
+
+
 if __name__=='__main__':unittest.main()
